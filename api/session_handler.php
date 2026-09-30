@@ -1,5 +1,5 @@
 <?php
-require_once 'koneksi.php';
+require_once __DIR__ . '/koneksi.php';
 
 class DatabaseSessionHandler implements SessionHandlerInterface {
     private $pdo;
@@ -17,37 +17,53 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
     }
 
     public function read($id): string|false {
-        $stmt = $this->pdo->prepare("SELECT data FROM sessions WHERE id = :id");
-        $stmt->execute([':id' => $id]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->pdo->prepare("SELECT data FROM sessions WHERE id = :id");
+            $stmt->execute([':id' => $id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $row ? $row['data'] : '';
+            return $row ? (string)$row['data'] : '';
+        } catch (Exception $e) {
+            return '';
+        }
     }
 
     public function write($id, $data): bool {
-        $access = time();
-        $stmt = $this->pdo->prepare("REPLACE INTO sessions (id, data, last_accessed) VALUES (:id, :data, :access)");
-        return $stmt->execute([
-            ':id' => $id,
-            ':data' => $data,
-            ':access' => $access
-        ]);
+        try {
+            $access = time();
+            $stmt = $this->pdo->prepare("REPLACE INTO sessions (id, data, last_accessed) VALUES (:id, :data, :access)");
+            return $stmt->execute([
+                ':id' => $id,
+                ':data' => $data,
+                ':access' => $access
+            ]);
+        } catch (Exception $e) {
+            return false;
+        }
     }
 
     public function destroy($id): bool {
-        $stmt = $this->pdo->prepare("DELETE FROM sessions WHERE id = :id");
-        return $stmt->execute([':id' => $id]);
+        try {
+            $stmt = $this->pdo->prepare("DELETE FROM sessions WHERE id = :id");
+            return $stmt->execute([':id' => $id]);
+        } catch (Exception $e) {
+            return false;
+        }
     }
 
     public function gc($maxlifetime): int|false {
-        $old = time() - $maxlifetime;
-        $stmt = $this->pdo->prepare("DELETE FROM sessions WHERE last_accessed < :old");
-        $stmt->execute([':old' => $old]);
-        return $stmt->rowCount();
+        try {
+            $old = time() - $maxlifetime;
+            $stmt = $this->pdo->prepare("DELETE FROM sessions WHERE last_accessed < :old");
+            $stmt->execute([':old' => $old]);
+            return $stmt->rowCount();
+        } catch (Exception $e) {
+            return false;
+        }
     }
 }
 
-// Inisialisasi Database Session Handler
+// Inisialisasi Database Session Handler dengan PDO dari koneksi.php
 if (isset($pdo)) {
     $handler = new DatabaseSessionHandler($pdo);
     session_set_save_handler($handler, true);
