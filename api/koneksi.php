@@ -4,16 +4,15 @@ $user = "avnadmin";
 $pass = "AVNS_k7QBEewzSPdzhVp8CAg"; // Isi dengan password Aiven Anda
 $db   = "defaultdb";
 $port = 22147;
-
-$dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
-$options = [
-    PDO::MYSQL_ATTR_SSL_CA => true,
-    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-];
-
 try {
-    $conn = new PDO($dsn, $user, $pass, $options);
+    $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
+    
+    $pdo = new PDO($dsn, $user, $password, [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES   => false,
+    ]);
 } catch (PDOException $e) {
-    die("Koneksi gagal: " . $e->getMessage());
+    die("Koneksi Database Gagal: " . $e->getMessage());
 }
+?>
