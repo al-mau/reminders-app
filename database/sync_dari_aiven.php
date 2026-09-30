@@ -185,6 +185,17 @@ foreach ($tabelDisalin as $tabel) {
 
     $rows = $aiven->query("SELECT * FROM `$tabel`")->fetchAll(PDO::FETCH_ASSOC);
 
+    // Pengaman: jangan timpa backup lokal yang berisi data dengan tabel Aiven yang kosong
+    // (misal service Aiven baru dibuat ulang setelah trial habis).
+    if (!$rows) {
+        $adaLokal = $lokal->query('SHOW TABLES LIKE ' . $lokal->quote($tabel))->fetchColumn();
+        $jumlahLokal = $adaLokal ? (int) $lokal->query("SELECT COUNT(*) FROM `$tabel`")->fetchColumn() : 0;
+        if ($jumlahLokal > 0) {
+            tulis("Lewati `$tabel`: tabel di Aiven KOSONG, data lokal ($jumlahLokal baris) tidak ditimpa.");
+            continue;
+        }
+    }
+
     try {
         $lokal->exec("DROP TABLE IF EXISTS `$tabel`");
         $lokal->exec($create);
