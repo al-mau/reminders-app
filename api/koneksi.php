@@ -49,11 +49,12 @@ if (!isset($pdo)) {
     $port     = (int) env('DB_PORT', 3306);
     $dbname   = env('DB_NAME', 'defaultdb');
     $user     = env('DB_USER');
-    $password = env('DB_PASSWORD');
+    // Password boleh kosong (misal user root bawaan XAMPP)
+    $password = (string) env('DB_PASSWORD', '');
 
-    if (!$host || !$user || $password === null) {
+    if (!$host || !$user) {
         http_response_code(500);
-        error_log('Konfigurasi database belum lengkap (DB_HOST / DB_USER / DB_PASSWORD).');
+        error_log('Konfigurasi database belum lengkap (DB_HOST / DB_USER).');
         die('Konfigurasi database belum diatur. Set DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD di Environment Variables.');
     }
 

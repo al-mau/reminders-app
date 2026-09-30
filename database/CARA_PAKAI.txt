@@ -1,0 +1,46 @@
+CARA MEMASANG DATABASE REMINDERS APP DI XAMPP
+===============================================
+
+Isi folder ini:
+  - reminders_db.sql       : file database (tabel users, deadline, sessions + 3 contoh data)
+  - import_ke_xampp.bat    : klik 2x untuk import otomatis
+  - schema.sql             : skema untuk Aiven (dipakai versi online, tidak perlu disentuh)
+
+PENTING: Folder ini TIDAK di-paste ke C:\xampp\mysql\data.
+Menyalin folder langsung ke sana akan membuat tabel rusak / error
+"Table doesn't exist in engine". Gunakan salah satu cara di bawah.
+
+
+CARA 1 - OTOMATIS (paling mudah)
+--------------------------------
+1. Buka XAMPP Control Panel, klik START pada Apache dan MySQL.
+2. Klik 2x file "import_ke_xampp.bat".
+3. Tekan tombol apa saja, tunggu sampai muncul [BERHASIL].
+
+
+CARA 2 - LEWAT phpMyAdmin
+-------------------------
+1. Buka XAMPP Control Panel, klik START pada Apache dan MySQL.
+2. Buka browser: http://localhost/phpmyadmin
+3. Klik tab "Import" (menu atas).
+4. Klik "Choose File" / "Pilih File", pilih "reminders_db.sql".
+5. Scroll ke bawah, klik "Import" / "Go".
+6. Database "reminders_db" muncul di panel kiri.
+
+
+SETELAH DATABASE TERPASANG
+--------------------------
+1. Copy seluruh folder project "reminders-app" ke C:\xampp\htdocs\
+2. Di dalam folder reminders-app, copy file ".env.xampp.example"
+   lalu ganti namanya menjadi ".env"
+3. Buka browser: http://localhost/reminders-app/api/login.php
+4. Klik "Daftar sekarang" untuk membuat akun, lalu login.
+
+
+CATATAN
+-------
+- Database XAMPP ini TERPISAH dari database online (Aiven).
+  Data yang diinput di localhost tidak muncul di website online, dan sebaliknya.
+- Untuk menyalin data ASLI dari Aiven ke XAMPP:
+  DBeaver -> klik kanan database Aiven (defaultdb) -> Tools -> Dump database
+  -> simpan file .sql -> import file itu ke database reminders_db lewat phpMyAdmin.
