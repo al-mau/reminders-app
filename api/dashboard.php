@@ -11,10 +11,25 @@ if (empty($_SESSION['login'])) {
 
 header('Cache-Control: no-cache, no-store, must-revalidate');
 
+pastikanTabelTambahan($pdo);
+
+/** Simpan pesan detail untuk ditampilkan setelah redirect */
+function flash(string $tipe, string $pesan): void
+{
+    $_SESSION['flash'][] = [$tipe, $pesan];
+}
+
 // ===================================================================
 // AKSI (semua perubahan data wajib POST + token CSRF)
 // ===================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Upload melebihi post_max_size -> PHP mengosongkan $_POST
+    if (empty($_POST) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        flash('danger', 'Ukuran upload terlalu besar. Maksimal ' . formatUkuran(LAMPIRAN_MAKS_BYTE) . ' per file.');
+        header("Location: dashboard.php");
+        exit;
+    }
+
     if (!csrf_valid()) {
         header("Location: dashboard.php?status=csrf");
         exit;
@@ -42,6 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($aksi === 'simpan') {
             $stmt = $pdo->prepare("INSERT INTO deadline (kode_unit, nama_unit, tanggal_awal, tanggal_akhir, pengingat) VALUES (?, ?, ?, ?, 'pending')");
             $stmt->execute([$kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir]);
+
+            $files = daftarFileUpload('lampiran');
+            if ($files) {
+                $hasil = simpanLampiran($pdo, (int) $pdo->lastInsertId(), $files, $_SESSION['username'] ?? null);
+                foreach ($hasil['gagal'] as $pesan) {
+                    flash('warning', 'Lampiran tidak disimpan — ' . $pesan);
+                }
+            }
             header("Location: dashboard.php?status=success_add");
         } else {
             // Jika tanggal akhir diubah, reset status pengingat agar cron mengirim ulang
@@ -61,8 +84,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // --- 3. HAPUS DATA ---
     if ($aksi === 'hapus') {
-        $stmt = $pdo->prepare("DELETE FROM deadline WHERE id = ?");
-        $stmt->execute([(int) ($_POST['id'] ?? 0)]);
+        $id = (int) ($_POST['id'] ?? 0);
+        $pdo->prepare("DELETE FROM lampiran WHERE deadline_id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM deadline WHERE id = ?")->execute([$id]);
         header("Location: dashboard.php?status=success_delete");
         exit;
     }
@@ -102,8 +126,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hasil = kirimWhatsApp($pesan);
         if (!$hasil['ok']) {
             $_SESSION['flash_wa_error'] = $hasil['pesan'];
+        } else {
+            flash('success', $hasil['pesan'] . '.');
         }
         header("Location: dashboard.php?status=" . ($hasil['ok'] ? 'wa_sent' : 'wa_failed'));
+        exit;
+    }
+
+    // --- 5. UPLOAD LAMPIRAN KE UNIT YANG SUDAH ADA ---
+    if ($aksi === 'upload_lampiran') {
+        $deadlineId = (int) ($_POST['deadline_id'] ?? 0);
+        $cek = $pdo->prepare("SELECT 1 FROM deadline WHERE id = ?");
+        $cek->execute([$deadlineId]);
+
+        if (!$cek->fetchColumn()) {
+            header("Location: dashboard.php?status=not_found");
+            exit;
+        }
+
+        $files = daftarFileUpload('lampiran');
+        if (!$files) {
+            flash('warning', 'Pilih file yang akan diunggah terlebih dahulu.');
+        } else {
+            $hasil = simpanLampiran($pdo, $deadlineId, $files, $_SESSION['username'] ?? null);
+            if ($hasil['berhasil'] > 0) {
+                flash('success', $hasil['berhasil'] . ' lampiran berhasil diunggah.');
+            }
+            foreach ($hasil['gagal'] as $pesan) {
+                flash('danger', 'Lampiran gagal — ' . $pesan);
+            }
+        }
+        header("Location: dashboard.php?lampiran=$deadlineId");
+        exit;
+    }
+
+    // --- 6. HAPUS LAMPIRAN ---
+    if ($aksi === 'hapus_lampiran') {
+        $stmt = $pdo->prepare("SELECT deadline_id FROM lampiran WHERE id = ?");
+        $stmt->execute([(int) ($_POST['id'] ?? 0)]);
+        $deadlineId = (int) $stmt->fetchColumn();
+
+        $pdo->prepare("DELETE FROM lampiran WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
+        flash('warning', 'Lampiran dihapus.');
+        header("Location: dashboard.php" . ($deadlineId ? "?lampiran=$deadlineId" : ''));
+        exit;
+    }
+
+    // --- 7. KELOLA PENERIMA WA ---
+    if ($aksi === 'tambah_penerima') {
+        $nama  = trim((string) ($_POST['nama'] ?? ''));
+        $nomor = normalisasiNomorWa((string) ($_POST['nomor'] ?? ''));
+
+        if ($nama === '' || strpos($nomor, ',') !== false || !nomorWaValid($nomor)) {
+            flash('danger', 'Nama wajib diisi dan nomor WA harus valid (contoh: 081234567890).');
+        } else {
+            try {
+                $pdo->prepare("INSERT INTO wa_penerima (nama, nomor) VALUES (?, ?)")->execute([function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100), $nomor]);
+                flash('success', "Nomor $nomor ($nama) ditambahkan sebagai penerima WA.");
+            } catch (PDOException $e) {
+                flash('danger', "Nomor $nomor sudah terdaftar.");
+            }
+        }
+        header("Location: dashboard.php#penerima");
+        exit;
+    }
+
+    if ($aksi === 'toggle_penerima') {
+        $pdo->prepare("UPDATE wa_penerima SET aktif = 1 - aktif WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
+        header("Location: dashboard.php#penerima");
+        exit;
+    }
+
+    if ($aksi === 'hapus_penerima') {
+        $pdo->prepare("DELETE FROM wa_penerima WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
+        flash('warning', 'Nomor penerima dihapus.');
+        header("Location: dashboard.php#penerima");
         exit;
     }
 
@@ -196,6 +293,25 @@ foreach ($stmtData->fetchAll() as $row) {
     $data_tampil[]    = $row;
 }
 
+// --- LAMPIRAN UNTUK UNIT YANG TAMPIL (tanpa isi file) ---
+$lampiran_per_unit = [];
+if ($data_tampil) {
+    $ids = array_map(static fn($r) => (int) $r['id'], $data_tampil);
+    $stmtLamp = $pdo->query(
+        "SELECT id, deadline_id, nama_file, ekstensi, ukuran, diunggah_oleh, dibuat_tanggal
+         FROM lampiran WHERE deadline_id IN (" . implode(',', $ids) . ") ORDER BY id"
+    );
+    foreach ($stmtLamp->fetchAll() as $l) {
+        $lampiran_per_unit[(int) $l['deadline_id']][] = $l;
+    }
+}
+$buka_lampiran = (int) ($_GET['lampiran'] ?? 0);
+
+// --- PENERIMA WA ---
+$penerima_list   = $pdo->query("SELECT * FROM wa_penerima ORDER BY id")->fetchAll();
+$penerima_aktif  = count(array_filter($penerima_list, static fn($p) => (int) $p['aktif'] === 1));
+$wa_target_env   = normalisasiNomorWa((string) env('WA_TARGET', ''));
+
 // --- PESAN NOTIFIKASI ---
 $alerts = [
     'success_add'     => ['success', 'Data berhasil disimpan!'],
@@ -211,9 +327,13 @@ $alerts = [
 $status_key = (string) ($_GET['status'] ?? '');
 $alert      = $alerts[$status_key] ?? null;
 $wa_error   = $_SESSION['flash_wa_error'] ?? null;
-unset($_SESSION['flash_wa_error']);
+$flash_list = $_SESSION['flash'] ?? [];
+unset($_SESSION['flash_wa_error'], $_SESSION['flash']);
 
 $qs_base = 'search=' . urlencode($search) . '&filter=' . urlencode($filter);
+
+$accept_lampiran = '.' . implode(',.', array_keys(LAMPIRAN_TIPE));
+$info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LAMPIRAN_MAKS_BYTE) . ' per file.';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -277,6 +397,13 @@ $qs_base = 'search=' . urlencode($search) . '&filter=' . urlencode($filter);
             </div>
         <?php endif; ?>
 
+        <?php foreach ($flash_list as [$tipe, $pesan]): ?>
+            <div class="alert alert-<?= e($tipe); ?> alert-dismissible fade show py-2" role="alert">
+                <?= e($pesan); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endforeach; ?>
+
         <div class="row row-cols-2 row-cols-md-5 g-3 mb-4">
             <div class="col"><div class="card stat-card stat-total p-3"><div class="text-muted small fw-semibold">Total Unit</div><div class="h3 fw-bold text-dark mb-0"><?= $stat_total; ?></div></div></div>
             <div class="col"><div class="card stat-card stat-hari-ini p-3"><div class="text-muted small fw-semibold">Hari Ini</div><div class="h3 fw-bold text-danger mb-0"><?= $stat_hari_ini; ?></div></div></div>
@@ -293,7 +420,7 @@ $qs_base = 'search=' . urlencode($search) . '&filter=' . urlencode($filter);
                         <i class="fa-solid fa-square-plus text-primary me-2"></i> Input Unit & Deadline
                     </div>
                     <div class="card-body">
-                        <form method="POST" action="dashboard.php">
+                        <form method="POST" action="dashboard.php" enctype="multipart/form-data">
                             <?= csrf_field(); ?>
                             <input type="hidden" name="aksi" value="simpan">
                             <div class="mb-3">
@@ -312,9 +439,73 @@ $qs_base = 'search=' . urlencode($search) . '&filter=' . urlencode($filter);
                                 <label class="form-label text-secondary small fw-bold">Tanggal Akhir</label>
                                 <input type="date" name="tanggal_akhir" class="form-control" required>
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label text-secondary small fw-bold">Lampiran Dokumen <span class="fw-normal">(opsional)</span></label>
+                                <input type="file" name="lampiran[]" class="form-control" multiple accept="<?= e($accept_lampiran); ?>">
+                                <div class="form-text"><?= e($info_lampiran); ?></div>
+                            </div>
                             <button type="submit" class="btn btn-primary w-100 mt-2">
                                 <i class="fa-solid fa-floppy-disk me-1"></i> Simpan Data
                             </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card p-3 mt-4" id="penerima">
+                    <div class="card-header bg-transparent mb-2 d-flex justify-content-between align-items-center">
+                        <span><i class="fa-brands fa-whatsapp text-success me-2"></i> Penerima Notifikasi WA</span>
+                        <span class="badge bg-success-subtle text-success"><?= $penerima_aktif; ?> aktif</span>
+                    </div>
+                    <div class="card-body pt-1">
+                        <?php if (!$penerima_list): ?>
+                            <p class="small text-muted mb-3">
+                                Belum ada nomor di sini.
+                                <?php if ($wa_target_env !== ''): ?>
+                                    Saat ini notifikasi dikirim ke nomor dari pengaturan server (<strong><?= e($wa_target_env); ?></strong>).
+                                <?php endif; ?>
+                                Tambahkan nomor di bawah agar bisa dikirim ke lebih dari 1 penerima.
+                            </p>
+                        <?php else: ?>
+                            <ul class="list-group list-group-flush mb-3">
+                                <?php foreach ($penerima_list as $p): $aktif = (int) $p['aktif'] === 1; ?>
+                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-2">
+                                    <div class="<?= $aktif ? '' : 'text-muted text-decoration-line-through'; ?>">
+                                        <div class="fw-semibold small"><?= e($p['nama']); ?></div>
+                                        <div class="small text-secondary">+<?= e($p['nomor']); ?></div>
+                                    </div>
+                                    <div class="d-flex gap-1">
+                                        <form method="POST" action="dashboard.php">
+                                            <?= csrf_field(); ?>
+                                            <input type="hidden" name="aksi" value="toggle_penerima">
+                                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
+                                            <button type="submit" class="btn btn-sm <?= $aktif ? 'btn-outline-secondary' : 'btn-outline-success'; ?>" title="<?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?>">
+                                                <i class="fa-solid <?= $aktif ? 'fa-pause' : 'fa-play'; ?>"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus nomor ini dari penerima WA?')">
+                                            <?= csrf_field(); ?>
+                                            <input type="hidden" name="aksi" value="hapus_penerima">
+                                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+                                        </form>
+                                    </div>
+                                </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+
+                        <form method="POST" action="dashboard.php" class="row g-2">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="tambah_penerima">
+                            <div class="col-12">
+                                <input type="text" name="nama" class="form-control form-control-sm" placeholder="Nama (contoh: Admin Kantor)" maxlength="100" required>
+                            </div>
+                            <div class="col-8">
+                                <input type="tel" name="nomor" class="form-control form-control-sm" placeholder="08xxxxxxxxxx" inputmode="numeric" required>
+                            </div>
+                            <div class="col-4">
+                                <button type="submit" class="btn btn-sm btn-success w-100"><i class="fa-solid fa-plus"></i> Tambah</button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -400,8 +591,19 @@ $qs_base = 'search=' . urlencode($search) . '&filter=' . urlencode($filter);
                                                         <i class="fa-solid fa-pen-to-square"></i>
                                                     </button>
 
+                                                    <?php $jml_lampiran = count($lampiran_per_unit[(int) $row['id']] ?? []); ?>
+                                                    <button type="button" class="btn btn-sm btn-info text-white rounded-circle btn-aksi position-relative"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#modalLampiran<?= (int) $row['id']; ?>"
+                                                            title="Lampiran Dokumen">
+                                                        <i class="fa-solid fa-paperclip"></i>
+                                                        <?php if ($jml_lampiran > 0): ?>
+                                                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary" style="font-size:.6rem"><?= $jml_lampiran; ?></span>
+                                                        <?php endif; ?>
+                                                    </button>
+
                                                     <form method="POST" action="dashboard.php" class="d-inline"
-                                                          onsubmit="return confirm('Apakah Anda yakin ingin menghapus data unit ini?')">
+                                                          onsubmit="return confirm('Apakah Anda yakin ingin menghapus data unit ini beserta lampirannya?')">
                                                         <?= csrf_field(); ?>
                                                         <input type="hidden" name="aksi" value="hapus">
                                                         <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
@@ -503,8 +705,83 @@ $qs_base = 'search=' . urlencode($search) . '&filter=' . urlencode($filter);
     </div>
     <?php endforeach; ?>
 
+    <!-- Modal Lampiran -->
+    <?php foreach ($data_tampil as $row): $lampiran_unit = $lampiran_per_unit[(int) $row['id']] ?? []; ?>
+    <div class="modal fade" id="modalLampiran<?= (int) $row['id']; ?>" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-paperclip text-info me-2"></i> Lampiran: <?= e($row['nama_unit']); ?></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <?php if (!$lampiran_unit): ?>
+                        <p class="text-muted small text-center my-3">Belum ada lampiran untuk unit ini.</p>
+                    <?php else: ?>
+                        <ul class="list-group mb-3">
+                            <?php foreach ($lampiran_unit as $l):
+                                $bisa_dilihat = in_array($l['ekstensi'], ['pdf', 'jpg', 'jpeg', 'png', 'webp'], true); ?>
+                            <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                                <div class="text-truncate">
+                                    <div class="fw-semibold small text-truncate" title="<?= e($l['nama_file']); ?>"><?= e($l['nama_file']); ?></div>
+                                    <div class="text-secondary" style="font-size:.75rem">
+                                        <?= formatUkuran((int) $l['ukuran']); ?> · <?= date('d M Y H:i', strtotime($l['dibuat_tanggal'])); ?>
+                                        <?= $l['diunggah_oleh'] ? '· ' . e($l['diunggah_oleh']) : ''; ?>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-1 flex-shrink-0">
+                                    <?php if ($bisa_dilihat): ?>
+                                        <a href="lampiran.php?id=<?= (int) $l['id']; ?>&lihat=1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Lihat"><i class="fa-solid fa-eye"></i></a>
+                                    <?php endif; ?>
+                                    <a href="lampiran.php?id=<?= (int) $l['id']; ?>" class="btn btn-sm btn-outline-primary" title="Unduh"><i class="fa-solid fa-download"></i></a>
+                                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus lampiran ini?')">
+                                        <?= csrf_field(); ?>
+                                        <input type="hidden" name="aksi" value="hapus_lampiran">
+                                        <input type="hidden" name="id" value="<?= (int) $l['id']; ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+                                    </form>
+                                </div>
+                            </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+
+                    <form method="POST" action="dashboard.php" enctype="multipart/form-data" class="border-top pt-3">
+                        <?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="upload_lampiran">
+                        <input type="hidden" name="deadline_id" value="<?= (int) $row['id']; ?>">
+                        <label class="form-label text-secondary small fw-bold">Tambah Lampiran</label>
+                        <input type="file" name="lampiran[]" class="form-control mb-1" multiple required accept="<?= e($accept_lampiran); ?>">
+                        <div class="form-text mb-2"><?= e($info_lampiran); ?></div>
+                        <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-upload me-1"></i> Unggah</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endforeach; ?>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Buka kembali modal lampiran setelah upload / hapus
+        <?php if ($buka_lampiran > 0): ?>
+        document.addEventListener('DOMContentLoaded', () => {
+            const el = document.getElementById('modalLampiran<?= $buka_lampiran; ?>');
+            if (el) bootstrap.Modal.getOrCreateInstance(el).show();
+        });
+        <?php endif; ?>
+
+        // Tolak file > batas sebelum dikirim (hemat kuota & waktu)
+        document.querySelectorAll('input[type=file][name="lampiran[]"]').forEach((input) => {
+            input.addEventListener('change', () => {
+                const besar = [...input.files].filter((f) => f.size > <?= LAMPIRAN_MAKS_BYTE; ?>);
+                if (besar.length) {
+                    alert('File berikut melebihi <?= formatUkuran(LAMPIRAN_MAKS_BYTE); ?>:\n' + besar.map((f) => f.name).join('\n'));
+                    input.value = '';
+                }
+            });
+        });
+
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
         }

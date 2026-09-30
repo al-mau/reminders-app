@@ -3,7 +3,7 @@
  * Salin data dari database ONLINE (Aiven) ke database LOKAL (MySQL XAMPP).
  *
  * Arah salinan satu arah: Aiven -> XAMPP. Data di XAMPP akan DITIMPA agar
- * sama persis dengan Aiven (tabel users & deadline). Tabel sessions tidak disalin.
+ * sama persis dengan Aiven (users, deadline, wa_penerima, lampiran). Tabel sessions tidak disalin.
  *
  * Script ini berdiri sendiri (tidak butuh folder api/), jadi bisa dijalankan
  * dari folder project maupun dari folder hasil extract zip.
@@ -23,7 +23,7 @@ if (PHP_SAPI !== 'cli') {
 
 date_default_timezone_set('Asia/Jakarta');
 
-$tabelDisalin = ['users', 'deadline'];
+$tabelDisalin = ['users', 'deadline', 'wa_penerima', 'lampiran'];
 
 function tulis(string $pesan): void
 {

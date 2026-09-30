@@ -28,5 +28,27 @@ CREATE TABLE IF NOT EXISTS sessions (
     INDEX idx_last_accessed (last_accessed)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Daftar nomor penerima notifikasi WA (dikelola dari dashboard)
+CREATE TABLE IF NOT EXISTS wa_penerima (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    nama           VARCHAR(100) NOT NULL,
+    nomor          VARCHAR(20)  NOT NULL UNIQUE,
+    aktif          TINYINT(1)   NOT NULL DEFAULT 1,
+    dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Lampiran dokumen per unit (file disimpan di database, maks 2 MB per file)
+CREATE TABLE IF NOT EXISTS lampiran (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    deadline_id    INT          NOT NULL,
+    nama_file      VARCHAR(255) NOT NULL,
+    ekstensi       VARCHAR(10)  NOT NULL,
+    ukuran         INT UNSIGNED NOT NULL,
+    isi            MEDIUMBLOB   NOT NULL,
+    diunggah_oleh  VARCHAR(50)  NULL,
+    dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_deadline_id (deadline_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Jika tabel sudah ada tapi kolom terakhir_dikirim belum ada, jalankan:
 -- ALTER TABLE deadline ADD COLUMN terakhir_dikirim DATE NULL;
