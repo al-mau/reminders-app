@@ -51,8 +51,9 @@ File: sync_dari_aiven.bat
 Arah salinan: Aiven -> XAMPP (satu arah). Data users & deadline di XAMPP
 akan DIGANTI agar sama persis dengan Aiven.
 
-1. Di file .env (root project), isi AIVEN_DB_PASSWORD dengan password Aiven.
-   (baris AIVEN_DB_* sudah ada di .env.xampp.example)
+1. Buka file .env (di folder project reminders-app) dengan Notepad,
+   isi AIVEN_DB_PASSWORD dengan password Aiven (sama dengan DB_PASSWORD di Vercel).
+   Belum ada .env? Copy .env.xampp.example lalu ganti namanya menjadi .env
 2. START MySQL di XAMPP Control Panel.
 3. Klik 2x "sync_dari_aiven.bat". Tunggu sampai muncul [BERHASIL].
 File .bat otomatis mencari XAMPP di C:, D:, E:, F: (\xampp).

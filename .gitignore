@@ -2,3 +2,5 @@
 .env.local
 .vercel
 database/sync_log.txt
+database/sync_terakhir.txt
+database/.env

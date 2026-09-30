@@ -1,6 +1,5 @@
 @echo off
 title Salin Data Aiven ke XAMPP
-cd /d "%~dp0.."
 
 rem --- Lokasi XAMPP ---
 rem Kosongkan untuk deteksi otomatis. Isi manual jika XAMPP di folder lain,
@@ -26,9 +25,10 @@ echo Pastikan MySQL di XAMPP Control Panel sudah di-START.
 echo Data users dan deadline di XAMPP akan diganti dengan data Aiven.
 echo.
 
-"%PHP%" "database\sync_dari_aiven.php" >> "database\sync_log.txt" 2>&1
+"%PHP%" "%~dp0sync_dari_aiven.php" > "%~dp0sync_terakhir.txt" 2>&1
 set "HASIL=%errorlevel%"
-powershell -NoProfile -Command "Get-Content 'database\sync_log.txt' -Tail 8"
+type "%~dp0sync_terakhir.txt"
+type "%~dp0sync_terakhir.txt" >> "%~dp0sync_log.txt"
 
 echo.
 if "%HASIL%"=="0" (echo [BERHASIL] Data sudah tersalin.) else (echo [GAGAL] Lihat pesan di atas.)
