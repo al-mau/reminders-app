@@ -1,14 +1,9 @@
 <?php
-session_start(); // HARUS dipanggil di baris paling atas
+session_start();
 
 require 'koneksi.php';
 
-// Menyesuaikan variabel koneksi (pakai $conn jika di koneksi.php $conn, atau $koneksi)
-if (isset($conn) && !isset($koneksi)) {
-    $koneksi = $conn;
-}
-
-// Jika sudah login, langsung lempar ke dashboard
+// Jika sudah login, langsung alihkan ke dashboard
 if (isset($_SESSION['login'])) {
     header("Location: dashboard.php");
     exit;
@@ -17,26 +12,30 @@ if (isset($_SESSION['login'])) {
 $error = false;
 
 if (isset($_POST['login'])) {
-    $username = mysqli_real_escape_string($koneksi, $_POST['username']);
+    $username = trim($_POST['username']);
     $password = $_POST['password'];
 
-    // Cek username di database
-    $result = mysqli_query($koneksi, "SELECT * FROM users WHERE username = '$username'");
+    try {
+        // Menggunakan Prepared Statement PDO (Aman dari SQL Injection & Cocok dengan koneksi.php)
+        $stmt = $conn->prepare("SELECT * FROM users WHERE username = :username");
+        $stmt->execute(['username' => $username]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($result && mysqli_num_rows($result) === 1) {
-        $row = mysqli_fetch_assoc($result);
-        
-        // Verifikasi password (password_verify jika di-hash atau perbandingan langsung)
-        if (password_verify($password, $row['password']) || $password === $row['password']) {
-            $_SESSION['login']    = true;
-            $_SESSION['username'] = $row['username'];
-            
-            header("Location: dashboard.php");
-            exit;
+        if ($user) {
+            // Verifikasi password (cocok untuk password ter-hash maupun plain text)
+            if (password_verify($password, $user['password']) || $password === $user['password']) {
+                $_SESSION['login']    = true;
+                $_SESSION['username'] = $user['username'];
+                
+                header("Location: dashboard.php");
+                exit;
+            }
         }
+        
+        $error = true;
+    } catch (PDOException $e) {
+        $error = true;
     }
-    
-    $error = true;
 }
 ?>
 
@@ -111,7 +110,7 @@ if (isset($_POST['login'])) {
 
             <?php if ($error): ?>
                 <div class="alert alert-danger alert-dismissible fade show text-start small py-2 px-3 mb-3" role="alert">
-                    <i class="fa-solid fa-circle-exclamation me-1"></i> Username atau password salah / Koneksi DB bermasalah!
+                    <i class="fa-solid fa-circle-exclamation me-1"></i> Username atau password salah!
                     <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php endif; ?>
