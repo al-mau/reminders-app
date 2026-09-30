@@ -1,9 +1,10 @@
 <?php
-$host = "mysql-1f97f1c1-alifmaulanarangkuti-7650.j.aivencloud.com";
-$user = "avnadmin";
-$pass = "AVNS_k7QBEewzSPdzhVp8CAg"; // Isi dengan password Aiven Anda
-$db   = "defaultdb";
-$port = 22147;
+$host     = "mysql-1f97f1c1-alifmaulanarangkuti-7650.j.aivencloud.com";
+$user     = "avnadmin";
+$password = "AVNS_k7QBEewzSPdzhVp8CAg";
+$dbname   = "defaultdb";
+$port     = 22147;
+
 try {
     $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
     
