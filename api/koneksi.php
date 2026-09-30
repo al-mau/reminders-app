@@ -5,17 +5,15 @@ $pass = "AVNS_k7QBEewzSPdzhVp8CAg"; // Isi dengan password Aiven Anda
 $db   = "defaultdb";
 $port = 22147;
 
-// Inisialisasi koneksi MySQLi
-$koneksi = mysqli_init();
+$dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
+$options = [
+    PDO::MYSQL_ATTR_SSL_CA => true,
+    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+];
 
-// Matikan verifikasi sertifikat SSL agar dapat terhubung dari Vercel
-mysqli_ssl_set($koneksi, NULL, NULL, NULL, NULL, NULL);
-mysqli_options($koneksi, MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, false);
-
-// Lakukan koneksi menggunakan mysqli_real_connect
-$success = mysqli_real_connect($koneksi, $host, $user, $pass, $db, $port, NULL, MYSQLI_CLIENT_SSL);
-
-if (!$success) {
-    die("Koneksi gagal: " . mysqli_connect_error());
+try {
+    $conn = new PDO($dsn, $user, $pass, $options);
+} catch (PDOException $e) {
+    die("Koneksi gagal: " . $e->getMessage());
 }
-?>
