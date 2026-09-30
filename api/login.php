@@ -1,44 +1,54 @@
 <?php
-session_start();
+require_once __DIR__ . '/koneksi.php';
+require_once __DIR__ . '/session_handler.php';
 
-require 'koneksi.php';
-
-// Jika sudah login, langsung alihkan ke dashboard
+// Jika sudah login, redirect ke dashboard
 if (isset($_SESSION['login'])) {
     header("Location: dashboard.php");
     exit;
 }
 
-$error = false;
+$pesan_error = '';
 
-if (isset($_POST['login'])) {
-    $username = trim($_POST['username']);
-    $password = $_POST['password'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_POST['login'])) {
+    $username = trim($_POST['username'] ?? '');
+    $password = trim($_POST['password'] ?? '');
 
-    try {
-        // Menggunakan Prepared Statement PDO (Aman dari SQL Injection & Cocok dengan koneksi.php)
-        $stmt = $conn->prepare("SELECT * FROM users WHERE username = :username");
-        $stmt->execute(['username' => $username]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!empty($username) && !empty($password)) {
+        try {
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :username");
+            $stmt->execute([':username' => $username]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($user) {
-            // Verifikasi password (cocok untuk password ter-hash maupun plain text)
-            if (password_verify($password, $user['password']) || $password === $user['password']) {
-                $_SESSION['login']    = true;
-                $_SESSION['username'] = $user['username'];
-                
-                header("Location: dashboard.php");
-                exit;
+            if ($user) {
+                // Verifikasi password (password_verify untuk hash, atau cek langsung jika plain text)
+                $password_valid = false;
+                if (password_verify($password, $user['password'])) {
+                    $password_valid = true;
+                } elseif ($password === $user['password']) {
+                    $password_valid = true;
+                }
+
+                if ($password_valid) {
+                    $_SESSION['login'] = true;
+                    $_SESSION['username'] = $user['username'];
+
+                    header("Location: dashboard.php");
+                    exit;
+                } else {
+                    $pesan_error = 'Password salah!';
+                }
+            } else {
+                $pesan_error = 'Username tidak ditemukan!';
             }
+        } catch (Exception $e) {
+            $pesan_error = 'Terjadi kesalahan sistem: ' . $e->getMessage();
         }
-        
-        $error = true;
-    } catch (PDOException $e) {
-        $error = true;
+    } else {
+        $pesan_error = 'Username dan password wajib diisi!';
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -47,104 +57,74 @@ if (isset($_POST['login'])) {
     <title>Login - Reminders App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
     <style>
         body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #0f172a, #1e293b);
+            background-color: #1a1e29;
+            color: #ffffff;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .card-login {
-            border: none;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            background-color: #242a38;
+            border-radius: 12px;
+            padding: 30px;
             width: 100%;
             max-width: 400px;
-            background-color: #ffffff;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
         }
         .btn-primary {
             background-color: #2563eb;
             border: none;
-            border-radius: 8px;
-            padding: 12px;
-            font-weight: 600;
         }
         .btn-primary:hover {
             background-color: #1d4ed8;
-        }
-        .form-control {
-            border-radius: 8px;
-            padding: 10px 14px;
-        }
-        .form-control:focus {
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
-        }
-        .login-icon {
-            width: 60px;
-            height: 60px;
-            background-color: #eff6ff;
-            color: #2563eb;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            margin: 0 auto 15px auto;
         }
     </style>
 </head>
 <body>
 
-    <div class="card card-login p-4 m-3">
-        <div class="card-body text-center p-2">
-            <div class="login-icon">
-                <i class="fa-solid fa-bell"></i>
-            </div>
-            
-            <h4 class="fw-bold text-dark mb-1">Reminders App</h4>
-            <p class="text-muted small mb-4">Masukkan username & password untuk masuk</p>
-
-            <?php if ($error): ?>
-                <div class="alert alert-danger alert-dismissible fade show text-start small py-2 px-3 mb-3" role="alert">
-                    <i class="fa-solid fa-circle-exclamation me-1"></i> Username atau password salah!
-                    <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            <?php endif; ?>
-
-            <form action="login.php" method="POST" class="text-start">
-                <div class="mb-3">
-                    <label class="form-label text-secondary small fw-bold">Username</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-user"></i></span>
-                        <input type="text" name="username" class="form-control" placeholder="Masukkan username" required autofocus>
-                    </div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="form-label text-secondary small fw-bold">Password</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-lock"></i></span>
-                        <input type="password" name="password" class="form-control" placeholder="Masukkan password" required>
-                    </div>
-                </div>
-
-                <button type="submit" name="login" class="btn btn-primary w-100 mb-2">
-                    <i class="fa-solid fa-right-to-bracket me-1"></i> Login
-                </button>
-            </form>
-
-            <div class="text-center mt-3 pt-2 border-top">
-                <p class="text-muted small mb-0">
-                    Belum punya akun? <a href="register.php" class="text-primary text-decoration-none fw-bold">Daftar sekarang</a>
-                </p>
-            </div>
-        </div>
+<div class="card-login">
+    <div class="text-center mb-4">
+        <i class="fa-solid fa-bell fa-2x text-primary mb-2"></i>
+        <h4>Reminders App</h4>
+        <p class="text-secondary small">Masukkan username & password untuk masuk</p>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php if (!empty($pesan_error)): ?>
+        <div class="alert alert-danger text-center py-2 mb-3" role="alert">
+            <small><?= htmlspecialchars($pesan_error); ?></small>
+        </div>
+    <?php endif; ?>
+
+    <form method="POST" action="login.php">
+        <div class="mb-3">
+            <label class="form-label text-secondary small">Username</label>
+            <div class="input-group">
+                <span class="input-group-text bg-dark border-0 text-secondary"><i class="fa-solid fa-user"></i></span>
+                <input type="text" name="username" class="form-control bg-dark text-white border-0" placeholder="username" required>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label text-secondary small">Password</label>
+            <div class="input-group">
+                <span class="input-group-text bg-dark border-0 text-secondary"><i class="fa-solid fa-lock"></i></span>
+                <input type="password" name="password" class="form-control bg-dark text-white border-0" placeholder="••••••••" required>
+            </div>
+        </div>
+
+        <button type="submit" name="login" class="btn btn-primary w-100 py-2 mt-2">
+            <i class="fa-solid fa-right-to-bracket me-1"></i> Login
+        </button>
+    </form>
+
+    <div class="text-center mt-4">
+        <small class="text-secondary">Belum punya akun? <a href="register.php" class="text-primary text-decoration-none fw-bold">Daftar sekarang</a></small>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
