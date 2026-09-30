@@ -1,15 +1,16 @@
 <?php
-// 1. Jalankan session & timezone paling atas
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/koneksi.php';
+require_once __DIR__ . '/session_handler.php';
+
 date_default_timezone_set('Asia/Jakarta');
 
-// 2. Cek Login
+// Cek status login
 if (!isset($_SESSION['login'])) {
     header("Location: login.php");
     exit;
 }
+
+// ... Sisa kode dashboard.php Anda tetap seperti sebelumnya ...
 
 // 3. Panggil Koneksi Database (cukup satu kali)
 require 'koneksi.php';
