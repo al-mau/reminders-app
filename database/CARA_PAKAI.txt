@@ -3,7 +3,7 @@ CARA MEMASANG DATABASE REMINDERS APP DI XAMPP
 
 Isi folder ini:
   - reminders_db.sql       : file database (tabel users, deadline, sessions + 3 contoh data)
-  - import_ke_xampp.bat    : klik 2x untuk import otomatis
+  - import_ke_xampp.bat    : klik 2x untuk import otomatis (XAMPP di C:/D:/E:/F: terdeteksi otomatis)
   - sync_dari_aiven.bat    : klik 2x untuk menyalin data Aiven -> XAMPP
   - schema.sql             : skema untuk Aiven (dipakai versi online, tidak perlu disentuh)
 
@@ -31,7 +31,7 @@ CARA 2 - LEWAT phpMyAdmin
 
 SETELAH DATABASE TERPASANG
 --------------------------
-1. Copy seluruh folder project "reminders-app" ke C:\xampp\htdocs\
+1. Copy seluruh folder project "reminders-app" ke D:\xampp\htdocs\ (sesuaikan dengan lokasi XAMPP)
 2. Di dalam folder reminders-app, copy file ".env.xampp.example"
    lalu ganti namanya menjadi ".env"
 3. Buka browser: http://localhost/reminders-app/api/login.php
@@ -55,6 +55,8 @@ akan DIGANTI agar sama persis dengan Aiven.
    (baris AIVEN_DB_* sudah ada di .env.xampp.example)
 2. START MySQL di XAMPP Control Panel.
 3. Klik 2x "sync_dari_aiven.bat". Tunggu sampai muncul [BERHASIL].
+File .bat otomatis mencari XAMPP di C:, D:, E:, F: (\xampp).
+Jika XAMPP di folder lain, buka .bat dengan Notepad dan isi baris set "XAMPP_MANUAL=".
 Riwayat setiap salinan tersimpan di database\sync_log.txt
 
 Agar otomatis setiap hari (Windows Task Scheduler):
