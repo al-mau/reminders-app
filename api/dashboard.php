@@ -181,10 +181,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('danger', 'Nama wajib diisi dan nomor WA harus valid (contoh: 081234567890).');
         } else {
             try {
-                $pdo->prepare("INSERT INTO wa_penerima (nama, nomor) VALUES (?, ?)")->execute([function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100), $nomor]);
-                flash('success', "Nomor $nomor ($nama) ditambahkan sebagai penerima WA.");
+                $cek = $pdo->prepare("SELECT nama, aktif FROM wa_penerima WHERE nomor = ?");
+                $cek->execute([$nomor]);
+                $ada = $cek->fetch();
+
+                if ($ada) {
+                    flash('warning', "Nomor $nomor sudah terdaftar atas nama \"{$ada['nama']}\" (status: "
+                        . ((int) $ada['aktif'] === 1 ? 'aktif' : 'nonaktif — klik tombol ▶ untuk mengaktifkan') . ').');
+                } else {
+                    $pdo->prepare("INSERT INTO wa_penerima (nama, nomor) VALUES (?, ?)")
+                        ->execute([function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100), $nomor]);
+                    flash('success', "Nomor $nomor ($nama) ditambahkan sebagai penerima WA.");
+                }
             } catch (PDOException $e) {
-                flash('danger', "Nomor $nomor sudah terdaftar.");
+                // Tampilkan penyebab asli agar mudah ditelusuri (hanya terlihat oleh admin yang login)
+                error_log('Tambah penerima WA gagal: ' . $e->getMessage());
+                flash('danger', 'Gagal menyimpan nomor: ' . $e->getMessage());
             }
         }
         header("Location: dashboard.php#penerima");
