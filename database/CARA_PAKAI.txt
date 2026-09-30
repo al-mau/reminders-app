@@ -4,6 +4,7 @@ CARA MEMASANG DATABASE REMINDERS APP DI XAMPP
 Isi folder ini:
   - reminders_db.sql       : file database (tabel users, deadline, sessions + 3 contoh data)
   - import_ke_xampp.bat    : klik 2x untuk import otomatis
+  - sync_dari_aiven.bat    : klik 2x untuk menyalin data Aiven -> XAMPP
   - schema.sql             : skema untuk Aiven (dipakai versi online, tidak perlu disentuh)
 
 PENTING: Folder ini TIDAK di-paste ke C:\xampp\mysql\data.
@@ -41,6 +42,28 @@ CATATAN
 -------
 - Database XAMPP ini TERPISAH dari database online (Aiven).
   Data yang diinput di localhost tidak muncul di website online, dan sebaliknya.
-- Untuk menyalin data ASLI dari Aiven ke XAMPP:
-  DBeaver -> klik kanan database Aiven (defaultdb) -> Tools -> Dump database
-  -> simpan file .sql -> import file itu ke database reminders_db lewat phpMyAdmin.
+- Untuk menyalin data ASLI dari Aiven ke XAMPP: lihat bagian di bawah.
+
+
+SALIN DATA DARI AIVEN (ONLINE) KE XAMPP
+---------------------------------------
+File: sync_dari_aiven.bat
+Arah salinan: Aiven -> XAMPP (satu arah). Data users & deadline di XAMPP
+akan DIGANTI agar sama persis dengan Aiven.
+
+1. Di file .env (root project), isi AIVEN_DB_PASSWORD dengan password Aiven.
+   (baris AIVEN_DB_* sudah ada di .env.xampp.example)
+2. START MySQL di XAMPP Control Panel.
+3. Klik 2x "sync_dari_aiven.bat". Tunggu sampai muncul [BERHASIL].
+Riwayat setiap salinan tersimpan di database\sync_log.txt
+
+Agar otomatis setiap hari (Windows Task Scheduler):
+1. Tekan tombol Windows, ketik "Task Scheduler", buka.
+2. Klik "Create Basic Task..." (panel kanan).
+3. Name: Sync Reminders Aiven -> Next.
+4. Trigger: Daily -> Next -> pilih jam (misal 12:00) -> Next.
+5. Action: Start a program -> Next.
+6. Program/script : pilih file sync_dari_aiven.bat
+   Add arguments  : auto
+   -> Next -> Finish.
+Catatan: salinan otomatis hanya berjalan jika laptop menyala dan MySQL XAMPP aktif.

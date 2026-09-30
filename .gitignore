@@ -1,3 +1,4 @@
 .env
 .env.local
 .vercel
+database/sync_log.txt

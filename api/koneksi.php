@@ -44,6 +44,59 @@ if (!filter_var(env('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN)) {
 }
 ini_set('log_errors', '1');
 
+if (!function_exists('opsiPdoMysql')) {
+    /**
+     * Opsi PDO standar + SSL (wajib untuk Aiven).
+     * MYSQL_ATTR_SSL_CA harus berupa PATH file sertifikat:
+     *  - $caFile diisi path ca.pem dari Aiven -> sertifikat server diverifikasi penuh.
+     *  - Kosong -> pakai CA bundle sistem hanya untuk mengaktifkan TLS (tanpa verifikasi).
+     */
+    function opsiPdoMysql(bool $pakaiSsl, ?string $caFile = null): array
+    {
+        $options = [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false,
+        ];
+
+        if (!$pakaiSsl) {
+            return $options;
+        }
+
+        $sslAttrCa     = defined('Pdo\Mysql::ATTR_SSL_CA') ? Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA;
+        $sslAttrVerify = defined('Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT')
+            ? Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT
+            : PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT;
+
+        if ($caFile && !is_file($caFile) && is_file(dirname(__DIR__) . '/' . ltrim($caFile, '/'))) {
+            $caFile = dirname(__DIR__) . '/' . ltrim($caFile, '/');
+        }
+
+        if ($caFile && is_file($caFile)) {
+            $options[$sslAttrCa]     = $caFile;
+            $options[$sslAttrVerify] = true;
+            return $options;
+        }
+
+        $candidates = [
+            '/etc/pki/tls/certs/ca-bundle.crt',      // Amazon Linux (Vercel)
+            '/etc/ssl/certs/ca-certificates.crt',    // Debian / Ubuntu
+            '/etc/ssl/cert.pem',                     // macOS / Alpine
+            ini_get('openssl.cafile') ?: '',
+            ini_get('curl.cainfo') ?: '',            // XAMPP biasanya mengisi ini
+        ];
+        foreach ($candidates as $candidate) {
+            if ($candidate && is_file($candidate)) {
+                $options[$sslAttrCa] = $candidate;
+                break;
+            }
+        }
+        $options[$sslAttrVerify] = false;
+
+        return $options;
+    }
+}
+
 if (!isset($pdo)) {
     $host     = env('DB_HOST');
     $port     = (int) env('DB_PORT', 3306);
@@ -58,46 +111,10 @@ if (!isset($pdo)) {
         die('Konfigurasi database belum diatur. Set DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD di Environment Variables.');
     }
 
-    $options = [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES   => false,
-    ];
-
-    // SSL wajib untuk Aiven. MYSQL_ATTR_SSL_CA harus berupa PATH file sertifikat.
-    // - DB_SSL_CA diisi path ca.pem dari Aiven -> sertifikat server diverifikasi penuh.
-    // - Kosong -> pakai CA bundle sistem hanya untuk mengaktifkan TLS (tanpa verifikasi).
-    if (filter_var(env('DB_SSL', 'true'), FILTER_VALIDATE_BOOLEAN)) {
-        $sslAttrCa     = defined('Pdo\Mysql::ATTR_SSL_CA') ? Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA;
-        $sslAttrVerify = defined('Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT')
-            ? Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT
-            : PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT;
-
-        $caFile = env('DB_SSL_CA');
-        if ($caFile && !is_file($caFile) && is_file(dirname(__DIR__) . '/' . ltrim($caFile, '/'))) {
-            $caFile = dirname(__DIR__) . '/' . ltrim($caFile, '/');
-        }
-
-        if ($caFile && is_file($caFile)) {
-            $options[$sslAttrCa]     = $caFile;
-            $options[$sslAttrVerify] = true;
-        } else {
-            $candidates = [
-                '/etc/pki/tls/certs/ca-bundle.crt',      // Amazon Linux (Vercel)
-                '/etc/ssl/certs/ca-certificates.crt',    // Debian / Ubuntu
-                '/etc/ssl/cert.pem',                     // macOS / Alpine
-                ini_get('openssl.cafile') ?: '',
-                ini_get('curl.cainfo') ?: '',            // XAMPP biasanya mengisi ini
-            ];
-            foreach ($candidates as $candidate) {
-                if ($candidate && is_file($candidate)) {
-                    $options[$sslAttrCa] = $candidate;
-                    break;
-                }
-            }
-            $options[$sslAttrVerify] = false;
-        }
-    }
+    $options = opsiPdoMysql(
+        filter_var(env('DB_SSL', 'true'), FILTER_VALIDATE_BOOLEAN),
+        env('DB_SSL_CA')
+    );
 
     try {
         $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
