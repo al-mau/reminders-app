@@ -5,6 +5,7 @@
  * Aman dijalankan berulang kali. Isi SQL sama dengan database/schema.sql.
  */
 require_once __DIR__ . '/koneksi.php';
+require_once __DIR__ . '/skema.php';
 
 header('Content-Type: text/plain; charset=utf-8');
 
@@ -47,6 +48,7 @@ try {
     foreach ($queries as $sql) {
         $pdo->exec($sql);
     }
+    pastikanTabelTambahan($pdo); // wa_penerima & lampiran
 
     // Tabel lama mungkin belum punya kolom-kolom untuk cron
     $kolom = $pdo->query("SHOW COLUMNS FROM deadline")->fetchAll(PDO::FETCH_COLUMN);

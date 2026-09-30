@@ -1,11 +1,12 @@
 <?php
 /**
  * Helper pengiriman WhatsApp via Fonnte.
- * Token & nomor tujuan diambil dari Environment Variables:
- *  - FONNTE_TOKEN : token device dari dashboard fonnte.com
- *  - WA_TARGET    : nomor WA penerima (boleh diawali 0 / 62, pisahkan koma untuk banyak nomor)
+ *  - FONNTE_TOKEN (Environment Variable) : token device dari dashboard fonnte.com
+ *  - Nomor penerima diatur dari dashboard (tabel wa_penerima, bisa lebih dari 1 nomor).
+ *    Jika belum ada nomor aktif di dashboard, dipakai WA_TARGET dari Environment Variables.
  */
 require_once __DIR__ . '/koneksi.php';
+require_once __DIR__ . '/skema.php';
 
 function normalisasiNomorWa(string $nomor): string
 {
@@ -23,17 +24,50 @@ function normalisasiNomorWa(string $nomor): string
     return implode(',', $hasil);
 }
 
+/** Validasi 1 nomor WA hasil normalisasi (62xxxxxxxxx, 10-15 digit) */
+function nomorWaValid(string $nomor): bool
+{
+    return (bool) preg_match('/^62\d{8,13}$/', $nomor);
+}
+
 /**
- * Kirim pesan WhatsApp.
+ * Daftar nomor penerima aktif: dari dashboard (tabel wa_penerima),
+ * atau WA_TARGET jika belum ada nomor aktif.
+ */
+function daftarNomorPenerima(): array
+{
+    global $pdo;
+
+    $nomor = [];
+    try {
+        pastikanTabelTambahan($pdo);
+        $nomor = $pdo->query("SELECT nomor FROM wa_penerima WHERE aktif = 1 ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
+    } catch (PDOException $e) {
+        error_log('Gagal membaca wa_penerima: ' . $e->getMessage());
+    }
+
+    if (!$nomor) {
+        $env   = normalisasiNomorWa((string) env('WA_TARGET', ''));
+        $nomor = $env === '' ? [] : explode(',', $env);
+    }
+
+    return array_values(array_unique(array_filter($nomor, 'nomorWaValid')));
+}
+
+/**
+ * Kirim pesan WhatsApp ke semua nomor penerima aktif.
  * @return array{ok: bool, pesan: string}
  */
 function kirimWhatsApp(string $pesan): array
 {
     $token  = env('FONNTE_TOKEN');
-    $target = normalisasiNomorWa((string) env('WA_TARGET', ''));
+    $target = implode(',', daftarNomorPenerima());
 
-    if (!$token || $target === '') {
-        return ['ok' => false, 'pesan' => 'FONNTE_TOKEN / WA_TARGET belum diatur.'];
+    if (!$token) {
+        return ['ok' => false, 'pesan' => 'FONNTE_TOKEN belum diatur.'];
+    }
+    if ($target === '') {
+        return ['ok' => false, 'pesan' => 'Belum ada nomor penerima WA yang aktif. Tambahkan di dashboard.'];
     }
 
     $curl = curl_init();
@@ -62,7 +96,7 @@ function kirimWhatsApp(string $pesan): array
 
     $res = json_decode($response, true);
     if (!empty($res['status'])) {
-        return ['ok' => true, 'pesan' => 'Terkirim'];
+        return ['ok' => true, 'pesan' => 'Terkirim ke ' . count(explode(',', $target)) . ' nomor'];
     }
 
     $alasan = is_array($res) ? ($res['reason'] ?? $res['detail'] ?? 'Tidak diketahui') : 'Respon tidak valid';
