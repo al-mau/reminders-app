@@ -1,6 +1,11 @@
 <?php
 require_once __DIR__ . '/koneksi.php';
 
+// Jika nama variabel koneksi PDO di koneksi.php Anda adalah $conn
+if (!isset($pdo) && isset($conn)) {
+    $pdo = $conn;
+}
+
 class DatabaseSessionHandler implements SessionHandlerInterface {
     private $pdo;
 
