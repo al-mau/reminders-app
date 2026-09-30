@@ -1,5 +1,12 @@
 <?php
+session_start(); // HARUS dipanggil di baris paling atas
+
 require 'koneksi.php';
+
+// Menyesuaikan variabel koneksi (pakai $conn jika di koneksi.php $conn, atau $koneksi)
+if (isset($conn) && !isset($koneksi)) {
+    $koneksi = $conn;
+}
 
 // Jika sudah login, langsung lempar ke dashboard
 if (isset($_SESSION['login'])) {
@@ -13,13 +20,13 @@ if (isset($_POST['login'])) {
     $username = mysqli_real_escape_string($koneksi, $_POST['username']);
     $password = $_POST['password'];
 
-    // Cek username di database (sesuaikan nama tabel user jika berbeda)
+    // Cek username di database
     $result = mysqli_query($koneksi, "SELECT * FROM users WHERE username = '$username'");
 
-    if (mysqli_num_rows($result) === 1) {
+    if ($result && mysqli_num_rows($result) === 1) {
         $row = mysqli_fetch_assoc($result);
         
-        // Verifikasi password (bisa menggunakan password_verify jika di-hash atau perbandingan langsung)
+        // Verifikasi password (password_verify jika di-hash atau perbandingan langsung)
         if (password_verify($password, $row['password']) || $password === $row['password']) {
             $_SESSION['login']    = true;
             $_SESSION['username'] = $row['username'];
@@ -104,12 +111,12 @@ if (isset($_POST['login'])) {
 
             <?php if ($error): ?>
                 <div class="alert alert-danger alert-dismissible fade show text-start small py-2 px-3 mb-3" role="alert">
-                    <i class="fa-solid fa-circle-exclamation me-1"></i> Username atau password salah!
+                    <i class="fa-solid fa-circle-exclamation me-1"></i> Username atau password salah / Koneksi DB bermasalah!
                     <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php endif; ?>
 
-            <form method="POST" class="text-start">
+            <form action="login.php" method="POST" class="text-start">
                 <div class="mb-3">
                     <label class="form-label text-secondary small fw-bold">Username</label>
                     <div class="input-group">
