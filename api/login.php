@@ -3,49 +3,62 @@ require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/session_handler.php';
 
 // Jika sudah login, redirect ke dashboard
-if (isset($_SESSION['login'])) {
+if (!empty($_SESSION['login'])) {
     header("Location: dashboard.php");
     exit;
 }
 
 $pesan_error = '';
+$username    = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_POST['login'])) {
-    $username = trim($_POST['username'] ?? '');
-    $password = trim($_POST['password'] ?? '');
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $username = trim((string) ($_POST['username'] ?? ''));
+    $password = (string) ($_POST['password'] ?? '');
 
-    if (!empty($username) && !empty($password)) {
-        try {
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :username");
-            $stmt->execute([':username' => $username]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($user) {
-                // Verifikasi password (password_verify untuk hash, atau cek langsung jika plain text)
-                $password_valid = false;
-                if (password_verify($password, $user['password'])) {
-                    $password_valid = true;
-                } elseif ($password === $user['password']) {
-                    $password_valid = true;
-                }
-
-                if ($password_valid) {
-                    $_SESSION['login'] = true;
-                    $_SESSION['username'] = $user['username'];
-
-                    header("Location: dashboard.php");
-                    exit;
-                } else {
-                    $pesan_error = 'Password salah!';
-                }
-            } else {
-                $pesan_error = 'Username tidak ditemukan!';
-            }
-        } catch (Exception $e) {
-            $pesan_error = 'Terjadi kesalahan sistem: ' . $e->getMessage();
-        }
-    } else {
+    if (!csrf_valid()) {
+        $pesan_error = 'Sesi formulir kedaluwarsa, silakan coba lagi.';
+    } elseif ($username === '' || $password === '') {
         $pesan_error = 'Username dan password wajib diisi!';
+    } else {
+        try {
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :username LIMIT 1");
+            $stmt->execute([':username' => $username]);
+            $user = $stmt->fetch();
+
+            $password_valid = false;
+            if ($user) {
+                $stored   = (string) $user['password'];
+                $isHashed = !empty(password_get_info($stored)['algo']);
+
+                if ($isHashed) {
+                    $password_valid = password_verify($password, $stored);
+                } else {
+                    // Akun lama yang password-nya masih plain text
+                    $password_valid = hash_equals($stored, $password);
+                }
+
+                // Upgrade otomatis ke hash terbaru (termasuk akun plain text)
+                if ($password_valid && (!$isHashed || password_needs_rehash($stored, PASSWORD_DEFAULT))) {
+                    $upd = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+                    $upd->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
+                }
+            }
+
+            if ($password_valid) {
+                session_regenerate_id(true);
+                $_SESSION['login']    = true;
+                $_SESSION['user_id']  = $user['id'];
+                $_SESSION['username'] = $user['username'];
+
+                header("Location: dashboard.php");
+                exit;
+            }
+
+            $pesan_error = 'Username atau password salah!';
+        } catch (Exception $e) {
+            error_log('Login error: ' . $e->getMessage());
+            $pesan_error = 'Terjadi kesalahan sistem, silakan coba lagi.';
+        }
     }
 }
 ?>
@@ -94,16 +107,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_POST['login'])) {
 
     <?php if (!empty($pesan_error)): ?>
         <div class="alert alert-danger text-center py-2 mb-3" role="alert">
-            <small><?= htmlspecialchars($pesan_error); ?></small>
+            <small><?= e($pesan_error); ?></small>
         </div>
     <?php endif; ?>
 
     <form method="POST" action="login.php">
+        <?= csrf_field(); ?>
         <div class="mb-3">
             <label class="form-label text-secondary small">Username</label>
             <div class="input-group">
                 <span class="input-group-text bg-dark border-0 text-secondary"><i class="fa-solid fa-user"></i></span>
-                <input type="text" name="username" class="form-control bg-dark text-white border-0" placeholder="username" required>
+                <input type="text" name="username" class="form-control bg-dark text-white border-0" placeholder="username" value="<?= e($username); ?>" autocomplete="username" required autofocus>
             </div>
         </div>
 
@@ -111,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_POST['login'])) {
             <label class="form-label text-secondary small">Password</label>
             <div class="input-group">
                 <span class="input-group-text bg-dark border-0 text-secondary"><i class="fa-solid fa-lock"></i></span>
-                <input type="password" name="password" class="form-control bg-dark text-white border-0" placeholder="••••••••" required>
+                <input type="password" name="password" class="form-control bg-dark text-white border-0" placeholder="••••••••" autocomplete="current-password" required>
             </div>
         </div>
 

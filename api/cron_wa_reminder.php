@@ -1,78 +1,67 @@
 <?php
+/**
+ * Cron pengingat deadline via WhatsApp.
+ * Dipanggil oleh cron-job.org, contoh URL:
+ *   https://<domain-vercel>/cron_wa_reminder.php?key=<CRON_SECRET>
+ */
 require_once __DIR__ . '/koneksi.php';
+require_once __DIR__ . '/fonnte.php';
 
-date_default_timezone_set('Asia/Jakarta');
+header('Content-Type: application/json; charset=utf-8');
+
+// Proteksi endpoint: wajib menyertakan key yang sama dengan CRON_SECRET
+$cronSecret = env('CRON_SECRET');
+$keyDikirim = $_GET['key'] ?? ($_SERVER['HTTP_X_CRON_KEY'] ?? '');
+if (!$cronSecret || !is_string($keyDikirim) || !hash_equals($cronSecret, $keyDikirim)) {
+    http_response_code(401);
+    echo json_encode(['status' => false, 'pesan' => 'Unauthorized']);
+    exit;
+}
 
 $hari_ini = date('Y-m-d');
 $besok    = date('Y-m-d', strtotime('+1 day'));
 
-// Token dan Nomor WA Tujuan
-$token_fonnte = 'pgVks6HbMNA3zbQvh2vr'; #sesuaikan dengan token dari akun fonnte baru kalau token habis ganti dengan yg lain
-$target_wa    = '082285755442'; #berdasarkan no wa yg akan menerima pesan wa
-
-if (substr($target_wa, 0, 1) === '0') { 
-    $target_wa = '62' . substr($target_wa, 1);
-}
-
 // CARI DATA: Tanggal akhir BESOK atau HARI INI, DAN belum dikirim HARI INI
-$query  = "SELECT * FROM deadline 
-           WHERE (tanggal_akhir = '$besok' OR tanggal_akhir = '$hari_ini') 
-           AND (terakhir_dikirim IS NULL OR terakhir_dikirim != '$hari_ini')";
+$stmt = $pdo->prepare(
+    "SELECT * FROM deadline
+     WHERE tanggal_akhir IN (:besok, :hari_ini)
+       AND (terakhir_dikirim IS NULL OR terakhir_dikirim <> :hari_ini2)"
+);
+$stmt->execute([':besok' => $besok, ':hari_ini' => $hari_ini, ':hari_ini2' => $hari_ini]);
+$rows = $stmt->fetchAll();
 
-$result = mysqli_query($koneksi, $query);
+$update  = $pdo->prepare("UPDATE deadline SET pengingat = 'sent', terakhir_dikirim = ? WHERE id = ?");
+$laporan = ['status' => true, 'tanggal' => $hari_ini, 'total' => count($rows), 'terkirim' => 0, 'gagal' => []];
 
-if ($result && mysqli_num_rows($result) > 0) {
-    while ($row = mysqli_fetch_assoc($result)) {
-        $id        = $row['id'];
-        $kode_unit = $row['kode_unit'];
-        $nama_unit = $row['nama_unit'];
-        $tgl_awal  = date('d-m-Y', strtotime($row['tanggal_awal']));
-        $tgl_akhir = date('d-m-Y', strtotime($row['tanggal_akhir']));
+foreach ($rows as $row) {
+    $tgl_awal  = date('d-m-Y', strtotime($row['tanggal_awal']));
+    $tgl_akhir = date('d-m-Y', strtotime($row['tanggal_akhir']));
 
-        // Tentukan Label
-        if ($row['tanggal_akhir'] === $hari_ini) {
-            $status_label = "*PENGINGAT DEADLINE (HARI INI)*";
-            $keterangan   = "memasuki batas waktu *HARI INI*";
-        } else {
-            $status_label = "*PENGINGAT DEADLINE (H-1)*";
-            $keterangan   = "memasuki batas waktu *H-1 (BESOK)*";
-        }
+    if ($row['tanggal_akhir'] === $hari_ini) {
+        $status_label = "*PENGINGAT DEADLINE (HARI INI)*";
+        $keterangan   = "memasuki batas waktu *HARI INI*";
+    } else {
+        $status_label = "*PENGINGAT DEADLINE (H-1)*";
+        $keterangan   = "memasuki batas waktu *H-1 (BESOK)*";
+    }
 
-        $pesan  = "$status_label\n\n";
-        $pesan .= "Halo Admin, unit berikut $keterangan:\n\n";
-        $pesan .= "*Kode Unit:* $kode_unit\n";
-        $pesan .= "*Nama Unit:* $nama_unit\n";
-        $pesan .= "*Tanggal Awal:* $tgl_awal\n";
-        $pesan .= "*Tanggal Akhir:* $tgl_akhir\n\n";
-        $pesan .= "Mohon segera update kembali usernya secepatnya. Terima kasih!";
+    $pesan  = "$status_label\n\n";
+    $pesan .= "Halo Admin, unit berikut $keterangan:\n\n";
+    $pesan .= "*Kode Unit:* {$row['kode_unit']}\n";
+    $pesan .= "*Nama Unit:* {$row['nama_unit']}\n";
+    $pesan .= "*Tanggal Awal:* $tgl_awal\n";
+    $pesan .= "*Tanggal Akhir:* $tgl_akhir\n\n";
+    $pesan .= "Mohon segera update kembali usernya secepatnya. Terima kasih!";
 
-        // Kirim via Fonnte
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => 'https://api.fonnte.com/send',
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CUSTOMREQUEST => 'POST',
-            CURLOPT_SSL_VERIFYPEER => false, // Bypass SSL lokal
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_POSTFIELDS => array(
-                'target' => $target_wa,
-                'message' => $pesan,
-                'countryCode' => '62',
-            ),
-            CURLOPT_HTTPHEADER => array(
-                "Authorization: " . $token_fonnte
-            ),
-        ));
+    $hasil = kirimWhatsApp($pesan);
 
-        $response = curl_exec($curl);
-        curl_close($curl);
-
-        $res = json_decode($response, true);
-
-        // Update tanggal pengiriman terakhir agar tidak terkirim ganda hari ini
-        if (isset($res['status']) && $res['status'] == true) {
-            mysqli_query($koneksi, "UPDATE deadline SET pengingat = 'sent', terakhir_dikirim = '$hari_ini' WHERE id = $id");
-        }
+    // Tandai sudah dikirim agar tidak terkirim ganda hari ini
+    if ($hasil['ok']) {
+        $update->execute([$hari_ini, $row['id']]);
+        $laporan['terkirim']++;
+    } else {
+        $laporan['gagal'][] = ['id' => (int) $row['id'], 'alasan' => $hasil['pesan']];
     }
 }
-?>
+
+echo json_encode($laporan);

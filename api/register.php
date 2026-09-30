@@ -1,47 +1,59 @@
 <?php
-require 'koneksi.php';
+require_once __DIR__ . '/koneksi.php';
+require_once __DIR__ . '/session_handler.php';
 
 // Jika sudah login, langsung alihkan ke dashboard
-if (isset($_SESSION['login'])) {
+if (!empty($_SESSION['login'])) {
     header("Location: dashboard.php");
     exit;
 }
 
-$error = false;
+// Pendaftaran bisa dimatikan lewat env ALLOW_REGISTER=false
+$registerAktif = filter_var(env('ALLOW_REGISTER', 'true'), FILTER_VALIDATE_BOOLEAN);
+
+$error        = false;
 $errorMessage = "";
-$success = false;
+$success      = false;
+$old          = ['nama_lengkap' => '', 'username' => ''];
 
-if (isset($_POST['register'])) {
-    $nama_lengkap = mysqli_real_escape_string($koneksi, trim($_POST['nama_lengkap']));
-    $username     = mysqli_real_escape_string($koneksi, trim($_POST['username']));
-    $password     = $_POST['password'];
-    $confirm_pwd  = $_POST['confirm_password'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $nama_lengkap = trim((string) ($_POST['nama_lengkap'] ?? ''));
+    $username     = trim((string) ($_POST['username'] ?? ''));
+    $password     = (string) ($_POST['password'] ?? '');
+    $confirm_pwd  = (string) ($_POST['confirm_password'] ?? '');
+    $old          = ['nama_lengkap' => $nama_lengkap, 'username' => $username];
 
-    // 1. Validasi konfirmasi password
-    if ($password !== $confirm_pwd) {
-        $error = true;
+    $error = true;
+    if (!$registerAktif) {
+        $errorMessage = "Pendaftaran akun baru sedang dinonaktifkan.";
+    } elseif (!csrf_valid()) {
+        $errorMessage = "Sesi formulir kedaluwarsa, silakan coba lagi.";
+    } elseif ($nama_lengkap === '' || $username === '' || $password === '') {
+        $errorMessage = "Semua kolom wajib diisi!";
+    } elseif (!preg_match('/^[A-Za-z0-9_.]{3,50}$/', $username)) {
+        $errorMessage = "Username 3-50 karakter, hanya huruf, angka, titik, dan underscore.";
+    } elseif (strlen($password) < 6) {
+        $errorMessage = "Password minimal 6 karakter.";
+    } elseif ($password !== $confirm_pwd) {
         $errorMessage = "Konfirmasi password tidak sesuai!";
     } else {
-        // 2. Cek apakah username sudah digunakan
-        $checkUser = mysqli_query($koneksi, "SELECT username FROM users WHERE username = '$username'");
-        if (mysqli_num_rows($checkUser) > 0) {
-            $error = true;
-            $errorMessage = "Username sudah terdaftar! Gunakan username lain.";
-        } else {
-            // 3. Enkripsi password menggunakan Bcrypt (password_hash)
-            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-            $tanggal = date('Y-m-d H:i:s');
+        try {
+            // Cek apakah username sudah digunakan
+            $cek = $pdo->prepare("SELECT 1 FROM users WHERE username = ? LIMIT 1");
+            $cek->execute([$username]);
 
-            // 4. Simpan data ke tabel users
-            $query = "INSERT INTO users (username, password, nama_lengkap, dibuat_tanggal) 
-                      VALUES ('$username', '$passwordHash', '$nama_lengkap', '$tanggal')";
-            
-            if (mysqli_query($koneksi, $query)) {
-                $success = true;
+            if ($cek->fetchColumn()) {
+                $errorMessage = "Username sudah terdaftar! Gunakan username lain.";
             } else {
-                $error = true;
-                $errorMessage = "Gagal mendaftar, terjadi kesalahan sistem.";
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, dibuat_tanggal) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $nama_lengkap, date('Y-m-d H:i:s')]);
+
+                $error   = false;
+                $success = true;
             }
+        } catch (PDOException $e) {
+            error_log('Register error: ' . $e->getMessage());
+            $errorMessage = "Gagal mendaftar, terjadi kesalahan sistem.";
         }
     }
 }
@@ -118,7 +130,7 @@ if (isset($_POST['register'])) {
 
             <?php if ($error): ?>
                 <div class="alert alert-danger alert-dismissible fade show text-start small py-2 px-3 mb-3" role="alert">
-                    <i class="fa-solid fa-circle-exclamation me-1"></i> <?= $errorMessage; ?>
+                    <i class="fa-solid fa-circle-exclamation me-1"></i> <?= e($errorMessage); ?>
                     <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php endif; ?>
@@ -129,12 +141,13 @@ if (isset($_POST['register'])) {
                 </div>
             <?php else: ?>
 
-            <form method="POST" class="text-start">
+            <form method="POST" action="register.php" class="text-start">
+                <?= csrf_field(); ?>
                 <div class="mb-3">
                     <label class="form-label text-secondary small fw-bold">Nama Lengkap</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-id-card"></i></span>
-                        <input type="text" name="nama_lengkap" class="form-control" placeholder="Masukkan nama lengkap" required autofocus>
+                        <input type="text" name="nama_lengkap" class="form-control" placeholder="Masukkan nama lengkap" value="<?= e($old['nama_lengkap']); ?>" maxlength="100" required autofocus>
                     </div>
                 </div>
 
@@ -142,7 +155,7 @@ if (isset($_POST['register'])) {
                     <label class="form-label text-secondary small fw-bold">Username</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-user"></i></span>
-                        <input type="text" name="username" class="form-control" placeholder="Masukkan username" required>
+                        <input type="text" name="username" class="form-control" placeholder="Masukkan username" value="<?= e($old['username']); ?>" maxlength="50" autocomplete="username" required>
                     </div>
                 </div>
 
@@ -150,7 +163,7 @@ if (isset($_POST['register'])) {
                     <label class="form-label text-secondary small fw-bold">Password</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-lock"></i></span>
-                        <input type="password" name="password" class="form-control" placeholder="Buat password" required>
+                        <input type="password" name="password" class="form-control" placeholder="Minimal 6 karakter" minlength="6" autocomplete="new-password" required>
                     </div>
                 </div>
 
@@ -158,7 +171,7 @@ if (isset($_POST['register'])) {
                     <label class="form-label text-secondary small fw-bold">Konfirmasi Password</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-key"></i></span>
-                        <input type="password" name="confirm_password" class="form-control" placeholder="Ulangi password" required>
+                        <input type="password" name="confirm_password" class="form-control" placeholder="Ulangi password" minlength="6" autocomplete="new-password" required>
                     </div>
                 </div>
 
@@ -174,6 +187,6 @@ if (isset($_POST['register'])) {
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
