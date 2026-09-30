@@ -13,11 +13,12 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 | `api/koneksi.php` | Koneksi PDO + helper (CSRF, escape) |
 | `api/session_handler.php` | Session disimpan di tabel `sessions` (wajib di serverless) |
 | `api/fonnte.php` | Helper kirim WhatsApp |
+| `api/setup.php` | Membuat tabel database otomatis (sekali jalan) |
 | `database/schema.sql` | Skema tabel `users`, `deadline`, `sessions` |
 
 ## Setup
 
-1. **Database** — jalankan `database/schema.sql` di Aiven (`defaultdb`), misalnya lewat DBeaver/HeidiSQL/MySQL Workbench.
+1. **Database** — setelah deploy, buka `https://<domain-vercel>/setup.php?key=<CRON_SECRET>` sekali (atau jalankan `database/schema.sql` manual).
 2. **Environment Variables** — di Vercel: *Project → Settings → Environment Variables*, isi semua variabel dari `.env.example`
    (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `FONNTE_TOKEN`, `WA_TARGET`, `CRON_SECRET`). Lalu **Redeploy**.
 3. **Cron** — di cron-job.org set URL:
