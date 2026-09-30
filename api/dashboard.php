@@ -383,7 +383,14 @@ $qs_base = 'search=' . urlencode($search) . '&filter=' . urlencode($filter);
                                             <td class="fw-semibold text-dark"><?= e($row['nama_unit']); ?></td>
                                             <td class="text-secondary small"><?= date('d M Y', strtotime($row['tanggal_awal'])); ?></td>
                                             <td class="text-secondary small"><?= date('d M Y', strtotime($row['tanggal_akhir'])); ?></td>
-                                            <td class="text-center"><?= $badge_deadline; ?></td>
+                                            <td class="text-center">
+                                                <?= $badge_deadline; ?>
+                                                <?php if (!empty($row['terakhir_dikirim'])): ?>
+                                                    <div class="small text-success mt-1" title="Pengingat WA otomatis terakhir terkirim">
+                                                        <i class="fa-brands fa-whatsapp"></i> <?= date('d M Y', strtotime($row['terakhir_dikirim'])); ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </td>
                                             <td class="text-center">
                                                 <div class="d-flex justify-content-center gap-1">
                                                     <button type="button" class="btn btn-sm btn-warning text-dark rounded-circle btn-aksi"
