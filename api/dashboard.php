@@ -31,15 +31,16 @@ function hitungSisaHari($tanggal_akhir) {
 
 // --- LOGIKA 1. TAMBAH DATA ---
 if (isset($_POST['simpan'])) {
-    $kode_unit     = mysqli_real_escape_string($koneksi, $_POST['kode_unit']);
-    $nama_unit     = mysqli_real_escape_string($koneksi, $_POST['nama_unit']);
+    $kode_unit     = trim($_POST['kode_unit']);
+    $nama_unit     = trim($_POST['nama_unit']);
     $tanggal_awal  = $_POST['tanggal_awal'];
     $tanggal_akhir = $_POST['tanggal_akhir'];
 
-    $query = "INSERT INTO deadline (kode_unit, nama_unit, tanggal_awal, tanggal_akhir, pengingat) 
-              VALUES ('$kode_unit', '$nama_unit', '$tanggal_awal', '$tanggal_akhir', 'pending')";
+    $stmt = mysqli_prepare($koneksi, "INSERT INTO deadline (kode_unit, nama_unit, tanggal_awal, tanggal_akhir, pengingat) VALUES (?, ?, ?, ?, 'pending')");
+    mysqli_stmt_bind_param($stmt, "ssss", $kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir);
 
-    if (mysqli_query($koneksi, $query)) {
+    if (mysqli_stmt_execute($stmt)) {
+        mysqli_stmt_close($stmt);
         header("Location: dashboard.php?status=success_add");
         exit;
     }
@@ -48,19 +49,16 @@ if (isset($_POST['simpan'])) {
 // --- LOGIKA 2. EDIT DATA ---
 if (isset($_POST['update'])) {
     $id            = (int)$_POST['id'];
-    $kode_unit     = mysqli_real_escape_string($koneksi, $_POST['kode_unit']);
-    $nama_unit     = mysqli_real_escape_string($koneksi, $_POST['nama_unit']);
+    $kode_unit     = trim($_POST['kode_unit']);
+    $nama_unit     = trim($_POST['nama_unit']);
     $tanggal_awal  = $_POST['tanggal_awal'];
     $tanggal_akhir = $_POST['tanggal_akhir'];
 
-    $query = "UPDATE deadline SET 
-                kode_unit = '$kode_unit', 
-                nama_unit = '$nama_unit', 
-                tanggal_awal = '$tanggal_awal', 
-                tanggal_akhir = '$tanggal_akhir' 
-              WHERE id = $id";
+    $stmt = mysqli_prepare($koneksi, "UPDATE deadline SET kode_unit = ?, nama_unit = ?, tanggal_awal = ?, tanggal_akhir = ? WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "ssssi", $kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir, $id);
 
-    if (mysqli_query($koneksi, $query)) {
+    if (mysqli_stmt_execute($stmt)) {
+        mysqli_stmt_close($stmt);
         header("Location: dashboard.php?status=success_update");
         exit;
     }
@@ -68,10 +66,13 @@ if (isset($_POST['update'])) {
 
 // --- LOGIKA 3. HAPUS DATA ---
 if (isset($_GET['hapus'])) {
-    $id          = (int)$_GET['hapus'];
-    $query_hapus = "DELETE FROM deadline WHERE id = $id";
+    $id = (int)$_GET['hapus'];
 
-    if (mysqli_query($koneksi, $query_hapus)) {
+    $stmt = mysqli_prepare($koneksi, "DELETE FROM deadline WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $id);
+
+    if (mysqli_stmt_execute($stmt)) {
+        mysqli_stmt_close($stmt);
         header("Location: dashboard.php?status=success_delete");
         exit;
     }
@@ -79,13 +80,18 @@ if (isset($_GET['hapus'])) {
 
 // --- LOGIKA 4. KIRIM WA MANUAL ---
 if (isset($_GET['kirim_wa'])) {
-    $id       = (int)$_GET['kirim_wa'];
-    $query_wa = mysqli_query($koneksi, "SELECT * FROM deadline WHERE id = $id");
-    $data_wa  = mysqli_fetch_assoc($query_wa);
+    $id = (int)$_GET['kirim_wa'];
+
+    $stmt = mysqli_prepare($koneksi, "SELECT * FROM deadline WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $id);
+    mysqli_stmt_execute($stmt);
+    $result_wa = mysqli_stmt_get_result($stmt);
+    $data_wa   = mysqli_fetch_assoc($result_wa);
+    mysqli_stmt_close($stmt);
 
     if ($data_wa) {
-        $token_fonnte = 'pgVks6HbMNA3zbQvh2vr'; //sesuaikan dengan token dari akun fonnte baru kalau token habis ganti dengan yg lain
-        $target_wa    = '082285755442'; //berdasarkan no wa yang akan menerima pesan wa
+        $token_fonnte = 'pgVks6HbMNA3zbQvh2vr'; // Sesuaikan token dari akun fonnte
+        $target_wa    = '082285755442'; // No WA penerima pesan
 
         if (substr($target_wa, 0, 1) === '0') {
             $target_wa = '62' . substr($target_wa, 1);
@@ -206,13 +212,13 @@ if ($page > $total_pages && $total_pages > 0) $page = $total_pages;
 $offset = ($page - 1) * $limit;
 if ($offset < 0) $offset = 0;
 
-// Query tampil data urut ID terbaru dengan spasi query yang benar
+// Query tampil data urut ID terbaru
 $query_tampil = mysqli_query($koneksi, "SELECT * FROM deadline $where_sql ORDER BY id DESC LIMIT $limit OFFSET $offset");
 
 $data_tampil = [];
 while ($row = mysqli_fetch_assoc($query_tampil)) {
     $row['sisa_hari'] = hitungSisaHari($row['tanggal_akhir']);
-    $data_tampil[]   = $row;
+    $data_tampil[]    = $row;
 }
 ?>
 
@@ -290,6 +296,11 @@ while ($row = mysqli_fetch_assoc($query_tampil)) {
             <?php elseif ($_GET['status'] == 'wa_sent'): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     Pesan WhatsApp berhasil dikirim!
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php elseif ($_GET['status'] == 'wa_failed'): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    Gagal mengirim pesan WhatsApp. Cek token/nomor tujuan.
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             <?php endif; ?>
@@ -429,6 +440,7 @@ while ($row = mysqli_fetch_assoc($query_tampil)) {
                                         </td>
                                     </tr>
 
+                                    <!-- Modal Edit -->
                                     <div class="modal fade" id="modalEdit<?= $row['id']; ?>" tabindex="-1" aria-hidden="true">
                                         <div class="modal-dialog">
                                             <div class="modal-content">
