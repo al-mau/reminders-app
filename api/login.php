@@ -39,15 +39,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Upgrade otomatis ke hash terbaru (termasuk akun plain text)
                 if ($password_valid && (!$isHashed || password_needs_rehash($stored, PASSWORD_DEFAULT))) {
-                    $upd = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-                    $upd->execute([password_hash($password, PASSWORD_DEFAULT), $user['id']]);
+                    // Pakai username sebagai kunci (struktur tabel users bisa berbeda-beda)
+                    $upd = $pdo->prepare("UPDATE users SET password = ? WHERE username = ?");
+                    $upd->execute([password_hash($password, PASSWORD_DEFAULT), $user['username']]);
                 }
             }
 
             if ($password_valid) {
                 session_regenerate_id(true);
                 $_SESSION['login']    = true;
-                $_SESSION['user_id']  = $user['id'];
+                $_SESSION['user_id']  = $user['id'] ?? $user['id_user'] ?? null;
                 $_SESSION['username'] = $user['username'];
 
                 header("Location: dashboard.php");
