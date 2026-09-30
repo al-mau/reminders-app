@@ -6,7 +6,22 @@
   },
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/(api/)?(koneksi|session_handler|fonnte)\\.php",
+      "status": 404
+    },
+    {
+      "src": "/(\\.env.*|database/.*)",
+      "status": 404
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/",
+      "dest": "/api/index.php"
+    },
+    {
+      "src": "/([^/]+\\.php)",
       "dest": "/api/$1"
     }
   ]
