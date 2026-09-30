@@ -37,6 +37,13 @@ if (!function_exists('env')) {
 
 date_default_timezone_set(env('APP_TIMEZONE', 'Asia/Jakarta'));
 
+// Jangan tampilkan warning/error PHP ke pengunjung (tetap dicatat di log).
+// Set APP_DEBUG=true di .env lokal bila ingin melihat error saat development.
+if (!filter_var(env('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN)) {
+    ini_set('display_errors', '0');
+}
+ini_set('log_errors', '1');
+
 if (!isset($pdo)) {
     $host     = env('DB_HOST');
     $port     = (int) env('DB_PORT', 3306);
