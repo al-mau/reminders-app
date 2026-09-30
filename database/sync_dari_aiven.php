@@ -128,6 +128,10 @@ try {
         $cfg('AIVEN_DB_PASSWORD'),
         opsiPdo(true, $cfg('AIVEN_DB_SSL_CA'))
     );
+    // Aiven memakai sql_mode ANSI_QUOTES -> SHOW CREATE TABLE memakai "kutip ganda"
+    // yang tidak dipahami MariaDB XAMPP. Matikan untuk sesi ini agar hasilnya memakai `backtick`.
+    // Sesi ini hanya membaca data, jadi aman mengosongkan sql_mode.
+    $aiven->exec("SET SESSION sql_mode = ''");
     tulis('Terhubung ke Aiven: ' . $cfg('AIVEN_DB_HOST'));
 } catch (PDOException $e) {
     tulis('GAGAL terhubung ke Aiven: ' . $e->getMessage());
