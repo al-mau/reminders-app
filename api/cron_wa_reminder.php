@@ -69,7 +69,16 @@ if ($rows) {
         $pesan .= "\n*H-1 / BESOK - " . date('d-m-Y', strtotime($besok)) . "* (" . count($grup['besok']) . " unit)\n";
         $pesan .= $baris($grup['besok']);
     }
-    $pesan .= "\nMohon segera update kembali usernya secepatnya. Terima kasih!";
+    // Kalimat penutup berisi tanggal akhir. Jika pesan berisi unit HARI INI dan BESOK
+    // sekaligus, kedua tanggal disebutkan agar tidak membingungkan.
+    $tglHariIni = date('d-m-Y', strtotime($hari_ini));
+    $tglBesok   = date('d-m-Y', strtotime($besok));
+    if ($grup['hari_ini'] && $grup['besok']) {
+        $batas = "$tglHariIni (unit HARI INI) dan $tglBesok (unit BESOK)";
+    } else {
+        $batas = $grup['hari_ini'] ? $tglHariIni : $tglBesok;
+    }
+    $pesan .= "\nMohon segera update kembali usernya sebelum tanggal $batas";
 
     // Ringkasan nama unit untuk dicatat di Riwayat Pengiriman WA
     $ringkasan = implode(', ', array_map(static fn($r) => $r['kode_unit'] . ' ' . $r['nama_unit'], $rows));
