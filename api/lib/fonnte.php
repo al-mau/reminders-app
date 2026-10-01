@@ -55,13 +55,28 @@ function daftarNomorPenerima(): array
 }
 
 /**
- * Kirim pesan WhatsApp ke semua nomor penerima aktif.
+ * Kirim pesan WhatsApp ke semua nomor penerima aktif, lalu catat di riwayat (wa_log).
+ * @param string $jenis     'otomatis' (cron) atau 'manual' (tombol di dashboard)
+ * @param string $ringkasan Daftar unit yang diingatkan, untuk riwayat
  * @return array{ok: bool, pesan: string}
  */
-function kirimWhatsApp(string $pesan): array
+function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasan = ''): array
 {
-    $token  = env('FONNTE_TOKEN');
-    $target = implode(',', daftarNomorPenerima());
+    global $pdo;
+
+    $nomor  = daftarNomorPenerima();
+    $target = implode(',', $nomor);
+    $hasil  = kirimKeFonnte($pesan, $target);
+
+    catatWa($pdo, $jenis, $ringkasan !== '' ? $ringkasan : '-', $target !== '' ? $target : '-', $hasil['ok'], $hasil['pesan']);
+
+    return $hasil;
+}
+
+/** @return array{ok: bool, pesan: string} */
+function kirimKeFonnte(string $pesan, string $target): array
+{
+    $token = env('FONNTE_TOKEN');
 
     if (!$token) {
         return ['ok' => false, 'pesan' => 'FONNTE_TOKEN belum diatur.'];
@@ -72,7 +87,7 @@ function kirimWhatsApp(string $pesan): array
 
     $curl = curl_init();
     curl_setopt_array($curl, [
-        CURLOPT_URL            => 'https://api.fonnte.com/send',
+        CURLOPT_URL            => env('FONNTE_URL', 'https://api.fonnte.com/send'),
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
         CURLOPT_CONNECTTIMEOUT => 10,

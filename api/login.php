@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
+require_once __DIR__ . '/lib/skema.php';
 
 // Jika sudah login, redirect ke dashboard
 if (!empty($_SESSION['login'])) {
@@ -19,6 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pesan_error = 'Sesi formulir kedaluwarsa, silakan coba lagi.';
     } elseif ($username === '' || $password === '') {
         $pesan_error = 'Username dan password wajib diisi!';
+    } elseif (($sisaKunci = sisaKunciLogin($pdo, $username, ipKlien())) > 0) {
+        // Terlalu banyak percobaan gagal: tolak tanpa memeriksa password
+        $pesan_error = 'Terlalu banyak percobaan login gagal. Coba lagi dalam ' . (int) ceil($sisaKunci / 60) . ' menit.';
     } else {
         try {
             $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :username LIMIT 1");
@@ -51,11 +55,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_id']  = $user['id'] ?? $user['id_user'] ?? null;
                 $_SESSION['username'] = $user['username'];
 
+                hapusLoginGagal($pdo, $username, ipKlien());
+                catatAudit($pdo, 'login', 'Login berhasil', $user['username']);
+
                 header("Location: dashboard.php");
                 exit;
             }
 
-            $pesan_error = 'Username atau password salah!';
+            catatLoginGagal($pdo, $username, ipKlien());
+            if (sisaKunciLogin($pdo, $username, ipKlien()) > 0) {
+                catatAudit($pdo, 'login_dikunci', 'Login dikunci ' . LOGIN_KUNCI_MENIT . ' menit setelah ' . LOGIN_MAKS_GAGAL . 'x gagal', $username);
+                $pesan_error = 'Terlalu banyak percobaan login gagal. Coba lagi dalam ' . LOGIN_KUNCI_MENIT . ' menit.';
+            } else {
+                $pesan_error = 'Username atau password salah!';
+            }
         } catch (Exception $e) {
             error_log('Login error: ' . $e->getMessage());
             $pesan_error = 'Terjadi kesalahan sistem, silakan coba lagi.';

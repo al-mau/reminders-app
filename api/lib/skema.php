@@ -25,7 +25,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v1'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v2'])) {
         return;
     }
 
@@ -49,9 +49,42 @@ function pastikanTabelTambahan(PDO $pdo): void
         INDEX idx_deadline_id (deadline_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+    // Riwayat pengiriman WA (otomatis & manual)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS wa_log (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        waktu      DATETIME     NOT NULL,
+        jenis      VARCHAR(10)  NOT NULL,
+        ringkasan  VARCHAR(500) NOT NULL,
+        penerima   VARCHAR(500) NOT NULL,
+        status     VARCHAR(10)  NOT NULL,
+        keterangan VARCHAR(255) NULL,
+        INDEX idx_waktu (waktu)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Riwayat aktivitas user (siapa mengubah apa)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS audit_log (
+        id       INT AUTO_INCREMENT PRIMARY KEY,
+        waktu    DATETIME     NOT NULL,
+        username VARCHAR(50)  NULL,
+        aksi     VARCHAR(50)  NOT NULL,
+        detail   VARCHAR(500) NULL,
+        ip       VARCHAR(45)  NULL,
+        INDEX idx_waktu (waktu)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Percobaan login gagal (pembatasan brute force)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS login_gagal (
+        id       INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) NOT NULL,
+        ip       VARCHAR(45) NOT NULL,
+        waktu    DATETIME    NOT NULL,
+        INDEX idx_ip_waktu (ip, waktu),
+        INDEX idx_user_waktu (username, waktu)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v1'] = true;
+        $_SESSION['skema_tambahan_v2'] = true;
     }
 }
 
@@ -139,4 +172,106 @@ function simpanLampiran(PDO $pdo, int $deadlineId, array $files, ?string $pengun
     }
 
     return ['berhasil' => $berhasil, 'gagal' => $gagal];
+}
+
+// ===================================================================
+// RIWAYAT AKTIVITAS (AUDIT LOG)
+// ===================================================================
+
+/** Alamat IP pengunjung (Vercel meneruskan IP asli lewat X-Forwarded-For) */
+function ipKlien(): string
+{
+    $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
+    $ip = trim(explode(',', $ip)[0]);
+    return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '0.0.0.0';
+}
+
+function potong(string $teks, int $maks): string
+{
+    return function_exists('mb_substr') ? mb_substr($teks, 0, $maks) : substr($teks, 0, $maks);
+}
+
+/** Catat aktivitas user. Kegagalan mencatat tidak boleh menggagalkan aksi utama. */
+function catatAudit(PDO $pdo, string $aksi, string $detail = '', ?string $username = null): void
+{
+    try {
+        pastikanTabelTambahan($pdo);
+        $pdo->prepare("INSERT INTO audit_log (waktu, username, aksi, detail, ip) VALUES (?, ?, ?, ?, ?)")
+            ->execute([
+                date('Y-m-d H:i:s'),
+                $username ?? ($_SESSION['username'] ?? null),
+                potong($aksi, 50),
+                potong($detail, 500),
+                ipKlien(),
+            ]);
+    } catch (PDOException $e) {
+        error_log('Gagal mencatat audit: ' . $e->getMessage());
+    }
+}
+
+/** Catat pengiriman WA (berhasil maupun gagal) */
+function catatWa(PDO $pdo, string $jenis, string $ringkasan, string $penerima, bool $ok, string $keterangan): void
+{
+    try {
+        pastikanTabelTambahan($pdo);
+        $pdo->prepare("INSERT INTO wa_log (waktu, jenis, ringkasan, penerima, status, keterangan) VALUES (?, ?, ?, ?, ?, ?)")
+            ->execute([
+                date('Y-m-d H:i:s'),
+                $jenis,
+                potong($ringkasan, 500),
+                potong($penerima, 500),
+                $ok ? 'berhasil' : 'gagal',
+                potong($keterangan, 255),
+            ]);
+    } catch (PDOException $e) {
+        error_log('Gagal mencatat wa_log: ' . $e->getMessage());
+    }
+}
+
+// ===================================================================
+// PEMBATASAN PERCOBAAN LOGIN
+// ===================================================================
+const LOGIN_MAKS_GAGAL     = 5;   // per username + IP
+const LOGIN_MAKS_GAGAL_IP  = 20;  // per IP (mencegah tebak banyak username)
+const LOGIN_KUNCI_MENIT    = 15;
+
+/** Sisa detik penguncian login; 0 jika boleh mencoba */
+function sisaKunciLogin(PDO $pdo, string $username, string $ip): int
+{
+    pastikanTabelTambahan($pdo);
+    $batas = date('Y-m-d H:i:s', time() - LOGIN_KUNCI_MENIT * 60);
+
+    $cek = static function (string $sql, array $param, int $maks) use ($pdo): int {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($param);
+        $row = $stmt->fetch();
+        if ((int) $row['jumlah'] < $maks) {
+            return 0;
+        }
+        // Terkunci sampai percobaan ke-N terlama "kedaluwarsa"
+        return max(0, strtotime($row['terakhir']) + LOGIN_KUNCI_MENIT * 60 - time());
+    };
+
+    return max(
+        $cek("SELECT COUNT(*) AS jumlah, MAX(waktu) AS terakhir FROM login_gagal WHERE username = ? AND ip = ? AND waktu > ?",
+            [strtolower($username), $ip, $batas], LOGIN_MAKS_GAGAL),
+        $cek("SELECT COUNT(*) AS jumlah, MAX(waktu) AS terakhir FROM login_gagal WHERE ip = ? AND waktu > ?",
+            [$ip, $batas], LOGIN_MAKS_GAGAL_IP)
+    );
+}
+
+function catatLoginGagal(PDO $pdo, string $username, string $ip): void
+{
+    $pdo->prepare("INSERT INTO login_gagal (username, ip, waktu) VALUES (?, ?, ?)")
+        ->execute([potong(strtolower($username), 50), $ip, date('Y-m-d H:i:s')]);
+
+    // Bersihkan catatan lama sesekali agar tabel tetap kecil
+    if (random_int(1, 20) === 1) {
+        $pdo->exec("DELETE FROM login_gagal WHERE waktu < '" . date('Y-m-d H:i:s', time() - 86400) . "'");
+    }
+}
+
+function hapusLoginGagal(PDO $pdo, string $username, string $ip): void
+{
+    $pdo->prepare("DELETE FROM login_gagal WHERE username = ? AND ip = ?")->execute([strtolower($username), $ip]);
 }
