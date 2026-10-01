@@ -56,7 +56,9 @@ if (!function_exists('opsiPdoMysql')) {
         $options = [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
+            // Emulasi prepare: 1x bolak-balik ke DB per query (native = 2x: prepare + execute).
+            // Tetap aman dari SQL injection karena nilai di-escape oleh driver.
+            PDO::ATTR_EMULATE_PREPARES   => true,
         ];
 
         if (!$pakaiSsl) {
@@ -118,8 +120,12 @@ if (!isset($pdo)) {
 
     try {
         $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
+        // Koneksi persisten: server yang masih "hangat" memakai ulang koneksi SSL ke database
+        // sehingga tidak perlu handshake ulang di setiap request. Matikan dengan DB_PERSISTENT=false.
+        $options[PDO::ATTR_PERSISTENT] = filter_var(env('DB_PERSISTENT', 'true'), FILTER_VALIDATE_BOOLEAN);
         $pdo = new PDO($dsn, $user, $password, $options);
-        $pdo->exec("SET time_zone = '" . (new DateTime())->format('P') . "'");
+        // Catatan: tidak ada "SET time_zone" (hemat 1x bolak-balik). Semua tanggal & waktu
+        // dibuat oleh PHP (Asia/Jakarta) lalu dikirim ke database sebagai nilai biasa.
     } catch (PDOException $e) {
         http_response_code(500);
         error_log('Koneksi Database Gagal: ' . $e->getMessage());

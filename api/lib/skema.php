@@ -131,8 +131,10 @@ function simpanLampiran(PDO $pdo, int $deadlineId, array $files, ?string $pengun
     $berhasil = 0;
     $gagal    = [];
 
+    // Native prepare untuk data biner (isi file) agar terkirim apa adanya
     $stmt = $pdo->prepare(
-        "INSERT INTO lampiran (deadline_id, nama_file, ekstensi, ukuran, isi, diunggah_oleh) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO lampiran (deadline_id, nama_file, ekstensi, ukuran, isi, diunggah_oleh, dibuat_tanggal) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [PDO::ATTR_EMULATE_PREPARES => false]
     );
 
     foreach ($files as $file) {
@@ -167,6 +169,7 @@ function simpanLampiran(PDO $pdo, int $deadlineId, array $files, ?string $pengun
         $stmt->bindValue(4, strlen($isi), PDO::PARAM_INT);
         $stmt->bindValue(5, $isi, PDO::PARAM_LOB);
         $stmt->bindValue(6, $pengunggah);
+        $stmt->bindValue(7, date('Y-m-d H:i:s'));
         $stmt->execute();
         $berhasil++;
     }
