@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<!--
+  PRATINJAU LAMPIRAN (Word .docx, Excel .xlsx/.xls, CSV, TXT)
+
+  Halaman ini dibuka oleh lampiran.php di dalam <iframe sandbox="allow-scripts">.
+  Sandbox membuat halaman ini terisolasi: tidak bisa membaca cookie login, sesi,
+  atau halaman aplikasi lain. Jadi walaupun isi dokumen aneh/berbahaya, aplikasi tetap aman.
+
+  Alur: lampiran.php mengirim isi file lewat postMessage -> halaman ini menampilkannya.
+  Library dimuat hanya saat dibutuhkan:
+   - mammoth.browser.min.js : mengubah Word (.docx) menjadi HTML
+   - xlsx.full.min.js       : membaca Excel (.xlsx / .xls) -> tabel
+-->
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1e293b; background: #fff; }
+    #isi { padding: 20px; }
+    .info { color: #64748b; text-align: center; margin-top: 40px; }
+    /* Word */
+    .dokumen { max-width: 820px; margin: 0 auto; line-height: 1.6; }
+    .dokumen img { max-width: 100%; height: auto; }
+    /* Tabel (Excel, CSV, dan tabel di dalam Word) */
+    table { border-collapse: collapse; font-size: 14px; }
+    td, th { border: 1px solid #cbd5e1; padding: 4px 8px; vertical-align: top; white-space: pre-wrap; }
+    .lembar tr:first-child td, .lembar th { background: #f1f5f9; font-weight: 600; }
+    /* Tombol pindah sheet Excel */
+    .tab { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
+    .tab button { border: 1px solid #cbd5e1; background: #f8fafc; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+    .tab button.aktif { background: #2563eb; border-color: #2563eb; color: #fff; }
+    /* Teks biasa */
+    pre { white-space: pre-wrap; word-break: break-word; font-size: 14px; margin: 0; }
+</style>
+</head>
+<body>
+<div id="isi"><p class="info">Menyiapkan pratinjau…</p></div>
+<script>
+(() => {
+    const isi = document.getElementById('isi');
+
+    // Muat file library (sekali) hanya saat dibutuhkan
+    const muatScript = (src) => new Promise((ok, gagal) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = ok;
+        s.onerror = () => gagal(new Error('Gagal memuat penampil dokumen.'));
+        document.head.appendChild(s);
+    });
+
+    // Ubah byte menjadi teks: coba UTF-8 dulu, jika gagal pakai encoding Windows (file lama dari Excel/Notepad)
+    const keTeks = (buf) => {
+        try { return new TextDecoder('utf-8', { fatal: true }).decode(buf).replace(/^﻿/, ''); }
+        catch (_) { return new TextDecoder('windows-1252').decode(buf); }
+    };
+
+    const info = (pesan) => { isi.innerHTML = ''; const p = document.createElement('p'); p.className = 'info'; p.textContent = pesan; isi.appendChild(p); };
+
+    // Pecah CSV menjadi baris & kolom. Pemisah otomatis: koma atau titik koma (Excel Indonesia memakai ;)
+    function bacaCsv(teks) {
+        const barisPertama = teks.split(/\r?\n/, 1)[0];
+        const pemisah = (barisPertama.split(';').length > barisPertama.split(',').length) ? ';' : ',';
+        const hasil = [];
+        let baris = [], sel = '', dalamKutip = false;
+        for (let i = 0; i < teks.length; i++) {
+            const c = teks[i];
+            if (dalamKutip) {
+                if (c === '"' && teks[i + 1] === '"') { sel += '"'; i++; }
+                else if (c === '"') dalamKutip = false;
+                else sel += c;
+            } else if (c === '"') dalamKutip = true;
+            else if (c === pemisah) { baris.push(sel); sel = ''; }
+            else if (c === '\n' || c === '\r') {
+                if (c === '\r' && teks[i + 1] === '\n') i++;
+                baris.push(sel); hasil.push(baris); baris = []; sel = '';
+            } else sel += c;
+        }
+        if (sel !== '' || baris.length) { baris.push(sel); hasil.push(baris); }
+        return hasil;
+    }
+
+    // Buat tabel dari array 2 dimensi (pakai textContent -> isi sel tidak dijalankan sebagai HTML)
+    function buatTabel(data) {
+        const tabel = document.createElement('table');
+        tabel.className = 'lembar';
+        data.forEach((baris) => {
+            const tr = tabel.insertRow();
+            baris.forEach((nilai) => { tr.insertCell().textContent = nilai; });
+        });
+        return tabel;
+    }
+
+    // Tampilkan Excel: satu tombol per sheet, tabel sheet yang dipilih di bawahnya
+    function tampilExcel(buf) {
+        const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true });
+        isi.innerHTML = '';
+        const tab = document.createElement('div');
+        tab.className = 'tab';
+        const wadah = document.createElement('div');
+        isi.append(tab, wadah);
+
+        const tampilSheet = (nama, tombol) => {
+            tab.querySelectorAll('button').forEach((b) => b.classList.remove('aktif'));
+            tombol.classList.add('aktif');
+            const data = XLSX.utils.sheet_to_json(wb.Sheets[nama], { header: 1, raw: false, defval: '' });
+            wadah.innerHTML = '';
+            wadah.appendChild(data.length ? buatTabel(data) : Object.assign(document.createElement('p'), { className: 'info', textContent: 'Sheet ini kosong.' }));
+        };
+
+        wb.SheetNames.forEach((nama, i) => {
+            const b = document.createElement('button');
+            b.textContent = nama;
+            b.onclick = () => tampilSheet(nama, b);
+            tab.appendChild(b);
+            if (i === 0) tampilSheet(nama, b);
+        });
+        if (wb.SheetNames.length < 2) tab.style.display = 'none';
+    }
+
+    async function tampilkan(ext, buf) {
+        if (ext === 'txt') {
+            isi.innerHTML = '';
+            const pre = document.createElement('pre');
+            pre.textContent = keTeks(buf);
+            isi.appendChild(pre);
+        } else if (ext === 'csv') {
+            isi.innerHTML = '';
+            isi.appendChild(buatTabel(bacaCsv(keTeks(buf))));
+        } else if (ext === 'docx') {
+            await muatScript('mammoth.browser.min.js');
+            const hasil = await mammoth.convertToHtml({ arrayBuffer: buf });
+            isi.innerHTML = '<div class="dokumen"></div>';
+            isi.firstChild.innerHTML = hasil.value || '<p class="info">Dokumen kosong.</p>';
+            // Link di dalam dokumen dibuka di tab baru (bukan di dalam kotak pratinjau)
+            isi.querySelectorAll('a[href]').forEach((a) => { a.target = '_blank'; a.rel = 'noopener'; });
+        } else if (ext === 'xlsx' || ext === 'xls') {
+            await muatScript('xlsx.full.min.js');
+            tampilExcel(buf);
+        } else {
+            info('Pratinjau tidak tersedia untuk file ini. Silakan gunakan tombol Unduh.');
+        }
+    }
+
+    // Terima isi file dari halaman induk (lampiran.php), hanya sekali
+    let sudahDiterima = false;
+    window.addEventListener('message', async (e) => {
+        if (sudahDiterima || e.source !== window.parent || !e.data || !(e.data.buf instanceof ArrayBuffer)) return;
+        sudahDiterima = true;
+        try {
+            await tampilkan(String(e.data.ext), e.data.buf);
+        } catch (err) {
+            info('Gagal menampilkan file: ' + (err && err.message ? err.message : err) + '. Silakan gunakan tombol Unduh.');
+        }
+    });
+})();
+</script>
+</body>
+</html>
