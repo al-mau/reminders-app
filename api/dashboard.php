@@ -409,6 +409,9 @@ $wa_target_env   = normalisasiNomorWa((string) env('WA_TARGET', ''));
 
 // --- RIWAYAT PENGIRIMAN WA (30 terakhir) ---
 $riwayat_wa    = $pdo->query("SELECT * FROM wa_log ORDER BY id DESC LIMIT 30")->fetchAll();
+// Nomor -> nama penerima, agar kolom Penerima di riwayat menampilkan nama (bukan hanya nomor).
+// Nomor yang sudah dihapus dari daftar penerima tetap tampil sebagai nomor saja.
+$nama_penerima = array_column($penerima_list, 'nama', 'nomor');
 
 // --- PESAN NOTIFIKASI ---
 $alerts = [
@@ -803,7 +806,18 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             <td class="text-nowrap"><?= date('d M Y H:i', strtotime($w['waktu'])); ?></td>
                             <td><span class="badge <?= $w['jenis'] === 'otomatis' ? 'bg-primary' : 'bg-secondary'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
                             <td style="min-width: 180px;"><?= e($w['ringkasan']); ?></td>
-                            <td class="text-secondary"><?= e(str_replace(',', ', ', $w['penerima'])); ?></td>
+                            <td style="min-width: 160px;">
+                                <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
+                                    <div class="text-nowrap">
+                                        <?php if (isset($nama_penerima[$no])): ?>
+                                            <span class="fw-semibold"><?= e($nama_penerima[$no]); ?></span> <span class="text-secondary">+<?= e($no); ?></span>
+                                        <?php else: ?>
+                                            <span class="text-secondary">+<?= e($no); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                                <?php if (trim($w['penerima']) === '-'): ?><span class="text-muted">-</span><?php endif; ?>
+                            </td>
                             <td>
                                 <span class="badge <?= $ok ? 'bg-success' : 'bg-danger'; ?>"><?= $ok ? 'Berhasil' : 'Gagal'; ?></span>
                                 <?php if (!$ok && $w['keterangan']): ?><div class="text-danger" style="font-size:.75rem"><?= e($w['keterangan']); ?></div><?php endif; ?>
