@@ -72,8 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 simpanBagianLampiran($pdo, (int) ($_POST['id'] ?? 0), (int) ($_POST['urutan'] ?? -1), $_FILES['bagian'] ?? []);
                 jsonKeluar(['ok' => true]);
             }
-            $lamp = selesaikanLampiran($pdo, (int) ($_POST['id'] ?? 0));
-            catatAudit($pdo, 'upload_lampiran', $lamp['nama_file'] . ' (' . formatUkuran((int) $lamp['ukuran']) . ') untuk ' . labelUnit($pdo, (int) $lamp['deadline_id']));
+            selesaikanLampiran($pdo, (int) ($_POST['id'] ?? 0));
             jsonKeluar(['ok' => true]);
         } catch (InvalidArgumentException $e) {
             jsonKeluar(['ok' => false, 'pesan' => $e->getMessage()], 422);
@@ -107,7 +106,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("INSERT INTO deadline (kode_unit, nama_unit, tanggal_awal, tanggal_akhir, pengingat) VALUES (?, ?, ?, ?, 'pending')");
             $stmt->execute([$kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir]);
             $idBaru = (int) $pdo->lastInsertId();
-            catatAudit($pdo, 'tambah_unit', "$kode_unit $nama_unit (deadline " . date('d-m-Y', strtotime($tanggal_akhir)) . ")");
 
             // Dari JavaScript: lampiran diunggah per potongan setelah unit dibuat
             if ($ajax) {
@@ -117,19 +115,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $files = daftarFileUpload('lampiran');
             if ($files) {
                 $hasil = simpanLampiran($pdo, $idBaru, $files, $_SESSION['username'] ?? null);
-                if ($hasil['berhasil'] > 0) {
-                    catatAudit($pdo, 'upload_lampiran', $hasil['berhasil'] . " file untuk $kode_unit $nama_unit");
-                }
                 foreach ($hasil['gagal'] as $pesan) {
                     flash('warning', 'Lampiran tidak disimpan — ' . $pesan);
                 }
             }
             header("Location: dashboard.php?status=success_add");
         } else {
-            $lama = $pdo->prepare("SELECT kode_unit, nama_unit, tanggal_awal, tanggal_akhir FROM deadline WHERE id = ?");
-            $lama->execute([$id]);
-            $lama = $lama->fetch() ?: [];
-
             // Jika tanggal akhir diubah, reset status pengingat agar cron mengirim ulang
             $stmt = $pdo->prepare(
                 "UPDATE deadline
@@ -140,15 +131,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  WHERE id = ?"
             );
             $stmt->execute([$kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
-
-            // Catat hanya kolom yang berubah
-            $perubahan = [];
-            foreach (['kode_unit' => $kode_unit, 'nama_unit' => $nama_unit, 'tanggal_awal' => $tanggal_awal, 'tanggal_akhir' => $tanggal_akhir] as $k => $baru) {
-                if (isset($lama[$k]) && (string) $lama[$k] !== (string) $baru) {
-                    $perubahan[] = "$k: {$lama[$k]} → $baru";
-                }
-            }
-            catatAudit($pdo, 'edit_unit', "$kode_unit $nama_unit" . ($perubahan ? ' | ' . implode('; ', $perubahan) : ' | tidak ada perubahan'));
             header("Location: dashboard.php?status=success_update");
         }
         exit;
@@ -157,7 +139,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- 3. HAPUS DATA ---
     if ($aksi === 'hapus') {
         $id = (int) ($_POST['id'] ?? 0);
-        catatAudit($pdo, 'hapus_unit', labelUnit($pdo, $id));
         hapusLampiranUnit($pdo, $id);
         $pdo->prepare("DELETE FROM deadline WHERE id = ?")->execute([$id]);
         header("Location: dashboard.php?status=success_delete");
@@ -197,15 +178,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pesan .= "Pesan ini dikirim secara manual dari dashboard admin.";
 
         $label = $data_wa['kode_unit'] . ' ' . $data_wa['nama_unit'];
+        // Kirim manual tidak mengubah status pengingat unit (pengingat otomatis tetap berjalan sesuai jadwal)
         $hasil = kirimWhatsApp($pesan, 'manual', $label);
-        catatAudit($pdo, 'kirim_wa_manual', "$label — " . ($hasil['ok'] ? $hasil['pesan'] : 'gagal: ' . $hasil['pesan']));
         if (!$hasil['ok']) {
             $_SESSION['flash_wa_error'] = $hasil['pesan'];
         } else {
-            // Tandai sudah dikirim hari ini agar cron tidak mengirim ulang unit ini di hari yang sama
-            $pdo->prepare("UPDATE deadline SET pengingat = 'sent', terakhir_dikirim = ? WHERE id = ?")
-                ->execute([date('Y-m-d'), (int) $data_wa['id']]);
-            flash('success', $hasil['pesan'] . '. Pengingat otomatis untuk unit ini tidak dikirim lagi hari ini.');
+            flash('success', $hasil['pesan'] . '.');
         }
         header("Location: dashboard.php?status=" . ($hasil['ok'] ? 'wa_sent' : 'wa_failed'));
         exit;
@@ -216,7 +194,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int) ($_POST['id'] ?? 0);
         $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL WHERE id = ?")->execute([$id]);
         $label = labelUnit($pdo, $id);
-        catatAudit($pdo, 'reset_pengingat', $label);
         flash('success', "Pengingat $label di-reset. Akan dikirim ulang otomatis pada jadwal cron berikutnya jika deadline-nya hari ini atau besok.");
         header("Location: dashboard.php");
         exit;
@@ -239,7 +216,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $hasil = simpanLampiran($pdo, $deadlineId, $files, $_SESSION['username'] ?? null);
             if ($hasil['berhasil'] > 0) {
-                catatAudit($pdo, 'upload_lampiran', $hasil['berhasil'] . ' file untuk ' . labelUnit($pdo, $deadlineId));
                 flash('success', $hasil['berhasil'] . ' lampiran berhasil diunggah.');
             }
             foreach ($hasil['gagal'] as $pesan) {
@@ -256,7 +232,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([(int) ($_POST['id'] ?? 0)]);
         $lamp = $stmt->fetch() ?: ['deadline_id' => 0, 'nama_file' => '?'];
         $deadlineId = (int) $lamp['deadline_id'];
-        catatAudit($pdo, 'hapus_lampiran', $lamp['nama_file'] . ' dari ' . labelUnit($pdo, $deadlineId));
 
         hapusLampiranLengkap($pdo, (int) ($_POST['id'] ?? 0));
         flash('warning', 'Lampiran dihapus.');
@@ -283,7 +258,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $pdo->prepare("INSERT INTO wa_penerima (nama, nomor, dibuat_tanggal) VALUES (?, ?, ?)")
                         ->execute([function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100), $nomor, date('Y-m-d H:i:s')]);
-                    catatAudit($pdo, 'tambah_penerima_wa', "$nama ($nomor)");
                     flash('success', "Nomor $nomor ($nama) ditambahkan sebagai penerima WA.");
                 }
             } catch (PDOException $e) {
@@ -299,22 +273,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($aksi === 'toggle_penerima') {
         $pid = (int) ($_POST['id'] ?? 0);
         $pdo->prepare("UPDATE wa_penerima SET aktif = 1 - aktif WHERE id = ?")->execute([$pid]);
-        $p = $pdo->prepare("SELECT nama, nomor, aktif FROM wa_penerima WHERE id = ?");
-        $p->execute([$pid]);
-        if ($p = $p->fetch()) {
-            catatAudit($pdo, (int) $p['aktif'] === 1 ? 'aktifkan_penerima_wa' : 'nonaktifkan_penerima_wa', "{$p['nama']} ({$p['nomor']})");
-        }
         header("Location: dashboard.php#penerima");
         exit;
     }
 
     if ($aksi === 'hapus_penerima') {
         $pid = (int) ($_POST['id'] ?? 0);
-        $p = $pdo->prepare("SELECT nama, nomor FROM wa_penerima WHERE id = ?");
-        $p->execute([$pid]);
-        if ($p = $p->fetch()) {
-            catatAudit($pdo, 'hapus_penerima_wa', "{$p['nama']} ({$p['nomor']})");
-        }
         $pdo->prepare("DELETE FROM wa_penerima WHERE id = ?")->execute([$pid]);
         flash('warning', 'Nomor penerima dihapus.');
         header("Location: dashboard.php#penerima");
@@ -429,19 +393,8 @@ $penerima_list   = $pdo->query("SELECT * FROM wa_penerima ORDER BY id")->fetchAl
 $penerima_aktif  = count(array_filter($penerima_list, static fn($p) => (int) $p['aktif'] === 1));
 $wa_target_env   = normalisasiNomorWa((string) env('WA_TARGET', ''));
 
-// --- RIWAYAT (30 terakhir) ---
+// --- RIWAYAT PENGIRIMAN WA (30 terakhir) ---
 $riwayat_wa    = $pdo->query("SELECT * FROM wa_log ORDER BY id DESC LIMIT 30")->fetchAll();
-$riwayat_audit = $pdo->query("SELECT * FROM audit_log ORDER BY id DESC LIMIT 30")->fetchAll();
-$label_aksi = [
-    'login' => ['Login', 'secondary'], 'logout' => ['Logout', 'secondary'], 'login_dikunci' => ['Login dikunci', 'danger'],
-    'tambah_unit' => ['Tambah unit', 'success'], 'edit_unit' => ['Edit unit', 'warning'], 'hapus_unit' => ['Hapus unit', 'danger'],
-    'upload_lampiran' => ['Upload lampiran', 'info'], 'hapus_lampiran' => ['Hapus lampiran', 'danger'],
-    'kirim_wa_manual' => ['Kirim WA', 'success'],
-    'tambah_penerima_wa' => ['Tambah penerima', 'success'], 'hapus_penerima_wa' => ['Hapus penerima', 'danger'],
-    'reset_pengingat' => ['Reset pengingat', 'info'],
-    'aktifkan_penerima_wa' => ['Aktifkan penerima', 'info'], 'nonaktifkan_penerima_wa' => ['Nonaktifkan penerima', 'secondary'],
-    'tambah_user' => ['Tambah user', 'success'], 'ganti_password' => ['Ganti password', 'warning'], 'hapus_user' => ['Hapus user', 'danger'],
-];
 
 // --- PESAN NOTIFIKASI ---
 $alerts = [
@@ -807,65 +760,32 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
 
         </div>
 
-        <!-- Riwayat pengiriman WA & aktivitas -->
+        <!-- Riwayat pengiriman WA -->
         <div class="card p-3 mt-4" id="riwayat">
-            <ul class="nav nav-tabs mb-3" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabRiwayatWa" type="button" role="tab">
-                        <i class="fa-brands fa-whatsapp text-success me-1"></i> Riwayat WA
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAudit" type="button" role="tab">
-                        <i class="fa-solid fa-clock-rotate-left text-primary me-1"></i> Aktivitas User
-                    </button>
-                </li>
-            </ul>
-            <div class="tab-content">
-                <div class="tab-pane fade show active" id="tabRiwayatWa" role="tabpanel">
-                    <div class="table-responsive" style="max-height: 360px;">
-                        <table class="table table-sm table-hover align-middle mb-0 small">
-                            <thead class="sticky-top"><tr><th>Waktu</th><th>Jenis</th><th>Unit</th><th>Penerima</th><th>Status</th></tr></thead>
-                            <tbody>
-                            <?php if (!$riwayat_wa): ?>
-                                <tr><td colspan="5" class="text-center text-muted py-3">Belum ada riwayat pengiriman.</td></tr>
-                            <?php endif; ?>
-                            <?php foreach ($riwayat_wa as $w): $ok = $w['status'] === 'berhasil'; ?>
-                                <tr>
-                                    <td class="text-nowrap"><?= date('d M Y H:i', strtotime($w['waktu'])); ?></td>
-                                    <td><span class="badge <?= $w['jenis'] === 'otomatis' ? 'bg-primary' : 'bg-secondary'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
-                                    <td style="min-width: 180px;"><?= e($w['ringkasan']); ?></td>
-                                    <td class="text-secondary"><?= e(str_replace(',', ', ', $w['penerima'])); ?></td>
-                                    <td>
-                                        <span class="badge <?= $ok ? 'bg-success' : 'bg-danger'; ?>"><?= $ok ? 'Berhasil' : 'Gagal'; ?></span>
-                                        <?php if (!$ok && $w['keterangan']): ?><div class="text-danger" style="font-size:.75rem"><?= e($w['keterangan']); ?></div><?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="tab-pane fade" id="tabAudit" role="tabpanel">
-                    <div class="table-responsive" style="max-height: 360px;">
-                        <table class="table table-sm table-hover align-middle mb-0 small">
-                            <thead class="sticky-top"><tr><th>Waktu</th><th>User</th><th>Aktivitas</th><th>Detail</th></tr></thead>
-                            <tbody>
-                            <?php if (!$riwayat_audit): ?>
-                                <tr><td colspan="4" class="text-center text-muted py-3">Belum ada aktivitas tercatat.</td></tr>
-                            <?php endif; ?>
-                            <?php foreach ($riwayat_audit as $a): [$teks, $warna] = $label_aksi[$a['aksi']] ?? [$a['aksi'], 'secondary']; ?>
-                                <tr>
-                                    <td class="text-nowrap"><?= date('d M Y H:i', strtotime($a['waktu'])); ?></td>
-                                    <td class="fw-semibold"><?= e($a['username'] ?? '-'); ?></td>
-                                    <td><span class="badge bg-<?= $warna; ?>"><?= e($teks); ?></span></td>
-                                    <td class="text-secondary" style="min-width: 200px;"><?= e($a['detail'] ?? ''); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+            <div class="card-header bg-transparent mb-2">
+                <i class="fa-brands fa-whatsapp text-success me-2"></i> Riwayat Pengiriman WA
+            </div>
+            <div class="table-responsive" style="max-height: 360px;">
+                <table class="table table-sm table-hover align-middle mb-0 small">
+                    <thead class="sticky-top"><tr><th>Waktu</th><th>Jenis</th><th>Unit</th><th>Penerima</th><th>Status</th></tr></thead>
+                    <tbody>
+                    <?php if (!$riwayat_wa): ?>
+                        <tr><td colspan="5" class="text-center text-muted py-3">Belum ada riwayat pengiriman.</td></tr>
+                    <?php endif; ?>
+                    <?php foreach ($riwayat_wa as $w): $ok = $w['status'] === 'berhasil'; ?>
+                        <tr>
+                            <td class="text-nowrap"><?= date('d M Y H:i', strtotime($w['waktu'])); ?></td>
+                            <td><span class="badge <?= $w['jenis'] === 'otomatis' ? 'bg-primary' : 'bg-secondary'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
+                            <td style="min-width: 180px;"><?= e($w['ringkasan']); ?></td>
+                            <td class="text-secondary"><?= e(str_replace(',', ', ', $w['penerima'])); ?></td>
+                            <td>
+                                <span class="badge <?= $ok ? 'bg-success' : 'bg-danger'; ?>"><?= $ok ? 'Berhasil' : 'Gagal'; ?></span>
+                                <?php if (!$ok && $w['keterangan']): ?><div class="text-danger" style="font-size:.75rem"><?= e($w['keterangan']); ?></div><?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
             <div class="form-text mt-2">Menampilkan 30 catatan terakhir.</div>
         </div>

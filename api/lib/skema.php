@@ -28,7 +28,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v3'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v4'])) {
         return;
     }
 
@@ -81,17 +81,6 @@ function pastikanTabelTambahan(PDO $pdo): void
         penerima   VARCHAR(500) NOT NULL,
         status     VARCHAR(10)  NOT NULL,
         keterangan VARCHAR(255) NULL,
-        INDEX idx_waktu (waktu)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-    // Riwayat aktivitas user (siapa mengubah apa)
-    $pdo->exec("CREATE TABLE IF NOT EXISTS audit_log (
-        id       INT AUTO_INCREMENT PRIMARY KEY,
-        waktu    DATETIME     NOT NULL,
-        username VARCHAR(50)  NULL,
-        aksi     VARCHAR(50)  NOT NULL,
-        detail   VARCHAR(500) NULL,
-        ip       VARCHAR(45)  NULL,
         INDEX idx_waktu (waktu)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
@@ -323,7 +312,7 @@ function bersihkanLampiranGantung(PDO $pdo): void
 }
 
 // ===================================================================
-// RIWAYAT AKTIVITAS (AUDIT LOG)
+// RIWAYAT PENGIRIMAN WA
 // ===================================================================
 
 /** Alamat IP pengunjung (Vercel meneruskan IP asli lewat X-Forwarded-For) */
@@ -337,24 +326,6 @@ function ipKlien(): string
 function potong(string $teks, int $maks): string
 {
     return function_exists('mb_substr') ? mb_substr($teks, 0, $maks) : substr($teks, 0, $maks);
-}
-
-/** Catat aktivitas user. Kegagalan mencatat tidak boleh menggagalkan aksi utama. */
-function catatAudit(PDO $pdo, string $aksi, string $detail = '', ?string $username = null): void
-{
-    try {
-        pastikanTabelTambahan($pdo);
-        $pdo->prepare("INSERT INTO audit_log (waktu, username, aksi, detail, ip) VALUES (?, ?, ?, ?, ?)")
-            ->execute([
-                date('Y-m-d H:i:s'),
-                $username ?? ($_SESSION['username'] ?? null),
-                potong($aksi, 50),
-                potong($detail, 500),
-                ipKlien(),
-            ]);
-    } catch (PDOException $e) {
-        error_log('Gagal mencatat audit: ' . $e->getMessage());
-    }
 }
 
 /** Catat pengiriman WA (berhasil maupun gagal) */

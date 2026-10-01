@@ -6,7 +6,6 @@
  */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
-require_once __DIR__ . '/lib/skema.php';
 
 if (empty($_SESSION['login'])) {
     header("Location: login.php");
@@ -96,8 +95,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 implode(', ', $kolom),
                 implode(', ', array_fill(0, count($kolom), '?'))
             ))->execute($nilai);
-
-            catatAudit($pdo, 'tambah_user', $username);
             flashUser('success', "User \"$username\" berhasil dibuat. Berikan username & password-nya kepada yang bersangkutan.");
         }
         header("Location: users.php");
@@ -115,7 +112,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($stmt->rowCount() > 0) {
                 keluarkanSesiUser($pdo, $username); // paksa login ulang di perangkat lain
-                catatAudit($pdo, 'ganti_password', "Password user $username diganti");
                 flashUser('success', "Password \"$username\" berhasil diganti.");
             } else {
                 flashUser('danger', 'User tidak ditemukan.');
@@ -138,7 +134,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$username]);
             if ($stmt->rowCount() > 0) {
                 keluarkanSesiUser($pdo, $username);
-                catatAudit($pdo, 'hapus_user', $username);
                 flashUser('warning', "User \"$username\" dihapus dan otomatis keluar dari semua perangkat.");
             }
         }
