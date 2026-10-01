@@ -157,7 +157,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$hasil['ok']) {
             $_SESSION['flash_wa_error'] = $hasil['pesan'];
         } else {
-            flash('success', $hasil['pesan'] . '.');
+            // Tandai sudah dikirim hari ini agar cron tidak mengirim ulang unit ini di hari yang sama
+            $pdo->prepare("UPDATE deadline SET pengingat = 'sent', terakhir_dikirim = ? WHERE id = ?")
+                ->execute([date('Y-m-d'), (int) $data_wa['id']]);
+            flash('success', $hasil['pesan'] . '. Pengingat otomatis untuk unit ini tidak dikirim lagi hari ini.');
         }
         header("Location: dashboard.php?status=" . ($hasil['ok'] ? 'wa_sent' : 'wa_failed'));
         exit;
