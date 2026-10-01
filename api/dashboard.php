@@ -465,6 +465,16 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         .stat-mendatang { border-color: #6b7280; }
         .stat-expired { border-color: #111827; }
         .btn-aksi { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+        /* Daftar file yang dipilih (sebelum disimpan) */
+        .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
+        /* Popup pratinjau file sebelum disimpan (di atas popup Bootstrap) */
+        #pratinjauLokal { position: fixed; inset: 0; z-index: 2000; background: rgba(15, 23, 42, .75); display: none; padding: 16px; }
+        #pratinjauLokal.tampil { display: flex; }
+        #pratinjauLokal .kotak { background: #fff; border-radius: 12px; width: 100%; max-width: 1000px; margin: auto; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+        #pratinjauLokal .bilah { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; }
+        #pratinjauLokal .wadah { flex: 1; min-height: 0; background: #f1f5f9; }
+        #pratinjauLokal iframe { width: 100%; height: 100%; border: 0; background: #fff; display: block; }
+        #pratinjauLokal img { max-width: 100%; max-height: 100%; display: block; margin: auto; }
     </style>
 </head>
 <body>
@@ -1021,16 +1031,115 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             });
         });
 
-        // Tolak file > batas sebelum dikirim (hemat kuota & waktu)
+        // ---------------------------------------------------------------
+        // Daftar file yang dipilih + tombol Lihat & ✕ SEBELUM data disimpan.
+        // File belum dikirim ke server: pratinjau dibuka langsung dari laptop/HP user.
+        // ---------------------------------------------------------------
+        const MAKS_BYTE = <?= LAMPIRAN_MAKS_BYTE; ?>;
+        const TIPE_BOLEH = <?= json_encode(array_keys(LAMPIRAN_TIPE)); ?>;
+        const TIPE_LIHAT = <?= json_encode(LAMPIRAN_BISA_DILIHAT); ?>;
+        const ekstensi = (nama) => (nama.includes('.') ? nama.split('.').pop() : '').toLowerCase();
+        const ukuranTeks = (b) => b >= 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+
         document.querySelectorAll('input[type=file][name="lampiran[]"]').forEach((input) => {
+            let terpilih = [];   // file yang akan diunggah
+            let dilewati = [];   // file yang ditolak (terlalu besar / tipe tidak diizinkan)
+            const daftar = document.createElement('ul');
+            daftar.className = 'list-group daftar-pilihan mt-2';
+            input.insertAdjacentElement('afterend', daftar);
+
+            // Samakan isi <input type=file> dengan daftar (dipakai saat tombol Simpan/Unggah ditekan)
+            const sinkron = () => {
+                const dt = new DataTransfer();
+                terpilih.forEach((f) => dt.items.add(f));
+                input.files = dt.files;
+            };
+
+            const gambar = () => {
+                daftar.innerHTML = '';
+                terpilih.forEach((file, i) => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex align-items-center gap-2';
+                    const nama = Object.assign(document.createElement('span'), { className: 'text-truncate flex-grow-1', textContent: file.name, title: file.name });
+                    const ukuran = Object.assign(document.createElement('span'), { className: 'text-secondary small text-nowrap', textContent: ukuranTeks(file.size) });
+                    li.append(nama, ukuran);
+                    if (TIPE_LIHAT.includes(ekstensi(file.name))) {
+                        const lihat = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm btn-outline-success py-0', title: 'Lihat sebelum disimpan' });
+                        lihat.innerHTML = '<i class="fa-solid fa-eye me-1"></i>Lihat';
+                        lihat.onclick = () => bukaPratinjauLokal(file);
+                        li.appendChild(lihat);
+                    }
+                    const hapus = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm btn-outline-danger py-0', title: 'Batalkan file ini', textContent: '✕' });
+                    hapus.onclick = () => { terpilih.splice(i, 1); sinkron(); gambar(); };
+                    li.appendChild(hapus);
+                    daftar.appendChild(li);
+                });
+                dilewati.forEach(([file, alasan]) => {
+                    const li = Object.assign(document.createElement('li'), { className: 'list-group-item list-group-item-danger small' });
+                    li.textContent = '✕ ' + file.name + ' — ' + alasan + ' (tidak ikut diunggah)';
+                    daftar.appendChild(li);
+                });
+            };
+
+            // Memilih file lagi = MENAMBAH ke daftar (bukan mengganti); file yang sama tidak dobel
             input.addEventListener('change', () => {
-                const besar = [...input.files].filter((f) => f.size > <?= LAMPIRAN_MAKS_BYTE; ?>);
-                if (besar.length) {
-                    alert('File berikut melebihi <?= formatUkuran(LAMPIRAN_MAKS_BYTE); ?>:\n' + besar.map((f) => f.name).join('\n'));
-                    input.value = '';
-                }
+                dilewati = [];
+                [...input.files].forEach((f) => {
+                    if (!TIPE_BOLEH.includes(ekstensi(f.name))) dilewati.push([f, 'tipe file tidak diizinkan']);
+                    else if (f.size > MAKS_BYTE) dilewati.push([f, 'melebihi <?= formatUkuran(LAMPIRAN_MAKS_BYTE); ?>']);
+                    else if (f.size === 0) dilewati.push([f, 'file kosong']);
+                    else if (!terpilih.some((t) => t.name === f.name && t.size === f.size)) terpilih.push(f);
+                });
+                sinkron();
+                gambar();
             });
+
+            // Form dikosongkan (reset) -> kosongkan juga daftarnya
+            input.form && input.form.addEventListener('reset', () => { terpilih = []; dilewati = []; gambar(); });
         });
+
+        // Popup pratinjau file lokal: PDF & gambar ditampilkan browser,
+        // Word/Excel/CSV/TXT lewat vendor/pratinjau.html di iframe sandbox (sama seperti tombol Lihat lampiran)
+        const popup = document.createElement('div');
+        popup.id = 'pratinjauLokal';
+        popup.innerHTML = '<div class="kotak"><div class="bilah"><strong class="text-truncate flex-grow-1"></strong>'
+            + '<span class="badge bg-warning text-dark">Belum disimpan</span>'
+            + '<button type="button" class="btn btn-sm btn-secondary">Tutup</button></div><div class="wadah"></div></div>';
+        document.body.appendChild(popup);
+        let urlLokal = null;
+        const tutupPratinjau = () => {
+            popup.classList.remove('tampil');
+            popup.querySelector('.wadah').innerHTML = '';
+            if (urlLokal) { URL.revokeObjectURL(urlLokal); urlLokal = null; }
+        };
+        popup.querySelector('.bilah button').onclick = tutupPratinjau;
+        popup.addEventListener('click', (e) => { if (e.target === popup) tutupPratinjau(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && popup.classList.contains('tampil')) { e.stopPropagation(); tutupPratinjau(); } }, true);
+
+        function bukaPratinjauLokal(file) {
+            tutupPratinjau();
+            const ext = ekstensi(file.name);
+            const wadah = popup.querySelector('.wadah');
+            popup.querySelector('.bilah strong').textContent = file.name;
+            if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+                urlLokal = URL.createObjectURL(file);
+                wadah.appendChild(Object.assign(document.createElement('img'), { src: urlLokal, alt: file.name }));
+            } else if (ext === 'pdf') {
+                urlLokal = URL.createObjectURL(new Blob([file], { type: 'application/pdf' }));
+                wadah.appendChild(Object.assign(document.createElement('iframe'), { src: urlLokal, title: file.name }));
+            } else {
+                const frame = document.createElement('iframe');
+                frame.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox');
+                frame.title = file.name;
+                frame.addEventListener('load', async () => {
+                    const buf = await file.arrayBuffer();
+                    frame.contentWindow.postMessage({ ext, buf }, '*', [buf]);
+                }, { once: true });
+                frame.src = '/vendor/pratinjau.html';
+                wadah.appendChild(frame);
+            }
+            popup.classList.add('tampil');
+        }
 
         // Daftarkan service worker (sw.js) agar aplikasi bisa di-"Install" seperti aplikasi HP (PWA)
         if ('serviceWorker' in navigator) {
