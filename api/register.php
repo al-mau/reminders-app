@@ -8,8 +8,9 @@ if (!empty($_SESSION['login'])) {
     exit;
 }
 
-// Pendaftaran bisa dimatikan lewat env ALLOW_REGISTER=false
-$registerAktif = filter_var(env('ALLOW_REGISTER', 'true'), FILTER_VALIDATE_BOOLEAN);
+// Pendaftaran publik default ditutup; buka sementara dengan env ALLOW_REGISTER=true.
+// Admin yang sudah login bisa menambah akun lewat halaman Kelola User (users.php).
+$registerAktif = pendaftaranDibuka();
 
 $error        = false;
 $errorMessage = "";
@@ -126,6 +127,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             
             <h4 class="fw-bold text-dark mb-1">Buat Akun Baru</h4>
+
+            <?php if (!$registerAktif): ?>
+                <div class="alert alert-secondary text-start small py-3 px-3 my-4" role="alert">
+                    <i class="fa-solid fa-lock me-1"></i> <strong>Pendaftaran akun ditutup.</strong><br>
+                    Akun baru hanya bisa dibuatkan oleh admin melalui menu <em>Kelola User</em> di dashboard.
+                </div>
+                <a href="login.php" class="btn btn-primary w-100"><i class="fa-solid fa-arrow-left me-1"></i> Kembali ke Login</a>
+            <?php else: ?>
             <p class="text-muted small mb-4">Lengkapi data di bawah untuk mendaftar</p>
 
             <?php if ($error): ?>
@@ -180,6 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </button>
             </form>
             <?php endif; ?>
+            <?php endif; /* registerAktif */ ?>
 
             <div class="text-center mt-2">
                 <p class="text-muted small mb-0">Sudah punya akun? <a href="login.php" class="text-primary text-decoration-none fw-bold">Login</a></p>

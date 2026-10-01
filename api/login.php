@@ -136,7 +136,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </form>
 
     <div class="text-center mt-4">
-        <small class="text-secondary">Belum punya akun? <a href="register.php" class="text-primary text-decoration-none fw-bold">Daftar sekarang</a></small>
+        <?php if (pendaftaranDibuka()): ?>
+            <small class="text-secondary">Belum punya akun? <a href="register.php" class="text-primary text-decoration-none fw-bold">Daftar sekarang</a></small>
+        <?php else: ?>
+            <small class="text-secondary">Belum punya akun? Hubungi admin untuk dibuatkan akun.</small>
+        <?php endif; ?>
     </div>
 </div>
 

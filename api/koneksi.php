@@ -157,6 +157,25 @@ function csrf_valid(): bool
     return is_string($token) && !empty($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
+/**
+ * Pendaftaran akun publik (register.php). Default DITUTUP; buka dengan ALLOW_REGISTER=true.
+ * Pengecualian: jika belum ada user sama sekali (instalasi baru), pendaftaran dibuka
+ * agar admin pertama bisa dibuat.
+ */
+function pendaftaranDibuka(): bool
+{
+    global $pdo;
+
+    if (filter_var(env('ALLOW_REGISTER', 'false'), FILTER_VALIDATE_BOOLEAN)) {
+        return true;
+    }
+    try {
+        return (int) $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn() === 0;
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
 /** Validasi format tanggal Y-m-d */
 function tanggal_valid(string $tanggal): bool
 {

@@ -390,6 +390,9 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             </a>
             <div class="d-flex align-items-center gap-3">
                 <span class="text-white-50 d-none d-sm-inline"><i class="fa-solid fa-user me-1"></i> Halo, <strong class="text-white"><?= e($_SESSION['username'] ?? 'Admin'); ?></strong></span>
+                <a href="users.php" class="btn btn-outline-light btn-sm rounded-pill px-3" title="Kelola User">
+                    <i class="fa-solid fa-users-gear"></i><span class="d-none d-md-inline ms-1">Kelola User</span>
+                </a>
                 <a href="logout.php" class="btn btn-outline-light btn-sm rounded-pill px-3">
                     <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
                 </a>

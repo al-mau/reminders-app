@@ -7,7 +7,8 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 | File | Fungsi |
 |---|---|
 | `api/index.php` | Redirect `/` ke login / dashboard |
-| `api/login.php`, `api/register.php`, `api/logout.php` | Autentikasi |
+| `api/login.php`, `api/register.php`, `api/logout.php` | Autentikasi (halaman Daftar publik default ditutup, buka dengan `ALLOW_REGISTER=true`) |
+| `api/users.php` | Kelola User: tambah admin, ganti password, hapus akun |
 | `api/dashboard.php` | CRUD deadline, statistik, filter, kirim WA manual |
 | `api/cron_wa_reminder.php` | Pengingat otomatis H-1 & hari-H (dipanggil cron-job.org) |
 | `api/koneksi.php` | Koneksi PDO + helper (CSRF, escape) |
