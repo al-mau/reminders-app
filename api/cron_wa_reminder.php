@@ -30,37 +30,48 @@ $stmt = $pdo->prepare(
 $stmt->execute([':besok' => $besok, ':hari_ini' => $hari_ini, ':hari_ini2' => $hari_ini]);
 $rows = $stmt->fetchAll();
 
-$update  = $pdo->prepare("UPDATE deadline SET pengingat = 'sent', terakhir_dikirim = ? WHERE id = ?");
 $laporan = ['status' => true, 'tanggal' => $hari_ini, 'total' => count($rows), 'terkirim' => 0, 'gagal' => []];
 
-foreach ($rows as $row) {
-    $tgl_awal  = date('d-m-Y', strtotime($row['tanggal_awal']));
-    $tgl_akhir = date('d-m-Y', strtotime($row['tanggal_akhir']));
-
-    if ($row['tanggal_akhir'] === $hari_ini) {
-        $status_label = "*PENGINGAT DEADLINE (HARI INI)*";
-        $keterangan   = "memasuki batas waktu *HARI INI*";
-    } else {
-        $status_label = "*PENGINGAT DEADLINE (H-1)*";
-        $keterangan   = "memasuki batas waktu *H-1 (BESOK)*";
+if ($rows) {
+    // Semua unit digabung dalam 1 pesan agar hemat kuota Fonnte & tidak terlihat spam
+    $grup = ['hari_ini' => [], 'besok' => []];
+    foreach ($rows as $row) {
+        $grup[$row['tanggal_akhir'] === $hari_ini ? 'hari_ini' : 'besok'][] = $row;
     }
 
-    $pesan  = "$status_label\n\n";
-    $pesan .= "Halo Admin, unit berikut $keterangan:\n\n";
-    $pesan .= "*Kode Unit:* {$row['kode_unit']}\n";
-    $pesan .= "*Nama Unit:* {$row['nama_unit']}\n";
-    $pesan .= "*Tanggal Awal:* $tgl_awal\n";
-    $pesan .= "*Tanggal Akhir:* $tgl_akhir\n\n";
-    $pesan .= "Mohon segera update kembali usernya secepatnya. Terima kasih!";
+    $baris = static function (array $daftar): string {
+        $teks = '';
+        foreach ($daftar as $i => $row) {
+            $teks .= ($i + 1) . ". *{$row['kode_unit']}* - {$row['nama_unit']}\n"
+                . "    " . date('d-m-Y', strtotime($row['tanggal_awal']))
+                . " s/d " . date('d-m-Y', strtotime($row['tanggal_akhir'])) . "\n";
+        }
+        return $teks;
+    };
 
-    $hasil = kirimWhatsApp($pesan);
+    $pesan  = "*PENGINGAT DEADLINE UNIT*\n\n";
+    $pesan .= "Halo Admin, berikut " . count($rows) . " unit yang perlu segera di-update:\n";
+    if ($grup['hari_ini']) {
+        $pesan .= "\n*HARI INI - " . date('d-m-Y', strtotime($hari_ini)) . "* (" . count($grup['hari_ini']) . " unit)\n";
+        $pesan .= $baris($grup['hari_ini']);
+    }
+    if ($grup['besok']) {
+        $pesan .= "\n*H-1 / BESOK - " . date('d-m-Y', strtotime($besok)) . "* (" . count($grup['besok']) . " unit)\n";
+        $pesan .= $baris($grup['besok']);
+    }
+    $pesan .= "\nMohon segera update kembali usernya secepatnya. Terima kasih!";
+
+    $ringkasan = implode(', ', array_map(static fn($r) => $r['kode_unit'] . ' ' . $r['nama_unit'], $rows));
+    $hasil     = kirimWhatsApp($pesan, 'otomatis', $ringkasan);
 
     // Tandai sudah dikirim agar tidak terkirim ganda hari ini
     if ($hasil['ok']) {
-        $update->execute([$hari_ini, $row['id']]);
-        $laporan['terkirim']++;
+        $ids = array_map(static fn($r) => (int) $r['id'], $rows);
+        $pdo->prepare("UPDATE deadline SET pengingat = 'sent', terakhir_dikirim = ? WHERE id IN (" . implode(',', $ids) . ")")
+            ->execute([$hari_ini]);
+        $laporan['terkirim'] = count($rows);
     } else {
-        $laporan['gagal'][] = ['id' => (int) $row['id'], 'alasan' => $hasil['pesan']];
+        $laporan['gagal'] = ['alasan' => $hasil['pesan'], 'unit' => $ringkasan];
     }
 }
 

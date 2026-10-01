@@ -23,7 +23,7 @@ if (PHP_SAPI !== 'cli') {
 
 date_default_timezone_set('Asia/Jakarta');
 
-$tabelDisalin = ['users', 'deadline', 'wa_penerima', 'lampiran'];
+$tabelDisalin = ['users', 'deadline', 'wa_penerima', 'lampiran', 'wa_log', 'audit_log'];
 
 function tulis(string $pesan): void
 {

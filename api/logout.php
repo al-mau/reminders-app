@@ -1,6 +1,11 @@
 <?php
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
+require_once __DIR__ . '/lib/skema.php';
+
+if (!empty($_SESSION['username'])) {
+    catatAudit($pdo, 'logout', 'Logout');
+}
 
 // Hapus semua data di session
 $_SESSION = array();
