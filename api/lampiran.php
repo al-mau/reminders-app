@@ -4,9 +4,9 @@
  *   lampiran.php?id=12          -> unduh
  *   lampiran.php?id=12&lihat=1  -> buka di browser (hanya PDF & gambar)
  */
-require_once __DIR__ . '/koneksi.php';
-require_once __DIR__ . '/session_handler.php';
-require_once __DIR__ . '/skema.php';
+require_once __DIR__ . '/lib/koneksi.php';
+require_once __DIR__ . '/lib/session_handler.php';
+require_once __DIR__ . '/lib/skema.php';
 
 if (empty($_SESSION['login'])) {
     header("Location: login.php");

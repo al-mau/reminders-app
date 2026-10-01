@@ -9,7 +9,7 @@
 
 if (!function_exists('env')) {
     // Muat file .env (hanya untuk development lokal, misal XAMPP)
-    $envFile = dirname(__DIR__) . '/.env';
+    $envFile = dirname(__DIR__, 2) . '/.env';
     if (is_readable($envFile)) {
         foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
             $line = trim($line);
@@ -68,8 +68,8 @@ if (!function_exists('opsiPdoMysql')) {
             ? Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT
             : PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT;
 
-        if ($caFile && !is_file($caFile) && is_file(dirname(__DIR__) . '/' . ltrim($caFile, '/'))) {
-            $caFile = dirname(__DIR__) . '/' . ltrim($caFile, '/');
+        if ($caFile && !is_file($caFile) && is_file(dirname(__DIR__, 2) . '/' . ltrim($caFile, '/'))) {
+            $caFile = dirname(__DIR__, 2) . '/' . ltrim($caFile, '/');
         }
 
         if ($caFile && is_file($caFile)) {
@@ -155,6 +155,25 @@ function csrf_valid(): bool
 {
     $token = $_POST['csrf_token'] ?? '';
     return is_string($token) && !empty($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+}
+
+/**
+ * Pendaftaran akun publik (register.php). Default DITUTUP; buka dengan ALLOW_REGISTER=true.
+ * Pengecualian: jika belum ada user sama sekali (instalasi baru), pendaftaran dibuka
+ * agar admin pertama bisa dibuat.
+ */
+function pendaftaranDibuka(): bool
+{
+    global $pdo;
+
+    if (filter_var(env('ALLOW_REGISTER', 'false'), FILTER_VALIDATE_BOOLEAN)) {
+        return true;
+    }
+    try {
+        return (int) $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn() === 0;
+    } catch (PDOException $e) {
+        return false;
+    }
 }
 
 /** Validasi format tanggal Y-m-d */

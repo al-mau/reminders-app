@@ -1,7 +1,7 @@
 <?php
-require_once __DIR__ . '/koneksi.php';
-require_once __DIR__ . '/session_handler.php';
-require_once __DIR__ . '/fonnte.php';
+require_once __DIR__ . '/lib/koneksi.php';
+require_once __DIR__ . '/lib/session_handler.php';
+require_once __DIR__ . '/lib/fonnte.php';
 
 // Cek status login
 if (empty($_SESSION['login'])) {
@@ -181,10 +181,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('danger', 'Nama wajib diisi dan nomor WA harus valid (contoh: 081234567890).');
         } else {
             try {
-                $pdo->prepare("INSERT INTO wa_penerima (nama, nomor) VALUES (?, ?)")->execute([function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100), $nomor]);
-                flash('success', "Nomor $nomor ($nama) ditambahkan sebagai penerima WA.");
+                $cek = $pdo->prepare("SELECT nama, aktif FROM wa_penerima WHERE nomor = ?");
+                $cek->execute([$nomor]);
+                $ada = $cek->fetch();
+
+                if ($ada) {
+                    flash('warning', "Nomor $nomor sudah terdaftar atas nama \"{$ada['nama']}\" (status: "
+                        . ((int) $ada['aktif'] === 1 ? 'aktif' : 'nonaktif — klik tombol ▶ untuk mengaktifkan') . ').');
+                } else {
+                    $pdo->prepare("INSERT INTO wa_penerima (nama, nomor) VALUES (?, ?)")
+                        ->execute([function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100), $nomor]);
+                    flash('success', "Nomor $nomor ($nama) ditambahkan sebagai penerima WA.");
+                }
             } catch (PDOException $e) {
-                flash('danger', "Nomor $nomor sudah terdaftar.");
+                // Tampilkan penyebab asli agar mudah ditelusuri (hanya terlihat oleh admin yang login)
+                error_log('Tambah penerima WA gagal: ' . $e->getMessage());
+                flash('danger', 'Gagal menyimpan nomor: ' . $e->getMessage());
             }
         }
         header("Location: dashboard.php#penerima");
@@ -378,6 +390,9 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             </a>
             <div class="d-flex align-items-center gap-3">
                 <span class="text-white-50 d-none d-sm-inline"><i class="fa-solid fa-user me-1"></i> Halo, <strong class="text-white"><?= e($_SESSION['username'] ?? 'Admin'); ?></strong></span>
+                <a href="users.php" class="btn btn-outline-light btn-sm rounded-pill px-3" title="Kelola User">
+                    <i class="fa-solid fa-users-gear"></i><span class="d-none d-md-inline ms-1">Kelola User</span>
+                </a>
                 <a href="logout.php" class="btn btn-outline-light btn-sm rounded-pill px-3">
                     <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
                 </a>
