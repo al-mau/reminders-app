@@ -21,6 +21,7 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 | `database/sync_dari_aiven.*` | Salin data Aiven ke MySQL XAMPP (backup lokal) |
 | `vercel.json` | Pengaturan Vercel (lihat penjelasan di bawah) |
 | `sw.js`, `manifest.json` | PWA: aplikasi bisa di-"Install" di HP/laptop |
+| `vendor/` | Pratinjau lampiran tanpa unduh: `pratinjau.html` + library Word (mammoth) & Excel (SheetJS) |
 
 ### Penjelasan `vercel.json`
 

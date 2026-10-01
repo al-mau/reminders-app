@@ -18,6 +18,10 @@ const LAMPIRAN_MAKS_BYTE   = 5 * 1024 * 1024; // 5 MB per file
 // 768 KB juga aman untuk max_allowed_packet MySQL bawaan XAMPP (1 MB).
 const LAMPIRAN_BAGIAN_BYTE = 768 * 1024;
 
+// Ekstensi yang bisa dilihat langsung (tombol "Lihat") tanpa diunduh.
+// .doc (Word lama) tidak bisa dipratinjau di browser, jadi hanya bisa diunduh.
+const LAMPIRAN_BISA_DILIHAT = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'docx', 'xls', 'xlsx', 'csv', 'txt'];
+
 /** Ekstensi yang diizinkan => MIME type yang dikirim saat diunduh */
 const LAMPIRAN_TIPE = [
     'pdf'  => 'application/pdf',

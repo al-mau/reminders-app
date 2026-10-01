@@ -864,7 +864,8 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     <?php else: ?>
                         <ul class="list-group mb-3">
                             <?php foreach ($lampiran_unit as $l):
-                                $bisa_dilihat = in_array($l['ekstensi'], ['pdf', 'jpg', 'jpeg', 'png', 'webp'], true); ?>
+                                // Tombol "Lihat" untuk PDF, gambar, Word (.docx), Excel, CSV, TXT (lihat LAMPIRAN_BISA_DILIHAT)
+                                $bisa_dilihat = in_array(strtolower($l['ekstensi']), LAMPIRAN_BISA_DILIHAT, true); ?>
                             <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
                                 <div class="text-truncate">
                                     <div class="fw-semibold small text-truncate" title="<?= e($l['nama_file']); ?>"><?= e($l['nama_file']); ?></div>
@@ -875,7 +876,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                 </div>
                                 <div class="d-flex gap-1 flex-shrink-0">
                                     <?php if ($bisa_dilihat): ?>
-                                        <a href="lampiran.php?id=<?= (int) $l['id']; ?>&lihat=1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Lihat"><i class="fa-solid fa-eye"></i></a>
+                                        <a href="lampiran.php?id=<?= (int) $l['id']; ?>&lihat=1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="Lihat tanpa mengunduh"><i class="fa-solid fa-eye me-1"></i>Lihat</a>
                                     <?php endif; ?>
                                     <a href="lampiran.php?id=<?= (int) $l['id']; ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Unduh"><i class="fa-solid fa-download"></i></a>
                                     <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus lampiran ini?')">

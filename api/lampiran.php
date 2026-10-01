@@ -2,7 +2,10 @@
 /**
  * Unduh / lihat lampiran dokumen. Hanya untuk user yang sudah login.
  *   lampiran.php?id=12          -> unduh
- *   lampiran.php?id=12&lihat=1  -> buka di browser (hanya PDF & gambar)
+ *   lampiran.php?id=12&lihat=1  -> lihat langsung tanpa mengunduh:
+ *        - PDF & gambar      : ditampilkan oleh browser
+ *        - Word, Excel, CSV, TXT : ditampilkan lewat vendor/pratinjau.html (dalam iframe sandbox)
+ *        - .doc (Word lama)  : tidak bisa dipratinjau, hanya unduh
  *
  * Lampiran besar disimpan per potongan (lampiran_bagian) karena Vercel menolak
  * response > 4,5 MB. Untuk file seperti itu halaman ini mengirim pemuat kecil
@@ -33,17 +36,25 @@ if (!$file) {
 
 $ext         = strtolower($file['ekstensi']);
 $mime        = LAMPIRAN_TIPE[$ext] ?? 'application/octet-stream';
-$bisaDilihat = in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'webp'], true);
+$bisaDilihat = in_array($ext, LAMPIRAN_BISA_DILIHAT, true);
 $inline      = !empty($_GET['lihat']) && $bisaDilihat;
+// Ditampilkan langsung oleh browser (PDF/gambar) atau lewat halaman pratinjau (Word/Excel/CSV/TXT)
+$olehBrowser = in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'webp'], true);
 $berpotongan = (int) $file['jumlah_bagian'] > 0;
 
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: private, no-store');
 
 // --- Satu potongan file (dipanggil oleh pemuat di bawah) ---
-if ($berpotongan && isset($_GET['bagian'])) {
-    $bagian = $pdo->prepare("SELECT isi FROM lampiran_bagian WHERE lampiran_id = ? AND urutan = ?");
-    $bagian->execute([$id, (int) $_GET['bagian']]);
+// File lama (tidak berpotongan) dianggap 1 potongan: ?bagian=0 = seluruh isi file.
+if (isset($_GET['bagian'])) {
+    if ($berpotongan) {
+        $bagian = $pdo->prepare("SELECT isi FROM lampiran_bagian WHERE lampiran_id = ? AND urutan = ?");
+        $bagian->execute([$id, (int) $_GET['bagian']]);
+    } else {
+        $bagian = $pdo->prepare("SELECT isi FROM lampiran WHERE id = ? AND ? = 0");
+        $bagian->execute([$id, (int) $_GET['bagian']]);
+    }
     $isi = $bagian->fetchColumn();
     if ($isi === false) {
         http_response_code(404);
@@ -55,8 +66,9 @@ if ($berpotongan && isset($_GET['bagian'])) {
     exit;
 }
 
-// --- File lama (disimpan utuh di satu baris) ---
-if (!$berpotongan) {
+// --- File lama (disimpan utuh di satu baris): langsung dikirim ---
+// Kecuali pratinjau Word/Excel/CSV/TXT, yang memakai halaman pemuat di bawah.
+if (!$berpotongan && !($inline && !$olehBrowser)) {
     $isi = $pdo->prepare("SELECT isi FROM lampiran WHERE id = ?");
     $isi->execute([$id]);
     $isi = (string) $isi->fetchColumn();
@@ -77,14 +89,16 @@ if (!$berpotongan) {
     exit;
 }
 
-// --- File berpotongan: halaman pemuat yang menyatukan potongan di browser ---
+// --- Halaman pemuat: ambil potongan satu per satu, satukan di browser, lalu unduh / tampilkan ---
 $konfig = [
     'url'    => 'lampiran.php?id=' . $id . '&bagian=',
-    'jumlah' => (int) $file['jumlah_bagian'],
+    'jumlah' => $berpotongan ? (int) $file['jumlah_bagian'] : 1,
     'ukuran' => (int) $file['ukuran'],
     'nama'   => $file['nama_file'],
     'mime'   => $mime,
-    'lihat'  => $inline,
+    'ext'    => $ext,
+    // 'browser' = PDF/gambar, 'pratinjau' = Word/Excel/CSV/TXT, '' = unduh
+    'lihat'  => $inline ? ($olehBrowser ? 'browser' : 'pratinjau') : '',
 ];
 header('Content-Type: text/html; charset=utf-8');
 ?>
@@ -101,6 +115,13 @@ header('Content-Type: text/html; charset=utf-8');
         .isi { height: 100%; width: 0; background: #2563eb; transition: width .2s; }
         .kecil { font-size: .85rem; color: #64748b; word-break: break-all; }
         a { color: #2563eb; }
+        /* Mode pratinjau Word/Excel/CSV/TXT: bilah judul di atas + isi file memenuhi layar */
+        body.pratinjau { display: block; background: #e2e8f0; }
+        .bilah { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #1e293b; color: #fff; }
+        .bilah .nama { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .bilah .kecil { color: #cbd5e1; }
+        .bilah a { color: #fff; background: #2563eb; padding: 6px 14px; border-radius: 6px; text-decoration: none; white-space: nowrap; }
+        iframe { display: block; width: 100%; height: calc(100vh - 52px); border: 0; background: #fff; }
     </style>
 </head>
 <body>
@@ -130,8 +151,12 @@ header('Content-Type: text/html; charset=utf-8');
         if (blob.size !== k.ukuran) throw new Error('Ukuran file tidak cocok, coba lagi.');
         const url = URL.createObjectURL(blob);
 
-        if (k.lihat) {
+        if (k.lihat === 'browser') {
             window.location.replace(url); // tampilkan PDF/gambar di tab ini
+            return;
+        }
+        if (k.lihat === 'pratinjau') {
+            tampilPratinjau(blob, url);
             return;
         }
         const a = Object.assign(document.createElement('a'), { href: url, download: k.nama });
@@ -142,6 +167,32 @@ header('Content-Type: text/html; charset=utf-8');
     } catch (err) {
         judul.textContent = 'Gagal memuat file';
         status.textContent = err.message;
+    }
+
+    // Ganti halaman menjadi: bilah judul (nama file + tombol Unduh) + kotak pratinjau.
+    // Kotak pratinjau adalah iframe sandbox (tanpa allow-same-origin) sehingga isi dokumen
+    // tidak bisa mengakses cookie/sesi login aplikasi. Isi file dikirim lewat postMessage.
+    function tampilPratinjau(blob, url) {
+        document.body.className = 'pratinjau';
+        document.body.innerHTML = '';
+
+        const bilah = document.createElement('div');
+        bilah.className = 'bilah';
+        const nama = Object.assign(document.createElement('span'), { className: 'nama', textContent: k.nama, title: k.nama });
+        const ukuran = Object.assign(document.createElement('span'), { className: 'kecil', textContent: <?= json_encode(formatUkuran((int) $file['ukuran'])); ?> });
+        const unduh = Object.assign(document.createElement('a'), { href: url, download: k.nama, textContent: 'Unduh' });
+        bilah.append(nama, ukuran, unduh);
+
+        const frame = document.createElement('iframe');
+        frame.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox');
+        frame.title = 'Pratinjau ' + k.nama;
+        frame.addEventListener('load', async () => {
+            const buf = await blob.arrayBuffer();
+            frame.contentWindow.postMessage({ ext: k.ext, buf }, '*', [buf]);
+        }, { once: true });
+        frame.src = '/vendor/pratinjau.html';
+
+        document.body.append(bilah, frame);
     }
 })();
 </script>
