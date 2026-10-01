@@ -73,17 +73,6 @@ CREATE TABLE IF NOT EXISTS wa_log (
     INDEX idx_waktu (waktu)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Riwayat aktivitas user
-CREATE TABLE IF NOT EXISTS audit_log (
-    id       INT AUTO_INCREMENT PRIMARY KEY,
-    waktu    DATETIME     NOT NULL,
-    username VARCHAR(50)  NULL,
-    aksi     VARCHAR(50)  NOT NULL,
-    detail   VARCHAR(500) NULL,
-    ip       VARCHAR(45)  NULL,
-    INDEX idx_waktu (waktu)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- Percobaan login gagal (pembatasan brute force)
 CREATE TABLE IF NOT EXISTS login_gagal (
     id       INT AUTO_INCREMENT PRIMARY KEY,

@@ -56,7 +56,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['username'] = $user['username'];
 
                 hapusLoginGagal($pdo, $username, ipKlien());
-                catatAudit($pdo, 'login', 'Login berhasil', $user['username']);
 
                 header("Location: dashboard.php");
                 exit;
@@ -64,7 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             catatLoginGagal($pdo, $username, ipKlien());
             if (sisaKunciLogin($pdo, $username, ipKlien()) > 0) {
-                catatAudit($pdo, 'login_dikunci', 'Login dikunci ' . LOGIN_KUNCI_MENIT . ' menit setelah ' . LOGIN_MAKS_GAGAL . 'x gagal', $username);
                 $pesan_error = 'Terlalu banyak percobaan login gagal. Coba lagi dalam ' . LOGIN_KUNCI_MENIT . ' menit.';
             } else {
                 $pesan_error = 'Username atau password salah!';
