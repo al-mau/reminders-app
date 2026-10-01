@@ -9,7 +9,7 @@
 
 if (!function_exists('env')) {
     // Muat file .env (hanya untuk development lokal, misal XAMPP)
-    $envFile = dirname(__DIR__) . '/.env';
+    $envFile = dirname(__DIR__, 2) . '/.env';
     if (is_readable($envFile)) {
         foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
             $line = trim($line);
@@ -68,8 +68,8 @@ if (!function_exists('opsiPdoMysql')) {
             ? Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT
             : PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT;
 
-        if ($caFile && !is_file($caFile) && is_file(dirname(__DIR__) . '/' . ltrim($caFile, '/'))) {
-            $caFile = dirname(__DIR__) . '/' . ltrim($caFile, '/');
+        if ($caFile && !is_file($caFile) && is_file(dirname(__DIR__, 2) . '/' . ltrim($caFile, '/'))) {
+            $caFile = dirname(__DIR__, 2) . '/' . ltrim($caFile, '/');
         }
 
         if ($caFile && is_file($caFile)) {

@@ -6,7 +6,7 @@
   },
   "routes": [
     {
-      "src": "/(api/)?(koneksi|session_handler|fonnte|skema)\\.php",
+      "src": "/(api/)?(lib/.*|koneksi\\.php|session_handler\\.php|fonnte\\.php|skema\\.php)",
       "status": 404
     },
     {

@@ -11,9 +11,9 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 | `api/users.php` | Kelola User: tambah admin, ganti password, hapus akun |
 | `api/dashboard.php` | CRUD deadline, statistik, filter, kirim WA manual |
 | `api/cron_wa_reminder.php` | Pengingat otomatis H-1 & hari-H (dipanggil cron-job.org) |
-| `api/koneksi.php` | Koneksi PDO + helper (CSRF, escape) |
-| `api/session_handler.php` | Session disimpan di tabel `sessions` (wajib di serverless) |
-| `api/fonnte.php` | Helper kirim WhatsApp |
+| `api/lib/koneksi.php` | Koneksi PDO + helper (CSRF, escape) |
+| `api/lib/session_handler.php` | Session disimpan di tabel `sessions` (wajib di serverless) |
+| `api/lib/fonnte.php` | Helper kirim WhatsApp |
 | `api/setup.php` | Membuat tabel database otomatis (sekali jalan) |
 | `database/schema.sql` | Skema tabel `users`, `deadline`, `sessions` |
 
@@ -27,3 +27,5 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 4. **Lokal (XAMPP)** — import database lewat `database/import_ke_xampp.bat` (atau phpMyAdmin → Import `database/reminders_db.sql`), salin `.env.xampp.example` menjadi `.env`, lalu buka `http://localhost/reminders-app/api/login.php`. Detail: `database/CARA_PAKAI.txt`.
 
 > Kredensial tidak boleh ditulis di kode. File `.env` sudah masuk `.gitignore`.
+
+> **Batas Vercel Hobby: maksimal 12 Serverless Functions per deployment.** Setiap file `.php` langsung di `api/` dihitung 1 function. File pembantu (bukan halaman) simpan di `api/lib/` agar tidak ikut dihitung.

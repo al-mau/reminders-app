@@ -4,8 +4,8 @@
  * Buka: https://<domain-vercel>/setup.php?key=<CRON_SECRET>
  * Aman dijalankan berulang kali. Isi SQL sama dengan database/schema.sql.
  */
-require_once __DIR__ . '/koneksi.php';
-require_once __DIR__ . '/skema.php';
+require_once __DIR__ . '/lib/koneksi.php';
+require_once __DIR__ . '/lib/skema.php';
 
 header('Content-Type: text/plain; charset=utf-8');
 

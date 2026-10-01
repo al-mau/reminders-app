@@ -4,8 +4,8 @@
  * Hanya bisa diakses oleh user yang sudah login.
  * Username dipakai sebagai kunci karena kolom ID tabel users bisa berbeda (id / id_user).
  */
-require_once __DIR__ . '/koneksi.php';
-require_once __DIR__ . '/session_handler.php';
+require_once __DIR__ . '/lib/koneksi.php';
+require_once __DIR__ . '/lib/session_handler.php';
 
 if (empty($_SESSION['login'])) {
     header("Location: login.php");
