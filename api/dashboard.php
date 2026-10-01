@@ -206,6 +206,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // (tombol "Kirim ulang" di tabel: pengingat -> pending, terakhir_dikirim -> kosong)
     if ($aksi === 'reset_pengingat') {
         $id = (int) ($_POST['id'] ?? 0);
+        // Unit yang sudah expired tidak akan dikirim lagi oleh cron, jadi reset ditolak
+        $cek = $pdo->prepare("SELECT tanggal_akhir FROM deadline WHERE id = ?");
+        $cek->execute([$id]);
+        $tgl = $cek->fetchColumn();
+        if ($tgl === false || hitungSisaHari($tgl) < 0) {
+            flash('danger', 'Unit ini sudah expired, pengingat otomatis tidak bisa dikirim ulang. Ubah tanggal akhirnya jika masih perlu diingatkan.');
+            header("Location: dashboard.php");
+            exit;
+        }
         $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL WHERE id = ?")->execute([$id]);
         $label = labelUnit($pdo, $id);
         flash('success', "Pengingat $label di-reset. Akan dikirim ulang otomatis pada jadwal cron berikutnya jika deadline-nya hari ini atau besok.");
@@ -698,6 +707,8 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                     <div class="small text-success mt-1" title="Pengingat WA otomatis terakhir terkirim">
                                                         <i class="fa-brands fa-whatsapp"></i> <?= date('d M Y', strtotime($row['terakhir_dikirim'])); ?>
                                                     </div>
+                                                    <?php // Tombol "Kirim ulang" disembunyikan untuk unit expired: cron hanya mengirim unit yang deadline-nya hari ini/besok ?>
+                                                    <?php if ($sisa_hari >= 0): ?>
                                                     <form method="POST" action="dashboard.php" class="d-inline"
                                                           onsubmit="return confirm('Reset status pengingat unit ini agar dikirim ulang otomatis pada jadwal berikutnya?')">
                                                         <?= csrf_field(); ?>
@@ -707,6 +718,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                             <i class="fa-solid fa-rotate-left"></i> Kirim ulang
                                                         </button>
                                                     </form>
+                                                    <?php endif; ?>
                                                 <?php endif; ?>
                                             </td>
                                             <td class="text-center">
