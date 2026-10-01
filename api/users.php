@@ -21,12 +21,16 @@ $kolomUsers  = $pdo->query("SHOW COLUMNS FROM users")->fetchAll(PDO::FETCH_COLUM
 $adaNama     = in_array('nama_lengkap', $kolomUsers, true);
 $adaTanggal  = in_array('dibuat_tanggal', $kolomUsers, true);
 
+/** Simpan pesan notifikasi (sukses/gagal) untuk ditampilkan setelah halaman dimuat ulang */
 function flashUser(string $tipe, string $pesan): void
 {
     $_SESSION['flash_user'][] = [$tipe, $pesan];
 }
 
-/** Keluarkan semua sesi login milik username tertentu (kecuali sesi saat ini) */
+/**
+ * Keluarkan semua sesi login milik username tertentu (kecuali sesi saat ini).
+ * Dipakai setelah password diganti / user dihapus, agar perangkat lain otomatis logout.
+ */
 function keluarkanSesiUser(PDO $pdo, string $username): void
 {
     $cari = addcslashes('username|' . serialize($username), '\\%_'); // escape karakter khusus LIKE
@@ -34,6 +38,7 @@ function keluarkanSesiUser(PDO $pdo, string $username): void
     $pdo->prepare("DELETE FROM sessions WHERE data LIKE ? AND id <> ?")->execute([$pola, session_id()]);
 }
 
+/** Cek password minimal 6 karakter & sama dengan konfirmasi. null = valid, string = pesan error */
 function validasiPassword(string $password, string $konfirmasi): ?string
 {
     if (strlen($password) < 6) {
@@ -46,7 +51,9 @@ function validasiPassword(string $password, string $konfirmasi): ?string
 }
 
 // ===================================================================
-// AKSI
+// AKSI (dijalankan saat tombol di halaman ditekan / form dikirim)
+// Setiap aksi diakhiri redirect ke users.php agar form tidak terkirim
+// ulang saat halaman di-refresh (pola Post/Redirect/Get).
 // ===================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_valid()) {
@@ -193,6 +200,7 @@ unset($_SESSION['flash_user']);
     <?php endforeach; ?>
 
     <div class="row g-4">
+        <!-- Kolom kiri: form tambah user -->
         <div class="col-lg-4">
             <div class="card p-3">
                 <div class="card-header bg-transparent mb-2"><i class="fa-solid fa-user-plus text-primary me-2"></i> Tambah User</div>
@@ -289,6 +297,7 @@ unset($_SESSION['flash_user']);
     </div>
 </div>
 
+<!-- Popup "Ganti Password" (satu popup untuk setiap user) -->
 <?php foreach ($users as $i => $u): ?>
 <div class="modal fade" id="modalPassword<?= $i; ?>" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">

@@ -1,6 +1,14 @@
 <?php
 /**
- * Koneksi database (PDO) + helper konfigurasi.
+ * FILE INTI: koneksi database (PDO) + fungsi bantu yang dipakai SEMUA halaman.
+ * Di-include paling awal oleh setiap file di folder api/ (require_once).
+ *
+ * Isi file ini (urut dari atas):
+ *  1. env()            -> membaca pengaturan dari Environment Variables / file .env
+ *  2. Zona waktu & mode error
+ *  3. opsiPdoMysql()   -> opsi koneksi MySQL + SSL (Aiven wajib SSL)
+ *  4. $pdo             -> objek koneksi database yang dipakai di semua halaman
+ *  5. Helper umum      -> e(), csrf_*(), pendaftaranDibuka(), tanggal_valid()
  *
  * Kredensial TIDAK boleh ditulis di kode. Isi lewat Environment Variables:
  *  - Vercel : Project Settings -> Environment Variables
@@ -8,7 +16,9 @@
  */
 
 if (!function_exists('env')) {
-    // Muat file .env (hanya untuk development lokal, misal XAMPP)
+    // Muat file .env (hanya untuk development lokal, misal XAMPP).
+    // Di Vercel file .env tidak ada; nilainya diambil dari Environment Variables.
+    // Nilai yang sudah ada di Environment Variables TIDAK ditimpa oleh .env.
     $envFile = dirname(__DIR__, 2) . '/.env';
     if (is_readable($envFile)) {
         foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
@@ -25,6 +35,10 @@ if (!function_exists('env')) {
         }
     }
 
+    /**
+     * Ambil nilai pengaturan, contoh: env('DB_HOST') atau env('APP_TIMEZONE', 'Asia/Jakarta').
+     * Jika kosong / tidak ada -> kembalikan $default.
+     */
     function env(string $key, $default = null)
     {
         $value = getenv($key);
@@ -35,6 +49,8 @@ if (!function_exists('env')) {
     }
 }
 
+// Zona waktu semua fungsi tanggal PHP (date(), DateTime). Penting untuk cron:
+// "hari ini" dan "besok" dihitung menurut jam Indonesia (WIB), bukan UTC server.
 date_default_timezone_set(env('APP_TIMEZONE', 'Asia/Jakarta'));
 
 // Jangan tampilkan warning/error PHP ke pengunjung (tetap dicatat di log).
@@ -65,11 +81,13 @@ if (!function_exists('opsiPdoMysql')) {
             return $options;
         }
 
+        // PHP 8.4 memakai konstanta baru Pdo\Mysql::*, versi lama memakai PDO::MYSQL_*
         $sslAttrCa     = defined('Pdo\Mysql::ATTR_SSL_CA') ? Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA;
         $sslAttrVerify = defined('Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT')
             ? Pdo\Mysql::ATTR_SSL_VERIFY_SERVER_CERT
             : PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT;
 
+        // DB_SSL_CA boleh ditulis relatif terhadap folder project (misal "ca.pem")
         if ($caFile && !is_file($caFile) && is_file(dirname(__DIR__, 2) . '/' . ltrim($caFile, '/'))) {
             $caFile = dirname(__DIR__, 2) . '/' . ltrim($caFile, '/');
         }
@@ -80,6 +98,7 @@ if (!function_exists('opsiPdoMysql')) {
             return $options;
         }
 
+        // Tidak ada ca.pem -> cari CA bundle bawaan sistem agar koneksi tetap terenkripsi
         $candidates = [
             '/etc/pki/tls/certs/ca-bundle.crt',      // Amazon Linux (Vercel)
             '/etc/ssl/certs/ca-certificates.crt',    // Debian / Ubuntu
@@ -99,6 +118,10 @@ if (!function_exists('opsiPdoMysql')) {
     }
 }
 
+// ---------------------------------------------------------------
+// Membuat koneksi database ($pdo). Dibuat sekali per request;
+// "if (!isset($pdo))" mencegah koneksi ganda bila file ini ter-include 2x.
+// ---------------------------------------------------------------
 if (!isset($pdo)) {
     $host     = env('DB_HOST');
     $port     = (int) env('DB_PORT', 3306);
@@ -107,12 +130,14 @@ if (!isset($pdo)) {
     // Password boleh kosong (misal user root bawaan XAMPP)
     $password = (string) env('DB_PASSWORD', '');
 
+    // Hentikan dengan pesan jelas jika Environment Variables database belum diisi
     if (!$host || !$user) {
         http_response_code(500);
         error_log('Konfigurasi database belum lengkap (DB_HOST / DB_USER).');
         die('Konfigurasi database belum diatur. Set DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD di Environment Variables.');
     }
 
+    // DB_SSL=true untuk Aiven (default), false untuk MySQL XAMPP lokal
     $options = opsiPdoMysql(
         filter_var(env('DB_SSL', 'true'), FILTER_VALIDATE_BOOLEAN),
         env('DB_SSL_CA')
@@ -137,13 +162,19 @@ if (!isset($pdo)) {
 // Helper umum
 // ---------------------------------------------------------------
 
-/** Escape output HTML */
+/**
+ * Escape output HTML. WAJIB dipakai setiap menampilkan data dari database/user
+ * ke halaman, contoh: <?= e($row['nama_unit']); ?> -> mencegah serangan XSS.
+ */
 function e($value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
-/** Token CSRF untuk form (butuh session aktif) */
+/**
+ * Token CSRF: kode acak per sesi login untuk memastikan form benar-benar dikirim
+ * dari halaman aplikasi ini (bukan dari situs lain). Butuh session aktif.
+ */
 function csrf_token(): string
 {
     if (empty($_SESSION['csrf_token'])) {
@@ -152,11 +183,13 @@ function csrf_token(): string
     return $_SESSION['csrf_token'];
 }
 
+/** Input tersembunyi berisi token CSRF; taruh di dalam setiap <form method="POST"> */
 function csrf_field(): string
 {
     return '<input type="hidden" name="csrf_token" value="' . e(csrf_token()) . '">';
 }
 
+/** Cek token CSRF dari form yang dikirim. Dipanggil di awal setiap proses POST. */
 function csrf_valid(): bool
 {
     $token = $_POST['csrf_token'] ?? '';
@@ -182,7 +215,7 @@ function pendaftaranDibuka(): bool
     }
 }
 
-/** Validasi format tanggal Y-m-d */
+/** Validasi format tanggal Y-m-d (contoh 2026-10-01); menolak tanggal mustahil seperti 2026-02-30 */
 function tanggal_valid(string $tanggal): bool
 {
     $d = DateTime::createFromFormat('Y-m-d', $tanggal);

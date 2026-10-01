@@ -3,7 +3,8 @@
  * Salin data dari database ONLINE (Aiven) ke database LOKAL (MySQL XAMPP).
  *
  * Arah salinan satu arah: Aiven -> XAMPP. Data di XAMPP akan DITIMPA agar
- * sama persis dengan Aiven (users, deadline, wa_penerima, lampiran). Tabel sessions tidak disalin.
+ * sama persis dengan Aiven (lihat $tabelDisalin di bawah). Tabel sessions & login_gagal
+ * tidak disalin karena hanya berisi data sementara.
  *
  * Script ini berdiri sendiri (tidak butuh folder api/), jadi bisa dijalankan
  * dari folder project maupun dari folder hasil extract zip.
@@ -16,6 +17,7 @@
  *   AIVEN_DB_*  -> database Aiven (sumber)
  */
 
+// Hanya boleh dijalankan dari command line (file .bat), tidak bisa dibuka lewat browser
 if (PHP_SAPI !== 'cli') {
     http_response_code(404);
     exit;
@@ -23,8 +25,10 @@ if (PHP_SAPI !== 'cli') {
 
 date_default_timezone_set('Asia/Jakarta');
 
+// Tabel yang disalin dari Aiven ke XAMPP (urutan tidak penting)
 $tabelDisalin = ['users', 'deadline', 'wa_penerima', 'lampiran', 'lampiran_bagian', 'wa_log'];
 
+/** Tampilkan pesan di layar dengan jam, contoh: [20:00:01] OK `users`: 3 baris disalin */
 function tulis(string $pesan): void
 {
     echo '[' . date('H:i:s') . "] $pesan" . PHP_EOL;
@@ -57,6 +61,7 @@ foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line)
 }
 tulis('Konfigurasi dibaca dari: ' . realpath($envFile));
 
+// Ambil nilai dari .env, contoh: $cfg('AIVEN_DB_HOST') atau $cfg('DB_PORT', 3306)
 $cfg = static fn(string $key, $default = null) => ($env[$key] ?? '') !== '' ? $env[$key] : $default;
 
 // ------------------------------------------------------------------
@@ -106,6 +111,7 @@ function opsiPdo(bool $pakaiSsl, ?string $caFile = null): array
     return $options;
 }
 
+/** Buka koneksi PDO ke sebuah database MySQL */
 function sambung(string $host, int $port, string $db, string $user, string $pass, array $opsi): PDO
 {
     return new PDO("mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4", $user, $pass, $opsi);
@@ -196,6 +202,7 @@ foreach ($tabelDisalin as $tabel) {
         }
     }
 
+    // Hapus tabel lokal lalu buat ulang & isi dengan data Aiven (dalam 1 transaksi)
     try {
         $lokal->exec("DROP TABLE IF EXISTS `$tabel`");
         $lokal->exec($create);

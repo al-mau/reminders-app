@@ -1,14 +1,21 @@
 <?php
 /**
- * Setup database sekali jalan (membuat tabel jika belum ada).
+ * SETUP DATABASE (membuat tabel jika belum ada) + pembersihan data tidak terpakai.
  * Buka: https://<domain-vercel>/setup.php?key=<CRON_SECRET>
- * Aman dijalankan berulang kali. Isi SQL sama dengan database/schema.sql.
+ * Aman dijalankan berulang kali (data yang sudah ada TIDAK dihapus).
+ * Isi SQL sama dengan database/schema.sql.
+ *
+ * Opsi tambahan di akhir URL:
+ *   &bersihkan=1              -> hapus sesi login lama, catatan login gagal lama,
+ *                                upload lampiran yang terputus, tabel audit_log lama
+ *   &bersihkan=1&hapus=a,b    -> hapus tabel a & b (hanya tabel yang TIDAK dipakai aplikasi)
  */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/skema.php';
 
 header('Content-Type: text/plain; charset=utf-8');
 
+// Hanya bisa dibuka oleh yang tahu CRON_SECRET (sama dengan key di URL cron-job.org)
 $secret = env('CRON_SECRET');
 $key    = $_GET['key'] ?? '';
 if (!$secret || !is_string($key) || !hash_equals($secret, $key)) {
@@ -16,6 +23,7 @@ if (!$secret || !is_string($key) || !hash_equals($secret, $key)) {
     exit("Unauthorized. Tambahkan ?key=<CRON_SECRET> di URL.\n");
 }
 
+// Tabel utama: users (akun login), deadline (data unit), sessions (sesi login)
 $queries = [
     "CREATE TABLE IF NOT EXISTS users (
         id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -66,6 +74,7 @@ try {
     // ---------------------------------------------------------------
     // Pembersihan data yang tidak dipakai aplikasi: tambahkan &bersihkan=1
     // ---------------------------------------------------------------
+    // Daftar tabel yang DIPAKAI aplikasi -> tidak akan pernah dihapus oleh mode pembersihan
     $tabelAplikasi = ['users', 'deadline', 'sessions', 'wa_penerima', 'lampiran', 'lampiran_bagian', 'wa_log', 'login_gagal'];
 
     if (!empty($_GET['bersihkan'])) {
@@ -102,6 +111,7 @@ try {
         }
     }
 
+    // Tampilkan semua tabel + jumlah barisnya, beri tanda pada tabel yang tidak dipakai
     echo "\nTabel di database:\n";
     $tidakDipakai = [];
     foreach ($pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN) as $t) {

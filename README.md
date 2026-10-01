@@ -9,13 +9,31 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 | `api/index.php` | Redirect `/` ke login / dashboard |
 | `api/login.php`, `api/register.php`, `api/logout.php` | Autentikasi (halaman Daftar publik default ditutup, buka dengan `ALLOW_REGISTER=true`) |
 | `api/users.php` | Kelola User: tambah admin, ganti password, hapus akun |
-| `api/dashboard.php` | CRUD deadline, statistik, filter, kirim WA manual |
+| `api/dashboard.php` | CRUD deadline, statistik, filter, kirim WA manual, lampiran, penerima WA, riwayat WA |
+| `api/lampiran.php` | Unduh / lihat lampiran (khusus user yang sudah login) |
 | `api/cron_wa_reminder.php` | Pengingat otomatis H-1 & hari-H (dipanggil cron-job.org) |
 | `api/lib/koneksi.php` | Koneksi PDO + helper (CSRF, escape) |
 | `api/lib/session_handler.php` | Session disimpan di tabel `sessions` (wajib di serverless) |
 | `api/lib/fonnte.php` | Helper kirim WhatsApp |
+| `api/lib/skema.php` | Tabel tambahan + helper lampiran, riwayat WA, pembatasan login |
 | `api/setup.php` | Membuat tabel database otomatis (sekali jalan) |
 | `database/schema.sql` | Skema tabel `users`, `deadline`, `sessions` |
+| `database/sync_dari_aiven.*` | Salin data Aiven ke MySQL XAMPP (backup lokal) |
+| `vercel.json` | Pengaturan Vercel (lihat penjelasan di bawah) |
+| `sw.js`, `manifest.json` | PWA: aplikasi bisa di-"Install" di HP/laptop |
+
+### Penjelasan `vercel.json`
+
+File JSON tidak bisa diberi komentar, jadi penjelasannya ditulis di sini:
+
+- `functions` -> semua `api/*.php` dijalankan dengan PHP (`vercel-php`). Paket Hobby
+  maksimal 12 file di `api/`, karena itu file bantu ditaruh di `api/lib/` (tidak dihitung).
+- `routes` (dibaca berurutan dari atas):
+  1. File bantu di `api/lib/` -> **404** (tidak boleh dibuka langsung dari browser).
+  2. `.env` dan folder `database/` -> **404** (berisi password / data).
+  3. `filesystem` -> file statis (`sw.js`, `manifest.json`) dilayani apa adanya.
+  4. `/` -> `api/index.php`.
+  5. `/nama.php` -> `api/nama.php`, sehingga URL cukup `/login.php` tanpa `/api/`.
 
 ## Setup
 

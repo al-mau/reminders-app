@@ -1,4 +1,7 @@
 <?php
+/**
+ * LOGOUT: hapus sesi login (di database & cookie browser), lalu kembali ke halaman login.
+ */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
 require_once __DIR__ . '/lib/skema.php';

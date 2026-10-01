@@ -1,4 +1,14 @@
 <?php
+/**
+ * Penyimpanan SESSION LOGIN di database (tabel sessions), bukan di file.
+ *
+ * Kenapa? Di Vercel setiap request bisa dilayani server yang berbeda dan
+ * file sementara bisa hilang, sehingga session berbasis file membuat user
+ * tiba-tiba ter-logout. Dengan database, status login tetap tersimpan.
+ *
+ * Cara pakai: require_once file ini di halaman yang butuh login; session
+ * otomatis dimulai (session_start) di bagian bawah file.
+ */
 require_once __DIR__ . '/koneksi.php';
 
 class DatabaseSessionHandler implements SessionHandlerInterface {
@@ -7,6 +17,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
     // Data sesi saat dibaca, untuk melewati penulisan ulang jika tidak ada perubahan
     private $dataAwal = [];
     private $aksesAwal = [];
+    // Waktu "terakhir aktif" sesi diperbarui paling cepat tiap 5 menit (hemat query)
     private const SEGARKAN_DETIK = 300;
 
     public function __construct($pdoInstance) {
@@ -21,6 +32,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
         return true;
     }
 
+    // Dipanggil PHP saat session_start(): ambil data sesi dari tabel sessions
     public function read($id): string|false {
         try {
             $stmt = $this->pdo->prepare("SELECT data, last_accessed FROM sessions WHERE id = :id");
@@ -36,6 +48,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
         }
     }
 
+    // Dipanggil PHP di akhir request: simpan data sesi ke tabel sessions
     public function write($id, $data): bool {
         try {
             // Lewati jika data tidak berubah dan baru diperbarui < 5 menit lalu (hemat 1x ke DB)
@@ -54,6 +67,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
         }
     }
 
+    // Dipanggil saat logout (session_destroy): hapus baris sesi
     public function destroy($id): bool {
         try {
             $stmt = $this->pdo->prepare("DELETE FROM sessions WHERE id = :id");
@@ -63,6 +77,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
         }
     }
 
+    // Pembersihan otomatis sesi yang sudah tidak aktif > gc_maxlifetime (24 jam)
     public function gc($maxlifetime): int|false {
         try {
             $old = time() - $maxlifetime;
@@ -81,6 +96,10 @@ if (isset($pdo)) {
     session_set_save_handler($handler, true);
 }
 
+// Pengaturan cookie sesi yang aman, lalu mulai session:
+//  - secure   : cookie hanya dikirim lewat HTTPS
+//  - httponly : cookie tidak bisa dibaca JavaScript (mencegah pencurian sesi)
+//  - samesite : cookie tidak ikut terkirim dari situs lain (bantu cegah CSRF)
 if (session_status() === PHP_SESSION_NONE) {
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
@@ -93,7 +112,7 @@ if (session_status() === PHP_SESSION_NONE) {
         'samesite' => 'Lax',
     ]);
     ini_set('session.use_strict_mode', '1');
-    ini_set('session.gc_maxlifetime', '86400');
+    ini_set('session.gc_maxlifetime', '86400'); // sesi tidak aktif 24 jam -> dihapus
 
     session_start();
 }

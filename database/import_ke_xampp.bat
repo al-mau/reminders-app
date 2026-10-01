@@ -1,4 +1,10 @@
 @echo off
+rem ==========================================================
+rem  Klik 2x file ini untuk MEMBUAT database "reminders_db" di MySQL XAMPP
+rem  dari file reminders_db.sql (struktur tabel + contoh data).
+rem  Cukup dijalankan sekali di awal. Untuk mengisi data asli dari Aiven,
+rem  pakai sync_dari_aiven.bat.
+rem ==========================================================
 title Import Database Reminders App ke XAMPP
 echo ==========================================================
 echo   IMPORT DATABASE REMINDERS APP KE XAMPP

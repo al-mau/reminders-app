@@ -1,4 +1,11 @@
 @echo off
+rem ==========================================================
+rem  Klik 2x file ini untuk MENYALIN data dari database online (Aiven)
+rem  ke MySQL XAMPP di laptop (backup lokal). Yang dijalankan:
+rem  database\sync_dari_aiven.php memakai PHP bawaan XAMPP.
+rem  Hasil tiap salinan dicatat di sync_log.txt (folder ini).
+rem  Untuk otomatis harian: Task Scheduler -> jalankan file ini dengan argumen auto
+rem ==========================================================
 title Salin Data Aiven ke XAMPP
 
 rem --- Lokasi XAMPP ---
@@ -22,9 +29,10 @@ echo ==========================================================
 echo   SALIN DATA DARI AIVEN (ONLINE) KE MYSQL XAMPP (LOKAL)
 echo ==========================================================
 echo Pastikan MySQL di XAMPP Control Panel sudah di-START.
-echo Data users dan deadline di XAMPP akan diganti dengan data Aiven.
+echo Data di XAMPP (users, deadline, penerima WA, lampiran, riwayat WA) akan diganti dengan data Aiven.
 echo.
 
+rem Jalankan script salin; hasilnya ditampilkan di layar dan ditambahkan ke sync_log.txt
 "%PHP%" "%~dp0sync_dari_aiven.php" > "%~dp0sync_terakhir.txt" 2>&1
 set "HASIL=%errorlevel%"
 type "%~dp0sync_terakhir.txt"

@@ -1,4 +1,9 @@
 <?php
+/**
+ * HALAMAN LOGIN (login.php)
+ * Alur: cek token CSRF -> cek apakah sedang dikunci (terlalu sering salah) ->
+ * cocokkan password -> buat sesi login -> masuk ke dashboard.
+ */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
 require_once __DIR__ . '/lib/skema.php';
@@ -12,6 +17,7 @@ if (!empty($_SESSION['login'])) {
 $pesan_error = '';
 $username    = '';
 
+// Proses saat tombol Login ditekan (form dikirim dengan method POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim((string) ($_POST['username'] ?? ''));
     $password = (string) ($_POST['password'] ?? '');
@@ -25,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pesan_error = 'Terlalu banyak percobaan login gagal. Coba lagi dalam ' . (int) ceil($sisaKunci / 60) . ' menit.';
     } else {
         try {
+            // Cari user berdasarkan username (prepared statement -> aman dari SQL injection)
             $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :username LIMIT 1");
             $stmt->execute([':username' => $username]);
             $user = $stmt->fetch();
@@ -50,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($password_valid) {
+                // Ganti ID sesi setelah login (mencegah session fixation)
                 session_regenerate_id(true);
                 $_SESSION['login']    = true;
                 $_SESSION['user_id']  = $user['id'] ?? $user['id_user'] ?? null;
@@ -61,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
 
+            // Password salah: catat, lalu cek apakah sekarang harus dikunci 15 menit
             catatLoginGagal($pdo, $username, ipKlien());
             if (sisaKunciLogin($pdo, $username, ipKlien()) > 0) {
                 $pesan_error = 'Terlalu banyak percobaan login gagal. Coba lagi dalam ' . LOGIN_KUNCI_MENIT . ' menit.';
@@ -147,6 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </form>
 
     <div class="text-center mt-4">
+        <?php // Link "Daftar" hanya muncul bila ALLOW_REGISTER=true (atau belum ada user sama sekali) ?>
         <?php if (pendaftaranDibuka()): ?>
             <small class="text-secondary">Belum punya akun? <a href="register.php" class="text-primary text-decoration-none fw-bold">Daftar sekarang</a></small>
         <?php else: ?>

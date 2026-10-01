@@ -1,10 +1,18 @@
 <?php
 /**
- * Tabel tambahan (lampiran dokumen & penerima WA) + helper lampiran.
+ * Struktur tabel tambahan + fungsi bantu fitur-fitur aplikasi.
  * Tabel dibuat otomatis saat pertama kali dibutuhkan, tidak perlu setup manual.
+ *
+ * Isi file ini:
+ *  - pastikanTabelTambahan() -> membuat tabel wa_penerima, lampiran, lampiran_bagian,
+ *                               wa_log, login_gagal (jika belum ada)
+ *  - LAMPIRAN ...            -> simpan / hapus dokumen per unit (upload per potongan)
+ *  - RIWAYAT WA              -> catatWa() mencatat setiap pengiriman WhatsApp
+ *  - PEMBATASAN LOGIN        -> kunci login 15 menit setelah salah password berkali-kali
  */
 require_once __DIR__ . '/koneksi.php';
 
+// Batas ukuran 1 file lampiran. Ubah angka 5 bila ingin batas lain (perhatikan kuota database).
 const LAMPIRAN_MAKS_BYTE   = 5 * 1024 * 1024; // 5 MB per file
 // Vercel menolak request/response > 4,5 MB, jadi file dikirim & disimpan per potongan kecil.
 // 768 KB juga aman untuk max_allowed_packet MySQL bawaan XAMPP (1 MB).
@@ -25,6 +33,11 @@ const LAMPIRAN_TIPE = [
     'txt'  => 'text/plain',
 ];
 
+/**
+ * Buat tabel tambahan jika belum ada (aman dipanggil berulang kali).
+ * Agar tidak memperlambat, pengecekan hanya dilakukan sekali per sesi login
+ * (penanda disimpan di $_SESSION) dan sekali per request (variabel static).
+ */
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
@@ -32,6 +45,7 @@ function pastikanTabelTambahan(PDO $pdo): void
         return;
     }
 
+    // Daftar nomor WhatsApp penerima pengingat (diatur dari dashboard)
     $pdo->exec("CREATE TABLE IF NOT EXISTS wa_penerima (
         id             INT AUTO_INCREMENT PRIMARY KEY,
         nama           VARCHAR(100) NOT NULL,
@@ -40,6 +54,9 @@ function pastikanTabelTambahan(PDO $pdo): void
         dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+    // Data lampiran per unit (nama file, ukuran, dll). Isi file ada di lampiran_bagian.
+    // Kolom isi hanya dipakai file lama (sebelum upload per potongan).
+    // selesai = 0 berarti upload sedang berjalan / terputus.
     $pdo->exec("CREATE TABLE IF NOT EXISTS lampiran (
         id             INT AUTO_INCREMENT PRIMARY KEY,
         deadline_id    INT          NOT NULL,
@@ -96,7 +113,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v2'] = true;
+        $_SESSION['skema_tambahan_v4'] = true;
     }
 }
 
@@ -126,6 +143,7 @@ function daftarFileUpload(string $field): array
     return $hasil;
 }
 
+/** Ubah ukuran byte menjadi teks mudah dibaca, contoh 1572864 -> "1,5 MB" */
 function formatUkuran(int $byte): string
 {
     if ($byte >= 1048576) {
@@ -135,7 +153,8 @@ function formatUkuran(int $byte): string
 }
 
 /**
- * Simpan file upload sebagai lampiran sebuah unit.
+ * Simpan file upload biasa (form tanpa JavaScript) sebagai lampiran sebuah unit.
+ * File disimpan utuh dalam satu baris; jalur utama sekarang memakai upload per potongan di bawah.
  * @return array{berhasil: int, gagal: string[]}
  */
 function simpanLampiran(PDO $pdo, int $deadlineId, array $files, ?string $pengunggah): array
@@ -191,9 +210,13 @@ function simpanLampiran(PDO $pdo, int $deadlineId, array $files, ?string $pengun
 
 // ===================================================================
 // LAMPIRAN BERPOTONGAN (upload/download per potongan dari browser)
+// Alur upload dari dashboard:
+//   1. mulaiLampiran()         -> daftarkan file, dapat id (selesai = 0)
+//   2. simpanBagianLampiran()  -> kirim potongan 768 KB satu per satu
+//   3. selesaikanLampiran()    -> cek semua potongan lengkap, tandai selesai = 1
 // ===================================================================
 
-/** Bersihkan & validasi nama file. @return array{0: string, 1: string} [nama, ekstensi] */
+/** Bersihkan nama file (buang path & karakter aneh) dan cek ekstensinya diizinkan. @return array{0: string, 1: string} [nama, ekstensi] */
 function validasiNamaLampiran(string $nama): array
 {
     $nama = trim(preg_replace('/[\x00-\x1F\x7F\/\\\\]/u', '', basename($nama)));
@@ -303,6 +326,7 @@ function hapusLampiranUnit(PDO $pdo, int $deadlineId): void
     $pdo->prepare("DELETE FROM lampiran WHERE deadline_id = ?")->execute([$deadlineId]);
 }
 
+/** Hapus upload yang terputus / tidak selesai lebih dari 1 hari (agar database tidak penuh sampah) */
 function bersihkanLampiranGantung(PDO $pdo): void
 {
     $batas = date('Y-m-d H:i:s', time() - 86400);
@@ -323,12 +347,17 @@ function ipKlien(): string
     return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '0.0.0.0';
 }
 
+/** Potong teks agar muat di kolom database (aman untuk huruf non-latin / emoji) */
 function potong(string $teks, int $maks): string
 {
     return function_exists('mb_substr') ? mb_substr($teks, 0, $maks) : substr($teks, 0, $maks);
 }
 
-/** Catat pengiriman WA (berhasil maupun gagal) */
+/**
+ * Catat pengiriman WA (berhasil maupun gagal) ke tabel wa_log.
+ * Tampil di dashboard pada kartu "Riwayat Pengiriman WA".
+ * Jika pencatatan gagal, pengiriman WA tetap dianggap jalan (error hanya masuk log).
+ */
 function catatWa(PDO $pdo, string $jenis, string $ringkasan, string $penerima, bool $ok, string $keterangan): void
 {
     try {
@@ -352,7 +381,7 @@ function catatWa(PDO $pdo, string $jenis, string $ringkasan, string $penerima, b
 // ===================================================================
 const LOGIN_MAKS_GAGAL     = 5;   // per username + IP
 const LOGIN_MAKS_GAGAL_IP  = 20;  // per IP (mencegah tebak banyak username)
-const LOGIN_KUNCI_MENIT    = 15;
+const LOGIN_KUNCI_MENIT    = 15;  // lama penguncian setelah batas di atas tercapai
 
 /** Sisa detik penguncian login; 0 jika boleh mencoba */
 function sisaKunciLogin(PDO $pdo, string $username, string $ip): int
@@ -379,6 +408,7 @@ function sisaKunciLogin(PDO $pdo, string $username, string $ip): int
     );
 }
 
+/** Catat 1x percobaan login gagal (password salah / username tidak ada) */
 function catatLoginGagal(PDO $pdo, string $username, string $ip): void
 {
     $pdo->prepare("INSERT INTO login_gagal (username, ip, waktu) VALUES (?, ?, ?)")
@@ -390,6 +420,7 @@ function catatLoginGagal(PDO $pdo, string $username, string $ip): void
     }
 }
 
+/** Login berhasil -> hapus catatan gagal sebelumnya agar hitungan mulai dari nol */
 function hapusLoginGagal(PDO $pdo, string $username, string $ip): void
 {
     $pdo->prepare("DELETE FROM login_gagal WHERE username = ? AND ip = ?")->execute([strtolower($username), $ip]);
