@@ -22,6 +22,15 @@ function labelUnit(PDO $pdo, int $id): string
     return $u ? "{$u['kode_unit']} {$u['nama_unit']}" : "#$id";
 }
 
+/** Balasan JSON untuk permintaan dari JavaScript (upload lampiran berpotongan) */
+function jsonKeluar(array $data, int $kode = 200): void
+{
+    http_response_code($kode);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($data);
+    exit;
+}
+
 /** Simpan pesan detail untuk ditampilkan setelah redirect */
 function flash(string $tipe, string $pesan): void
 {
@@ -39,12 +48,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    $ajax = !empty($_POST['ajax']);
+
     if (!csrf_valid()) {
+        if ($ajax) {
+            jsonKeluar(['ok' => false, 'pesan' => 'Sesi formulir kedaluwarsa, muat ulang halaman.'], 403);
+        }
         header("Location: dashboard.php?status=csrf");
         exit;
     }
 
     $aksi = $_POST['aksi'] ?? '';
+
+    // --- UPLOAD LAMPIRAN BERPOTONGAN (dipanggil JavaScript) ---
+    if (in_array($aksi, ['lampiran_mulai', 'lampiran_bagian', 'lampiran_selesai'], true)) {
+        try {
+            if ($aksi === 'lampiran_mulai') {
+                $id = mulaiLampiran($pdo, (int) ($_POST['deadline_id'] ?? 0), (string) ($_POST['nama'] ?? ''),
+                    (int) ($_POST['ukuran'] ?? 0), $_SESSION['username'] ?? null);
+                jsonKeluar(['ok' => true, 'id' => $id, 'ukuran_bagian' => LAMPIRAN_BAGIAN_BYTE]);
+            }
+            if ($aksi === 'lampiran_bagian') {
+                simpanBagianLampiran($pdo, (int) ($_POST['id'] ?? 0), (int) ($_POST['urutan'] ?? -1), $_FILES['bagian'] ?? []);
+                jsonKeluar(['ok' => true]);
+            }
+            $lamp = selesaikanLampiran($pdo, (int) ($_POST['id'] ?? 0));
+            catatAudit($pdo, 'upload_lampiran', $lamp['nama_file'] . ' (' . formatUkuran((int) $lamp['ukuran']) . ') untuk ' . labelUnit($pdo, (int) $lamp['deadline_id']));
+            jsonKeluar(['ok' => true]);
+        } catch (InvalidArgumentException $e) {
+            jsonKeluar(['ok' => false, 'pesan' => $e->getMessage()], 422);
+        }
+    }
 
     // --- 1. TAMBAH / 2. EDIT DATA ---
     if ($aksi === 'simpan' || $aksi === 'update') {
@@ -55,10 +89,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tanggal_akhir = $_POST['tanggal_akhir'] ?? '';
 
         if ($kode_unit === '' || $nama_unit === '' || !tanggal_valid($tanggal_awal) || !tanggal_valid($tanggal_akhir)) {
+            if ($ajax) {
+                jsonKeluar(['ok' => false, 'pesan' => 'Data tidak valid. Pastikan semua kolom terisi dengan benar.'], 422);
+            }
             header("Location: dashboard.php?status=invalid");
             exit;
         }
         if ($tanggal_akhir < $tanggal_awal) {
+            if ($ajax) {
+                jsonKeluar(['ok' => false, 'pesan' => 'Tanggal akhir tidak boleh lebih awal dari tanggal awal.'], 422);
+            }
             header("Location: dashboard.php?status=invalid_tanggal");
             exit;
         }
@@ -68,6 +108,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir]);
             $idBaru = (int) $pdo->lastInsertId();
             catatAudit($pdo, 'tambah_unit', "$kode_unit $nama_unit (deadline " . date('d-m-Y', strtotime($tanggal_akhir)) . ")");
+
+            // Dari JavaScript: lampiran diunggah per potongan setelah unit dibuat
+            if ($ajax) {
+                jsonKeluar(['ok' => true, 'id' => $idBaru]);
+            }
 
             $files = daftarFileUpload('lampiran');
             if ($files) {
@@ -113,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($aksi === 'hapus') {
         $id = (int) ($_POST['id'] ?? 0);
         catatAudit($pdo, 'hapus_unit', labelUnit($pdo, $id));
-        $pdo->prepare("DELETE FROM lampiran WHERE deadline_id = ?")->execute([$id]);
+        hapusLampiranUnit($pdo, $id);
         $pdo->prepare("DELETE FROM deadline WHERE id = ?")->execute([$id]);
         header("Location: dashboard.php?status=success_delete");
         exit;
@@ -213,7 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $deadlineId = (int) $lamp['deadline_id'];
         catatAudit($pdo, 'hapus_lampiran', $lamp['nama_file'] . ' dari ' . labelUnit($pdo, $deadlineId));
 
-        $pdo->prepare("DELETE FROM lampiran WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
+        hapusLampiranLengkap($pdo, (int) ($_POST['id'] ?? 0));
         flash('warning', 'Lampiran dihapus.');
         header("Location: dashboard.php" . ($deadlineId ? "?lampiran=$deadlineId" : ''));
         exit;
@@ -371,7 +416,7 @@ if ($data_tampil) {
     $ids = array_map(static fn($r) => (int) $r['id'], $data_tampil);
     $stmtLamp = $pdo->query(
         "SELECT id, deadline_id, nama_file, ekstensi, ukuran, diunggah_oleh, dibuat_tanggal
-         FROM lampiran WHERE deadline_id IN (" . implode(',', $ids) . ") ORDER BY id"
+         FROM lampiran WHERE selesai = 1 AND deadline_id IN (" . implode(',', $ids) . ") ORDER BY id"
     );
     foreach ($stmtLamp->fetchAll() as $l) {
         $lampiran_per_unit[(int) $l['deadline_id']][] = $l;
@@ -509,7 +554,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         <i class="fa-solid fa-square-plus text-primary me-2"></i> Input Unit & Deadline
                     </div>
                     <div class="card-body">
-                        <form method="POST" action="dashboard.php" enctype="multipart/form-data">
+                        <form method="POST" action="dashboard.php" enctype="multipart/form-data" data-upload="unit-baru">
                             <?= csrf_field(); ?>
                             <input type="hidden" name="aksi" value="simpan">
                             <div class="mb-3">
@@ -532,6 +577,8 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                 <label class="form-label text-secondary small fw-bold">Lampiran Dokumen <span class="fw-normal">(opsional)</span></label>
                                 <input type="file" name="lampiran[]" class="form-control" multiple accept="<?= e($accept_lampiran); ?>">
                                 <div class="form-text"><?= e($info_lampiran); ?></div>
+                                <div class="progress mt-2 d-none" style="height: 8px;" data-progres><div class="progress-bar" role="progressbar" style="width: 0%"></div></div>
+                                <div class="small text-muted mt-1 d-none" data-progres-teks></div>
                             </div>
                             <button type="submit" class="btn btn-primary w-100 mt-2">
                                 <i class="fa-solid fa-floppy-disk me-1"></i> Simpan Data
@@ -894,7 +941,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                     <?php if ($bisa_dilihat): ?>
                                         <a href="lampiran.php?id=<?= (int) $l['id']; ?>&lihat=1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Lihat"><i class="fa-solid fa-eye"></i></a>
                                     <?php endif; ?>
-                                    <a href="lampiran.php?id=<?= (int) $l['id']; ?>" class="btn btn-sm btn-outline-primary" title="Unduh"><i class="fa-solid fa-download"></i></a>
+                                    <a href="lampiran.php?id=<?= (int) $l['id']; ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Unduh"><i class="fa-solid fa-download"></i></a>
                                     <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus lampiran ini?')">
                                         <?= csrf_field(); ?>
                                         <input type="hidden" name="aksi" value="hapus_lampiran">
@@ -907,13 +954,15 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         </ul>
                     <?php endif; ?>
 
-                    <form method="POST" action="dashboard.php" enctype="multipart/form-data" class="border-top pt-3">
+                    <form method="POST" action="dashboard.php" enctype="multipart/form-data" class="border-top pt-3" data-upload="unit">
                         <?= csrf_field(); ?>
                         <input type="hidden" name="aksi" value="upload_lampiran">
                         <input type="hidden" name="deadline_id" value="<?= (int) $row['id']; ?>">
                         <label class="form-label text-secondary small fw-bold">Tambah Lampiran</label>
                         <input type="file" name="lampiran[]" class="form-control mb-1" multiple required accept="<?= e($accept_lampiran); ?>">
                         <div class="form-text mb-2"><?= e($info_lampiran); ?></div>
+                        <div class="progress mb-2 d-none" style="height: 8px;" data-progres><div class="progress-bar" role="progressbar" style="width: 0%"></div></div>
+                                <div class="small text-muted mb-2 d-none" data-progres-teks></div>
                         <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-upload me-1"></i> Unggah</button>
                     </form>
                 </div>
@@ -931,6 +980,103 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             if (el) bootstrap.Modal.getOrCreateInstance(el).show();
         });
         <?php endif; ?>
+
+        // ---------------------------------------------------------------
+        // Upload lampiran per potongan (melewati batas 4,5 MB per request Vercel)
+        // ---------------------------------------------------------------
+        const CSRF_TOKEN = <?= json_encode(csrf_token()); ?>;
+        let sedangUpload = false;
+        window.addEventListener('beforeunload', (e) => { if (sedangUpload) { e.preventDefault(); e.returnValue = ''; } });
+
+        function dataForm(isi) {
+            const f = new FormData();
+            f.append('csrf_token', CSRF_TOKEN);
+            f.append('ajax', '1');
+            Object.entries(isi).forEach(([k, v]) => f.append(k, v));
+            return f;
+        }
+
+        async function kirim(form, ulang = 3) {
+            for (let coba = 1; ; coba++) {
+                try {
+                    const res = await fetch('dashboard.php', { method: 'POST', body: form, credentials: 'same-origin' });
+                    let json;
+                    try { json = await res.json(); } catch (_) { throw new Error('Respon server tidak valid (HTTP ' + res.status + ')'); }
+                    if (!json.ok) { const err = new Error(json.pesan || 'Gagal'); err.final = true; throw err; }
+                    return json;
+                } catch (err) {
+                    if (err.final || coba >= ulang) throw err;
+                    await new Promise((r) => setTimeout(r, 1000 * coba)); // jaringan putus: coba lagi
+                }
+            }
+        }
+
+        async function unggahLampiran(deadlineId, file, onProgres) {
+            const mulai = await kirim(dataForm({ aksi: 'lampiran_mulai', deadline_id: deadlineId, nama: file.name, ukuran: file.size }));
+            const ukuran = mulai.ukuran_bagian;
+            const jumlah = Math.ceil(file.size / ukuran);
+            for (let i = 0; i < jumlah; i++) {
+                const f = dataForm({ aksi: 'lampiran_bagian', id: mulai.id, urutan: i });
+                f.append('bagian', file.slice(i * ukuran, (i + 1) * ukuran), 'bagian.bin');
+                await kirim(f);
+                onProgres((i + 1) / jumlah);
+            }
+            await kirim(dataForm({ aksi: 'lampiran_selesai', id: mulai.id }));
+        }
+
+        async function unggahSemua(form, deadlineId, files) {
+            const bar = form.querySelector('[data-progres]');
+            const teks = form.querySelector('[data-progres-teks]');
+            bar.classList.remove('d-none'); teks.classList.remove('d-none');
+            const gagal = [];
+            for (let n = 0; n < files.length; n++) {
+                const file = files[n];
+                try {
+                    await unggahLampiran(deadlineId, file, (p) => {
+                        const total = (n + p) / files.length;
+                        bar.firstElementChild.style.width = Math.round(total * 100) + '%';
+                        teks.textContent = `Mengunggah ${file.name} (${n + 1}/${files.length}) — ${Math.round(p * 100)}%`;
+                    });
+                } catch (err) {
+                    gagal.push(err.message.includes(file.name) ? err.message : `${file.name}: ${err.message}`);
+                }
+            }
+            return gagal;
+        }
+
+        document.querySelectorAll('form[data-upload]').forEach((form) => {
+            form.addEventListener('submit', async (e) => {
+                const input = form.querySelector('input[type=file][name="lampiran[]"]');
+                const files = input ? [...input.files] : [];
+                if (form.dataset.upload === 'unit-baru' && files.length === 0) return; // tanpa lampiran: kirim biasa
+                e.preventDefault();
+
+                const tombol = form.querySelector('button[type=submit]');
+                tombol.disabled = true;
+                sedangUpload = true;
+                try {
+                    let deadlineId, tujuan;
+                    if (form.dataset.upload === 'unit-baru') {
+                        const data = new FormData(form);
+                        data.delete('lampiran[]');
+                        data.append('ajax', '1');
+                        deadlineId = (await kirim(data, 1)).id;
+                        tujuan = 'dashboard.php?status=success_add';
+                    } else {
+                        deadlineId = form.querySelector('[name=deadline_id]').value;
+                        tujuan = 'dashboard.php?lampiran=' + deadlineId;
+                    }
+                    const gagal = await unggahSemua(form, deadlineId, files);
+                    sedangUpload = false;
+                    if (gagal.length) alert('Sebagian lampiran gagal diunggah:\n\n' + gagal.join('\n'));
+                    window.location.href = tujuan;
+                } catch (err) {
+                    sedangUpload = false;
+                    tombol.disabled = false;
+                    alert(err.message);
+                }
+            });
+        });
 
         // Tolak file > batas sebelum dikirim (hemat kuota & waktu)
         document.querySelectorAll('input[type=file][name="lampiran[]"]').forEach((input) => {

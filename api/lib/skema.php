@@ -5,7 +5,10 @@
  */
 require_once __DIR__ . '/koneksi.php';
 
-const LAMPIRAN_MAKS_BYTE = 2 * 1024 * 1024; // 2 MB per file (batas upload PHP & Vercel)
+const LAMPIRAN_MAKS_BYTE   = 5 * 1024 * 1024; // 5 MB per file
+// Vercel menolak request/response > 4,5 MB, jadi file dikirim & disimpan per potongan kecil.
+// 768 KB juga aman untuk max_allowed_packet MySQL bawaan XAMPP (1 MB).
+const LAMPIRAN_BAGIAN_BYTE = 768 * 1024;
 
 /** Ekstensi yang diizinkan => MIME type yang dikirim saat diunduh */
 const LAMPIRAN_TIPE = [
@@ -25,7 +28,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v2'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v3'])) {
         return;
     }
 
@@ -44,9 +47,29 @@ function pastikanTabelTambahan(PDO $pdo): void
         ekstensi       VARCHAR(10)  NOT NULL,
         ukuran         INT UNSIGNED NOT NULL,
         isi            MEDIUMBLOB   NOT NULL,
+        jumlah_bagian  INT          NOT NULL DEFAULT 0,
+        selesai        TINYINT(1)   NOT NULL DEFAULT 1,
         diunggah_oleh  VARCHAR(50)  NULL,
         dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_deadline_id (deadline_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Database lama: tambah kolom untuk lampiran berpotongan
+    $kolomLampiran = $pdo->query("SHOW COLUMNS FROM lampiran")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('jumlah_bagian', $kolomLampiran, true)) {
+        $pdo->exec("ALTER TABLE lampiran ADD COLUMN jumlah_bagian INT NOT NULL DEFAULT 0");
+    }
+    if (!in_array('selesai', $kolomLampiran, true)) {
+        $pdo->exec("ALTER TABLE lampiran ADD COLUMN selesai TINYINT(1) NOT NULL DEFAULT 1");
+    }
+
+    // Potongan isi file (lampiran > 768 KB disimpan beberapa baris)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS lampiran_bagian (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        lampiran_id INT        NOT NULL,
+        urutan      INT        NOT NULL,
+        isi         MEDIUMBLOB NOT NULL,
+        UNIQUE KEY uk_lampiran_urutan (lampiran_id, urutan)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // Riwayat pengiriman WA (otomatis & manual)
@@ -175,6 +198,128 @@ function simpanLampiran(PDO $pdo, int $deadlineId, array $files, ?string $pengun
     }
 
     return ['berhasil' => $berhasil, 'gagal' => $gagal];
+}
+
+// ===================================================================
+// LAMPIRAN BERPOTONGAN (upload/download per potongan dari browser)
+// ===================================================================
+
+/** Bersihkan & validasi nama file. @return array{0: string, 1: string} [nama, ekstensi] */
+function validasiNamaLampiran(string $nama): array
+{
+    $nama = trim(preg_replace('/[\x00-\x1F\x7F\/\\\\]/u', '', basename($nama)));
+    $nama = $nama !== '' ? $nama : 'lampiran';
+    $nama = function_exists('mb_substr') ? mb_substr($nama, 0, 200) : substr($nama, 0, 200);
+    $ext  = strtolower(pathinfo($nama, PATHINFO_EXTENSION));
+    if (!isset(LAMPIRAN_TIPE[$ext])) {
+        throw new InvalidArgumentException("$nama: tipe file tidak diizinkan");
+    }
+    return [$nama, $ext];
+}
+
+/** Daftarkan lampiran baru (belum selesai) dan kembalikan id-nya */
+function mulaiLampiran(PDO $pdo, int $deadlineId, string $nama, int $ukuran, ?string $pengunggah): int
+{
+    [$nama, $ext] = validasiNamaLampiran($nama);
+    if ($ukuran <= 0) {
+        throw new InvalidArgumentException("$nama: file kosong");
+    }
+    if ($ukuran > LAMPIRAN_MAKS_BYTE) {
+        throw new InvalidArgumentException("$nama: melebihi batas " . formatUkuran(LAMPIRAN_MAKS_BYTE));
+    }
+
+    $cek = $pdo->prepare("SELECT 1 FROM deadline WHERE id = ?");
+    $cek->execute([$deadlineId]);
+    if (!$cek->fetchColumn()) {
+        throw new InvalidArgumentException('Unit tidak ditemukan');
+    }
+
+    // Upload yang tidak pernah selesai (> 1 hari) dibersihkan sesekali
+    if (random_int(1, 10) === 1) {
+        bersihkanLampiranGantung($pdo);
+    }
+
+    $pdo->prepare(
+        "INSERT INTO lampiran (deadline_id, nama_file, ekstensi, ukuran, isi, jumlah_bagian, selesai, diunggah_oleh, dibuat_tanggal)
+         VALUES (?, ?, ?, ?, '', ?, 0, ?, ?)"
+    )->execute([$deadlineId, $nama, $ext, $ukuran, (int) ceil($ukuran / LAMPIRAN_BAGIAN_BYTE), $pengunggah, date('Y-m-d H:i:s')]);
+
+    return (int) $pdo->lastInsertId();
+}
+
+/** Simpan satu potongan file dari upload browser */
+function simpanBagianLampiran(PDO $pdo, int $lampiranId, int $urutan, array $file): void
+{
+    $stmt = $pdo->prepare("SELECT jumlah_bagian, selesai FROM lampiran WHERE id = ?");
+    $stmt->execute([$lampiranId]);
+    $lamp = $stmt->fetch();
+
+    if (!$lamp || (int) $lamp['selesai'] === 1) {
+        throw new InvalidArgumentException('Upload tidak ditemukan atau sudah selesai');
+    }
+    if ($urutan < 0 || $urutan >= (int) $lamp['jumlah_bagian']) {
+        throw new InvalidArgumentException('Urutan potongan tidak valid');
+    }
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])
+        || $file['size'] > LAMPIRAN_BAGIAN_BYTE) {
+        throw new InvalidArgumentException('Potongan file tidak valid');
+    }
+
+    $isi = file_get_contents($file['tmp_name']);
+    $simpan = $pdo->prepare(
+        "REPLACE INTO lampiran_bagian (lampiran_id, urutan, isi) VALUES (?, ?, ?)",
+        [PDO::ATTR_EMULATE_PREPARES => false] // data biner dikirim apa adanya
+    );
+    $simpan->bindValue(1, $lampiranId, PDO::PARAM_INT);
+    $simpan->bindValue(2, $urutan, PDO::PARAM_INT);
+    $simpan->bindValue(3, $isi, PDO::PARAM_LOB);
+    $simpan->execute();
+}
+
+/** Tandai lampiran selesai jika semua potongan lengkap & ukurannya cocok */
+function selesaikanLampiran(PDO $pdo, int $lampiranId): array
+{
+    $stmt = $pdo->prepare("SELECT * FROM lampiran WHERE id = ? AND selesai = 0");
+    $stmt->execute([$lampiranId]);
+    $lamp = $stmt->fetch();
+    if (!$lamp) {
+        throw new InvalidArgumentException('Upload tidak ditemukan atau sudah selesai');
+    }
+
+    $cek = $pdo->prepare("SELECT COUNT(*) AS jumlah, COALESCE(SUM(LENGTH(isi)), 0) AS total FROM lampiran_bagian WHERE lampiran_id = ?");
+    $cek->execute([$lampiranId]);
+    $hasil = $cek->fetch();
+
+    if ((int) $hasil['jumlah'] !== (int) $lamp['jumlah_bagian'] || (int) $hasil['total'] !== (int) $lamp['ukuran']) {
+        hapusLampiranLengkap($pdo, $lampiranId);
+        throw new InvalidArgumentException($lamp['nama_file'] . ': file tidak lengkap terkirim, silakan unggah ulang');
+    }
+
+    $pdo->prepare("UPDATE lampiran SET selesai = 1 WHERE id = ?")->execute([$lampiranId]);
+    return $lamp;
+}
+
+/** Hapus lampiran beserta semua potongannya */
+function hapusLampiranLengkap(PDO $pdo, int $lampiranId): void
+{
+    $pdo->prepare("DELETE FROM lampiran_bagian WHERE lampiran_id = ?")->execute([$lampiranId]);
+    $pdo->prepare("DELETE FROM lampiran WHERE id = ?")->execute([$lampiranId]);
+}
+
+/** Hapus semua lampiran milik satu unit */
+function hapusLampiranUnit(PDO $pdo, int $deadlineId): void
+{
+    $pdo->prepare("DELETE FROM lampiran_bagian WHERE lampiran_id IN (SELECT id FROM lampiran WHERE deadline_id = ?)")
+        ->execute([$deadlineId]);
+    $pdo->prepare("DELETE FROM lampiran WHERE deadline_id = ?")->execute([$deadlineId]);
+}
+
+function bersihkanLampiranGantung(PDO $pdo): void
+{
+    $batas = date('Y-m-d H:i:s', time() - 86400);
+    $pdo->prepare("DELETE FROM lampiran_bagian WHERE lampiran_id IN (SELECT id FROM lampiran WHERE selesai = 0 AND dibuat_tanggal < ?)")
+        ->execute([$batas]);
+    $pdo->prepare("DELETE FROM lampiran WHERE selesai = 0 AND dibuat_tanggal < ?")->execute([$batas]);
 }
 
 // ===================================================================
