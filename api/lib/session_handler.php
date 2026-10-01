@@ -4,6 +4,11 @@ require_once __DIR__ . '/koneksi.php';
 class DatabaseSessionHandler implements SessionHandlerInterface {
     private $pdo;
 
+    // Data sesi saat dibaca, untuk melewati penulisan ulang jika tidak ada perubahan
+    private $dataAwal = [];
+    private $aksesAwal = [];
+    private const SEGARKAN_DETIK = 300;
+
     public function __construct($pdoInstance) {
         $this->pdo = $pdoInstance;
     }
@@ -18,9 +23,12 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
 
     public function read($id): string|false {
         try {
-            $stmt = $this->pdo->prepare("SELECT data FROM sessions WHERE id = :id");
+            $stmt = $this->pdo->prepare("SELECT data, last_accessed FROM sessions WHERE id = :id");
             $stmt->execute([':id' => $id]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $this->dataAwal[$id]  = $row ? (string) $row['data'] : null;
+            $this->aksesAwal[$id] = $row ? (int) $row['last_accessed'] : 0;
 
             return $row ? (string)$row['data'] : '';
         } catch (Exception $e) {
@@ -30,6 +38,10 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
 
     public function write($id, $data): bool {
         try {
+            // Lewati jika data tidak berubah dan baru diperbarui < 5 menit lalu (hemat 1x ke DB)
+            if (($this->dataAwal[$id] ?? null) === $data && time() - ($this->aksesAwal[$id] ?? 0) < self::SEGARKAN_DETIK) {
+                return true;
+            }
             $access = time();
             $stmt = $this->pdo->prepare("REPLACE INTO sessions (id, data, last_accessed) VALUES (:id, :data, :access)");
             return $stmt->execute([
