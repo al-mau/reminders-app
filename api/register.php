@@ -1,4 +1,10 @@
 <?php
+/**
+ * HALAMAN DAFTAR AKUN (register.php)
+ * Default DITUTUP: hanya bisa dipakai bila ALLOW_REGISTER=true di Environment Variables,
+ * atau saat tabel users masih kosong (untuk membuat admin pertama).
+ * Penambahan akun sehari-hari dilakukan admin lewat menu Kelola User (users.php).
+ */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
 
@@ -24,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirm_pwd  = (string) ($_POST['confirm_password'] ?? '');
     $old          = ['nama_lengkap' => $nama_lengkap, 'username' => $username];
 
+    // Validasi berurutan; pesan error pertama yang cocok yang ditampilkan
     $error = true;
     if (!$registerAktif) {
         $errorMessage = "Pendaftaran akun baru sedang dinonaktifkan.";
@@ -46,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($cek->fetchColumn()) {
                 $errorMessage = "Username sudah terdaftar! Gunakan username lain.";
             } else {
+                // Password disimpan dalam bentuk hash (tidak bisa dibaca), bukan teks asli
                 $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, dibuat_tanggal) VALUES (?, ?, ?, ?)");
                 $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $nama_lengkap, date('Y-m-d H:i:s')]);
 

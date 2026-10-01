@@ -1,19 +1,31 @@
 <?php
+/**
+ * DASHBOARD (halaman utama setelah login)
+ *
+ * Susunan file ini:
+ *  1. AKSI             -> proses tombol/form (tambah, edit, hapus unit, kirim WA manual,
+ *                         reset pengingat, lampiran, penerima WA). Semua lewat POST + CSRF.
+ *  2. DATA TAMPILAN    -> statistik, pencarian/filter/halaman tabel, lampiran, penerima, riwayat WA
+ *  3. HTML             -> kartu statistik, form input, daftar penerima, tabel unit,
+ *                         riwayat WA, popup edit & popup lampiran
+ *  4. JavaScript       -> upload lampiran per potongan + progress bar
+ */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
 require_once __DIR__ . '/lib/fonnte.php';
 
-// Cek status login
+// Cek status login: belum login -> lempar ke halaman login
 if (empty($_SESSION['login'])) {
     header("Location: login.php");
     exit;
 }
 
+// Jangan simpan halaman di cache browser (data harus selalu terbaru)
 header('Cache-Control: no-cache, no-store, must-revalidate');
 
-pastikanTabelTambahan($pdo);
+pastikanTabelTambahan($pdo); // buat tabel tambahan jika belum ada (lihat lib/skema.php)
 
-/** Label unit untuk riwayat aktivitas, contoh: "01 adrian group" */
+/** Label unit untuk pesan notifikasi, contoh: "01 adrian group" */
 function labelUnit(PDO $pdo, int $id): string
 {
     $stmt = $pdo->prepare("SELECT kode_unit, nama_unit FROM deadline WHERE id = ?");
@@ -31,7 +43,7 @@ function jsonKeluar(array $data, int $kode = 200): void
     exit;
 }
 
-/** Simpan pesan detail untuk ditampilkan setelah redirect */
+/** Simpan pesan notifikasi (hijau/merah) untuk ditampilkan setelah halaman dimuat ulang */
 function flash(string $tipe, string $pesan): void
 {
     $_SESSION['flash'][] = [$tipe, $pesan];
@@ -156,6 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        // Hitung sisa hari untuk ditulis di pesan (0 = hari ini, negatif = sudah lewat)
         $sisa_hari = hitungSisaHari($data_wa['tanggal_akhir']);
 
         if ($sisa_hari === 0) {
@@ -190,6 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // --- 4b. RESET PENGINGAT: izinkan cron mengirim ulang unit ini ---
+    // (tombol "Kirim ulang" di tabel: pengingat -> pending, terakhir_dikirim -> kosong)
     if ($aksi === 'reset_pengingat') {
         $id = (int) ($_POST['id'] ?? 0);
         $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL WHERE id = ?")->execute([$id]);
@@ -501,6 +515,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
 
         <div class="row g-4">
 
+            <!-- Kolom kiri: form input unit baru + daftar penerima WA -->
             <div class="col-lg-4">
                 <div class="card p-3">
                     <div class="card-header bg-transparent mb-2">
@@ -600,6 +615,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                 </div>
             </div>
 
+            <!-- Kolom kanan: tabel daftar unit (cari, filter, edit, hapus, kirim WA, lampiran) -->
             <div class="col-lg-8">
                 <div class="card p-3">
                     <div class="card-header bg-transparent mb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -903,11 +919,13 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
 
         // ---------------------------------------------------------------
         // Upload lampiran per potongan (melewati batas 4,5 MB per request Vercel)
+        // Alur: lampiran_mulai -> lampiran_bagian (berulang, 768 KB) -> lampiran_selesai
         // ---------------------------------------------------------------
         const CSRF_TOKEN = <?= json_encode(csrf_token()); ?>;
         let sedangUpload = false;
         window.addEventListener('beforeunload', (e) => { if (sedangUpload) { e.preventDefault(); e.returnValue = ''; } });
 
+        // Buat FormData berisi token CSRF + penanda ajax + data yang diberikan
         function dataForm(isi) {
             const f = new FormData();
             f.append('csrf_token', CSRF_TOKEN);
@@ -916,6 +934,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             return f;
         }
 
+        // Kirim data ke dashboard.php dan baca balasan JSON; coba ulang s/d 3x bila jaringan putus
         async function kirim(form, ulang = 3) {
             for (let coba = 1; ; coba++) {
                 try {
@@ -931,6 +950,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             }
         }
 
+        // Unggah 1 file: daftarkan -> kirim potongan satu per satu -> tandai selesai
         async function unggahLampiran(deadlineId, file, onProgres) {
             const mulai = await kirim(dataForm({ aksi: 'lampiran_mulai', deadline_id: deadlineId, nama: file.name, ukuran: file.size }));
             const ukuran = mulai.ukuran_bagian;
@@ -944,6 +964,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             await kirim(dataForm({ aksi: 'lampiran_selesai', id: mulai.id }));
         }
 
+        // Unggah semua file yang dipilih secara berurutan sambil memperbarui progress bar
         async function unggahSemua(form, deadlineId, files) {
             const bar = form.querySelector('[data-progres]');
             const teks = form.querySelector('[data-progres-teks]');
@@ -964,6 +985,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             return gagal;
         }
 
+        // Form yang berisi lampiran diambil alih JavaScript (unit baru disimpan dulu, lalu file diunggah)
         document.querySelectorAll('form[data-upload]').forEach((form) => {
             form.addEventListener('submit', async (e) => {
                 const input = form.querySelector('input[type=file][name="lampiran[]"]');
@@ -1009,6 +1031,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             });
         });
 
+        // Daftarkan service worker (sw.js) agar aplikasi bisa di-"Install" seperti aplikasi HP (PWA)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
         }

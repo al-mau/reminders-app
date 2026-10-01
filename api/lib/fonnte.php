@@ -8,6 +8,10 @@
 require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/skema.php';
 
+/**
+ * Rapikan nomor WA ke format internasional tanpa simbol.
+ * Contoh: "0812-3456-7890" -> "6281234567890". Bisa banyak nomor dipisah koma.
+ */
 function normalisasiNomorWa(string $nomor): string
 {
     $hasil = [];
@@ -73,7 +77,12 @@ function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasa
     return $hasil;
 }
 
-/** @return array{ok: bool, pesan: string} */
+/**
+ * Kirim pesan langsung ke API Fonnte (dipanggil oleh kirimWhatsApp).
+ * $target berisi satu atau beberapa nomor dipisah koma; Fonnte mengirim ke semuanya.
+ * Pesan dikirim dari HP/nomor yang terhubung (device) di dashboard fonnte.com.
+ * @return array{ok: bool, pesan: string}
+ */
 function kirimKeFonnte(string $pesan, string $target): array
 {
     $token = env('FONNTE_TOKEN');
@@ -90,6 +99,7 @@ function kirimKeFonnte(string $pesan, string $target): array
         CURLOPT_URL            => env('FONNTE_URL', 'https://api.fonnte.com/send'),
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
+        // Batas waktu agar halaman/cron tidak menggantung bila Fonnte lambat
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_TIMEOUT        => 20,
         CURLOPT_POSTFIELDS     => [
@@ -109,6 +119,8 @@ function kirimKeFonnte(string $pesan, string $target): array
         return ['ok' => false, 'pesan' => 'Gagal menghubungi server Fonnte.'];
     }
 
+    // Fonnte membalas JSON: {"status": true, ...} jika berhasil,
+    // atau {"status": false, "reason": "..."} jika gagal (token salah, device offline, dll)
     $res = json_decode($response, true);
     if (!empty($res['status'])) {
         return ['ok' => true, 'pesan' => 'Terkirim ke ' . count(explode(',', $target)) . ' nomor'];
@@ -119,7 +131,10 @@ function kirimKeFonnte(string $pesan, string $target): array
     return ['ok' => false, 'pesan' => (string) $alasan];
 }
 
-/** Hitung selisih hari dari hari ini ke tanggal target (negatif = sudah lewat) */
+/**
+ * Hitung selisih hari dari hari ini ke tanggal target.
+ * Contoh: 0 = hari ini, 1 = besok (H-1), negatif = sudah lewat.
+ */
 function hitungSisaHari(?string $tanggal_akhir): int
 {
     if (empty($tanggal_akhir)) {
