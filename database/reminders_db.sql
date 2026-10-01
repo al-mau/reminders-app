@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS wa_penerima (
     dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Lampiran dokumen per unit (file disimpan di database, maks 2 MB per file)
+-- Lampiran dokumen per unit (file disimpan di database, maks 5 MB per file)
 CREATE TABLE IF NOT EXISTS lampiran (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     deadline_id    INT          NOT NULL,
@@ -56,9 +56,20 @@ CREATE TABLE IF NOT EXISTS lampiran (
     ekstensi       VARCHAR(10)  NOT NULL,
     ukuran         INT UNSIGNED NOT NULL,
     isi            MEDIUMBLOB   NOT NULL,
+    jumlah_bagian  INT          NOT NULL DEFAULT 0,
+    selesai        TINYINT(1)   NOT NULL DEFAULT 1,
     diunggah_oleh  VARCHAR(50)  NULL,
     dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_deadline_id (deadline_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Potongan isi lampiran (file besar disimpan per 768 KB)
+CREATE TABLE IF NOT EXISTS lampiran_bagian (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    lampiran_id INT        NOT NULL,
+    urutan      INT        NOT NULL,
+    isi         MEDIUMBLOB NOT NULL,
+    UNIQUE KEY uk_lampiran_urutan (lampiran_id, urutan)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Riwayat pengiriman WA
