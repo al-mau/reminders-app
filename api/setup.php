@@ -61,10 +61,63 @@ try {
         echo "+ Kolom deadline.terakhir_dikirim ditambahkan\n";
     }
 
-    echo "SETUP BERHASIL\n\nTabel di database:\n";
+    echo "SETUP BERHASIL\n";
+
+    // ---------------------------------------------------------------
+    // Pembersihan data yang tidak dipakai aplikasi: tambahkan &bersihkan=1
+    // ---------------------------------------------------------------
+    $tabelAplikasi = ['users', 'deadline', 'sessions', 'wa_penerima', 'lampiran', 'lampiran_bagian', 'wa_log', 'login_gagal'];
+
+    if (!empty($_GET['bersihkan'])) {
+        echo "\n=== PEMBERSIHAN ===\n";
+
+        // Sisa fitur Aktivitas User yang sudah dihapus
+        if ($pdo->query("SHOW TABLES LIKE 'audit_log'")->fetchColumn()) {
+            $pdo->exec("DROP TABLE audit_log");
+            echo "- Tabel audit_log dihapus\n";
+        }
+
+        // Sesi login yang tidak dipakai > 1 hari
+        $n = $pdo->exec("DELETE FROM sessions WHERE last_accessed < " . (time() - 86400));
+        echo "- $n sesi login lama dihapus\n";
+
+        // Data sementara (biasanya sudah dibersihkan otomatis)
+        $n = $pdo->exec("DELETE FROM login_gagal WHERE waktu < '" . date('Y-m-d H:i:s', time() - 86400) . "'");
+        echo "- $n catatan login gagal lama dihapus\n";
+        bersihkanLampiranGantung($pdo);
+        echo "- Upload lampiran yang tidak selesai dibersihkan\n";
+
+        // Tabel lain hanya dihapus jika namanya disebut: &hapus=nama1,nama2
+        $minta = array_filter(array_map('trim', explode(',', (string) ($_GET['hapus'] ?? ''))));
+        $semua = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($minta as $t) {
+            if (!preg_match('/^\w+$/', $t) || !in_array($t, $semua, true)) {
+                echo "- Lewati \"$t\": tabel tidak ditemukan\n";
+            } elseif (in_array($t, $tabelAplikasi, true)) {
+                echo "- Lewati \"$t\": tabel ini DIPAKAI aplikasi, tidak boleh dihapus\n";
+            } else {
+                $pdo->exec("DROP TABLE `$t`");
+                echo "- Tabel $t dihapus\n";
+            }
+        }
+    }
+
+    echo "\nTabel di database:\n";
+    $tidakDipakai = [];
     foreach ($pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN) as $t) {
         $jumlah = $pdo->query("SELECT COUNT(*) FROM `$t`")->fetchColumn();
-        echo "- $t ($jumlah baris)\n";
+        $dipakai = in_array($t, $tabelAplikasi, true);
+        if (!$dipakai) {
+            $tidakDipakai[] = $t;
+        }
+        echo "- $t ($jumlah baris)" . ($dipakai ? '' : '  <-- TIDAK dipakai aplikasi') . "\n";
+    }
+
+    if ($tidakDipakai) {
+        echo "\nAda " . count($tidakDipakai) . " tabel yang tidak dipakai aplikasi. Jika yakin tidak diperlukan,\n"
+            . "hapus dengan menambahkan di akhir URL ini:\n  &bersihkan=1&hapus=" . implode(',', $tidakDipakai) . "\n";
+    } elseif (empty($_GET['bersihkan'])) {
+        echo "\nTidak ada tabel yang tidak dipakai. Untuk membersihkan sesi login lama, tambahkan &bersihkan=1 di akhir URL.\n";
     }
     echo "\nSilakan buka /login.php\n";
 } catch (PDOException $e) {
