@@ -163,6 +163,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // --- 4b. RESET PENGINGAT: izinkan cron mengirim ulang unit ini ---
+    if ($aksi === 'reset_pengingat') {
+        $id = (int) ($_POST['id'] ?? 0);
+        $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL WHERE id = ?")->execute([$id]);
+        $label = labelUnit($pdo, $id);
+        catatAudit($pdo, 'reset_pengingat', $label);
+        flash('success', "Pengingat $label di-reset. Akan dikirim ulang otomatis pada jadwal cron berikutnya jika deadline-nya hari ini atau besok.");
+        header("Location: dashboard.php");
+        exit;
+    }
+
     // --- 5. UPLOAD LAMPIRAN KE UNIT YANG SUDAH ADA ---
     if ($aksi === 'upload_lampiran') {
         $deadlineId = (int) ($_POST['deadline_id'] ?? 0);
@@ -379,6 +390,7 @@ $label_aksi = [
     'upload_lampiran' => ['Upload lampiran', 'info'], 'hapus_lampiran' => ['Hapus lampiran', 'danger'],
     'kirim_wa_manual' => ['Kirim WA', 'success'],
     'tambah_penerima_wa' => ['Tambah penerima', 'success'], 'hapus_penerima_wa' => ['Hapus penerima', 'danger'],
+    'reset_pengingat' => ['Reset pengingat', 'info'],
     'aktifkan_penerima_wa' => ['Aktifkan penerima', 'info'], 'nonaktifkan_penerima_wa' => ['Nonaktifkan penerima', 'secondary'],
     'tambah_user' => ['Tambah user', 'success'], 'ganti_password' => ['Ganti password', 'warning'], 'hapus_user' => ['Hapus user', 'danger'],
 ];
@@ -654,6 +666,15 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                     <div class="small text-success mt-1" title="Pengingat WA otomatis terakhir terkirim">
                                                         <i class="fa-brands fa-whatsapp"></i> <?= date('d M Y', strtotime($row['terakhir_dikirim'])); ?>
                                                     </div>
+                                                    <form method="POST" action="dashboard.php" class="d-inline"
+                                                          onsubmit="return confirm('Reset status pengingat unit ini agar dikirim ulang otomatis pada jadwal berikutnya?')">
+                                                        <?= csrf_field(); ?>
+                                                        <input type="hidden" name="aksi" value="reset_pengingat">
+                                                        <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
+                                                        <button type="submit" class="btn btn-link btn-sm p-0 small text-decoration-none" style="font-size:.75rem" title="Kirim ulang otomatis">
+                                                            <i class="fa-solid fa-rotate-left"></i> Kirim ulang
+                                                        </button>
+                                                    </form>
                                                 <?php endif; ?>
                                             </td>
                                             <td class="text-center">
