@@ -340,6 +340,11 @@ $stat_expired   = (int) $stat['expired'];
 
 // --- SEARCH, FILTER, DAN PAGINATION ---
 $search = trim((string) ($_GET['search'] ?? ''));
+// Rentang tanggal pencarian (opsional): unit dengan tanggal awal >= dari, dan tanggal akhir <= sampai
+$tgl_dari   = (string) ($_GET['dari'] ?? '');
+$tgl_sampai = (string) ($_GET['sampai'] ?? '');
+$tgl_dari   = tanggal_valid($tgl_dari) ? $tgl_dari : '';
+$tgl_sampai = tanggal_valid($tgl_sampai) ? $tgl_sampai : '';
 $filter = (string) ($_GET['filter'] ?? 'semua');
 $filter_valid = ['semua', 'hari_ini', 'h1', 'mendatang', 'expired'];
 if (!in_array($filter, $filter_valid, true)) {
@@ -355,6 +360,16 @@ if ($search !== '') {
     $params[':s2']      = "%$search%";
 }
 
+if ($tgl_dari !== '') {
+    $where[]         = "tanggal_awal >= :dari";
+    $params[':dari'] = $tgl_dari;
+}
+if ($tgl_sampai !== '') {
+    $where[]           = "tanggal_akhir <= :sampai";
+    $params[':sampai'] = $tgl_sampai;
+}
+
+// Filter status dari kartu statistik (Hari Ini, H-1, Mendatang, Expired)
 switch ($filter) {
     case 'hari_ini':
         $where[] = "tanggal_akhir = :f";
@@ -453,6 +468,10 @@ $kartu_statistik = [
 $nama_hari  = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 $nama_bulan = [1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $tanggal_hari_ini = $nama_hari[(int) date('w')] . ', ' . date('d') . ' ' . $nama_bulan[(int) date('n')] . ' ' . date('Y');
+$zona_waktu       = date_default_timezone_get();
+$label_zona       = ['Asia/Jakarta' => 'WIB', 'Asia/Pontianak' => 'WIB', 'Asia/Makassar' => 'WITA', 'Asia/Jayapura' => 'WIT'][$zona_waktu] ?? '';
+// Ada pencarian / filter aktif? (untuk keterangan & tombol hapus filter)
+$sedang_menyaring = $search !== '' || $filter !== 'semua' || $tgl_dari !== '' || $tgl_sampai !== '';
 
 $accept_lampiran = '.' . implode(',.', array_keys(LAMPIRAN_TIPE));
 $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LAMPIRAN_MAKS_BYTE) . ' per file.';
@@ -472,7 +491,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=3">
+    <link rel="stylesheet" href="tema.css?v=4">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -513,7 +532,11 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                 <h1 class="judul-halaman">Dashboard</h1>
                 <div class="text-redup small">Pantau deadline unit dan pengingat WhatsApp otomatis</div>
             </div>
-            <div class="text-redup small"><i class="fa-regular fa-calendar me-1"></i> <?= e($tanggal_hari_ini); ?></div>
+            <!-- Jam & tanggal hari ini (jam berjalan otomatis setiap detik) -->
+            <div class="jam-hari-ini">
+                <div class="jam-waktu"><i class="fa-regular fa-clock me-2"></i><span id="jamSekarang"><?= date('H:i:s'); ?></span> <small><?= e($label_zona); ?></small></div>
+                <div class="jam-tanggal"><i class="fa-regular fa-calendar me-2"></i><span id="tanggalSekarang"><?= e($tanggal_hari_ini); ?></span></div>
+            </div>
         </div>
 
         <?php if ($alert): ?>
@@ -593,29 +616,33 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                 <div class="card kartu kartu-daftar h-100" id="daftar">
                     <div class="card-header">
                         <span class="ikon-judul"><i class="fa-solid fa-list-check"></i></span>
-                        <div class="flex-grow-1"><h2 class="kartu-judul">Daftar Unit & Deadline</h2><div class="kartu-sub"><?= (int) $total_rows; ?> unit<?= ($search !== '' || $filter !== 'semua') ? ' sesuai pencarian / filter' : ''; ?></div></div>
+                        <div class="flex-grow-1"><h2 class="kartu-judul">Daftar Unit & Deadline</h2><div class="kartu-sub"><?= (int) $total_rows; ?> unit<?= $sedang_menyaring ? ' sesuai pencarian / filter' : ''; ?></div></div>
                     </div>
                     <div class="card-body pb-0 flex-grow-0">
-                        <form method="GET" action="dashboard.php" class="row g-2 mb-3">
-                            <div class="col-md-6">
+                        <form method="GET" action="dashboard.php#daftar" class="row g-2 mb-3">
+                            <?php // Filter status dari kartu statistik tetap ikut saat mencari ?>
+                            <?php if ($filter !== 'semua'): ?><input type="hidden" name="filter" value="<?= e($filter); ?>"><?php endif; ?>
+                            <div class="col-12">
                                 <div class="input-group">
                                     <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-secondary"></i></span>
                                     <input type="text" name="search" class="form-control" placeholder="Cari kode / nama unit..." value="<?= e($search); ?>">
                                 </div>
                             </div>
-                            <div class="col-md-4">
-                                <!-- Pilihan status langsung menampilkan hasil tanpa menekan tombol -->
-                                <select name="filter" class="form-select" onchange="this.form.submit()">
-                                    <option value="semua" <?= $filter === 'semua' ? 'selected' : ''; ?>>Semua Status</option>
-                                    <option value="hari_ini" <?= $filter === 'hari_ini' ? 'selected' : ''; ?>>Hari Ini</option>
-                                    <option value="h1" <?= $filter === 'h1' ? 'selected' : ''; ?>>H-1 (Besok)</option>
-                                    <option value="mendatang" <?= $filter === 'mendatang' ? 'selected' : ''; ?>>Mendatang</option>
-                                    <option value="expired" <?= $filter === 'expired' ? 'selected' : ''; ?>>Expired</option>
-                                </select>
+                            <div class="col-12 col-sm-6 col-md-5">
+                                <div class="input-group" title="Tampilkan unit dengan tanggal awal mulai tanggal ini">
+                                    <span class="input-group-text bg-white small">Tgl Awal</span>
+                                    <input type="date" name="dari" class="form-control" value="<?= e($tgl_dari); ?>" aria-label="Tanggal awal">
+                                </div>
+                            </div>
+                            <div class="col-12 col-sm-6 col-md-5">
+                                <div class="input-group" title="Tampilkan unit dengan tanggal akhir sampai tanggal ini">
+                                    <span class="input-group-text bg-white small">Tgl Akhir</span>
+                                    <input type="date" name="sampai" class="form-control" value="<?= e($tgl_sampai); ?>" aria-label="Tanggal akhir">
+                                </div>
                             </div>
                             <div class="col-md-2 d-flex gap-2">
                                 <button type="submit" class="btn btn-primary w-100" title="Cari"><i class="fa-solid fa-magnifying-glass"></i><span class="d-md-none ms-1">Cari</span></button>
-                                <?php if ($search !== '' || $filter !== 'semua'): ?>
+                                <?php if ($sedang_menyaring): ?>
                                     <a href="dashboard.php#daftar" class="btn btn-light border" title="Hapus pencarian & filter"><i class="fa-solid fa-xmark"></i></a>
                                 <?php endif; ?>
                             </div>
@@ -1189,6 +1216,25 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             }
             popup.classList.add('tampil');
         }
+
+        // Jam & tanggal di bagian atas: diperbarui setiap detik menurut zona waktu aplikasi
+        (() => {
+            const zona = <?= json_encode($zona_waktu); ?>;
+            const jam = document.getElementById('jamSekarang'), tgl = document.getElementById('tanggalSekarang');
+            if (!jam) return;
+            let fJam, fTgl;
+            try {
+                fJam = new Intl.DateTimeFormat('id-ID', { timeZone: zona, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+                fTgl = new Intl.DateTimeFormat('id-ID', { timeZone: zona, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+            } catch (_) { return; }
+            const perbarui = () => {
+                const kini = new Date();
+                jam.textContent = fJam.format(kini).replace(/\./g, ':');
+                tgl.textContent = fTgl.format(kini);
+            };
+            perbarui();
+            setInterval(perbarui, 1000);
+        })();
 
         // Daftarkan service worker (sw.js) agar aplikasi bisa di-"Install" seperti aplikasi HP (PWA)
         if ('serviceWorker' in navigator) {

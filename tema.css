@@ -10,6 +10,12 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--latar); co
 .navbar-brand { font-size: 1.1rem; letter-spacing: .2px; }
 .judul-halaman { font-size: 1.5rem; font-weight: 700; margin: 0; }
 .text-redup { color: var(--redup) !important; }
+/* Jam & tanggal hari ini di kanan atas */
+.jam-hari-ini { text-align: right; }
+.jam-waktu { font-size: 1.5rem; font-weight: 700; color: var(--teks); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.jam-waktu small { font-size: .8rem; font-weight: 600; color: var(--redup); }
+.jam-tanggal { font-weight: 700; color: #334155; font-size: .9rem; }
+@media (max-width: 575.98px) { .jam-hari-ini { text-align: left; } .jam-waktu { font-size: 1.25rem; } }
 .min-w-0 { min-width: 0; }
 
 /* Kartu utama: putih bersih, judul berwarna lembut sesuai fungsinya */
