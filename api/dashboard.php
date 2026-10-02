@@ -380,16 +380,13 @@ $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM deadline $where_sql");
 $stmtCount->execute($params);
 $total_rows = (int) $stmtCount->fetchColumn();
 
-$limit       = 10;
-$total_pages = (int) ceil($total_rows / $limit);
-$page        = max(1, (int) ($_GET['page'] ?? 1));
-if ($total_pages > 0 && $page > $total_pages) {
-    $page = $total_pages;
-}
-$offset = ($page - 1) * $limit;
+// Semua unit ditampilkan dalam satu daftar yang bisa digulir (tanpa nomor halaman).
+// Batas pengaman agar halaman tetap ringan; jika lebih, gunakan pencarian / filter.
+$batas_tampil = 500;
+$offset       = 0;
 
-// LIMIT/OFFSET berupa integer hasil casting -> aman disisipkan langsung
-$stmtData = $pdo->prepare("SELECT * FROM deadline $where_sql ORDER BY id DESC LIMIT $limit OFFSET $offset");
+// Batas berupa integer -> aman disisipkan langsung
+$stmtData = $pdo->prepare("SELECT * FROM deadline $where_sql ORDER BY id DESC LIMIT $batas_tampil");
 $stmtData->execute($params);
 
 $data_tampil = [];
@@ -422,6 +419,7 @@ $riwayat_wa    = $pdo->query("SELECT * FROM wa_log ORDER BY id DESC LIMIT 30")->
 // Nomor -> nama penerima, agar kolom Penerima di riwayat menampilkan nama (bukan hanya nomor).
 // Nomor yang sudah dihapus dari daftar penerima tetap tampil sebagai nomor saja.
 $nama_penerima = array_column($penerima_list, 'nama', 'nomor');
+$saluran_notif = saluranNotifikasi(); // ['wa'], ['telegram'], atau keduanya (NOTIF_VIA)
 
 // --- PESAN NOTIFIKASI ---
 $alerts = [
@@ -441,7 +439,6 @@ $wa_error   = $_SESSION['flash_wa_error'] ?? null;
 $flash_list = $_SESSION['flash'] ?? [];
 unset($_SESSION['flash_wa_error'], $_SESSION['flash']);
 
-$qs_base = 'search=' . urlencode($search) . '&filter=' . urlencode($filter);
 
 // --- KARTU STATISTIK: [filter, label, jumlah, ikon, warna] ---
 $kartu_statistik = [
@@ -475,7 +472,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=1">
+    <link rel="stylesheet" href="tema.css?v=2">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -625,7 +622,8 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         </form>
                     </div>
                     <div class="card-body p-0">
-                        <div class="table-responsive">
+                        <!-- Daftar bisa digulir ke bawah; judul kolom tetap terlihat -->
+                        <div class="table-responsive gulir-daftar">
                             <table class="table table-hover align-middle tabel">
                                 <thead>
                                     <tr>
@@ -733,26 +731,9 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             </table>
                         </div>
 
-                        <?php if ($total_pages > 1): ?>
-                        <div class="d-flex justify-content-between align-items-center px-3 py-3 border-top flex-wrap gap-2">
-                            <span class="small text-muted">Menampilkan halaman <?= $page; ?> dari <?= $total_pages; ?> (Total: <?= $total_rows; ?> data)</span>
-                            <nav>
-                                <ul class="pagination pagination-sm mb-0">
-                                    <li class="page-item <?= ($page <= 1) ? 'disabled' : ''; ?>">
-                                        <a class="page-link" href="?<?= $qs_base; ?>&page=<?= $page - 1; ?>">Prev</a>
-                                    </li>
-                                    <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                                        <li class="page-item <?= ($page == $i) ? 'active' : ''; ?>">
-                                            <a class="page-link" href="?<?= $qs_base; ?>&page=<?= $i; ?>"><?= $i; ?></a>
-                                        </li>
-                                    <?php endfor; ?>
-                                    <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
-                                        <a class="page-link" href="?<?= $qs_base; ?>&page=<?= $page + 1; ?>">Next</a>
-                                    </li>
-                                </ul>
-                            </nav>
+                        <div class="form-text px-3 py-2 border-top m-0">
+                            Menampilkan <?= count($data_tampil); ?> unit<?= $total_rows > count($data_tampil) ? ' dari ' . $total_rows . ' (gunakan pencarian / filter untuk menemukan unit lainnya)' : ''; ?>. Gulir ke bawah untuk melihat semuanya.
                         </div>
-                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -768,6 +749,14 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         <span class="lencana lencana-hijau"><?= $penerima_aktif; ?> aktif</span>
                     </div>
                     <div class="card-body">
+                        <?php // Info saluran notifikasi (NOTIF_VIA): WhatsApp, Telegram, atau keduanya ?>
+                        <?php if (in_array('telegram', $saluran_notif, true)): ?>
+                            <div class="alert alert-light border small py-2 mb-3">
+                                <i class="fa-brands fa-telegram me-1" style="color:#229ed9"></i>
+                                Notifikasi juga dikirim ke <strong><?= count(daftarChatTelegram()); ?> chat Telegram</strong> (diatur di <code>TELEGRAM_CHAT_ID</code>).
+                                <?php if (!in_array('wa', $saluran_notif, true)): ?><br><strong>WhatsApp sedang tidak dipakai</strong> (<code>NOTIF_VIA=telegram</code>), daftar nomor di bawah diabaikan.<?php endif; ?>
+                            </div>
+                        <?php endif; ?>
                         <?php if (!$penerima_list): ?>
                             <p class="small text-redup mb-3">
                                 Belum ada nomor di sini.
@@ -847,7 +836,9 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             <td style="min-width: 160px;">
                                 <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
                                     <div class="text-nowrap">
-                                        <?php if (isset($nama_penerima[$no])): ?>
+                                        <?php if (strncmp($no, 'tg:', 3) === 0): ?>
+                                            <span class="fw-semibold" style="color:#229ed9"><i class="fa-brands fa-telegram"></i> Telegram</span> <span class="text-secondary"><?= e(substr($no, 3)); ?></span>
+                                        <?php elseif (isset($nama_penerima[$no])): ?>
                                             <span class="fw-semibold"><?= e($nama_penerima[$no]); ?></span> <span class="text-secondary">+<?= e($no); ?></span>
                                         <?php else: ?>
                                             <span class="text-secondary">+<?= e($no); ?></span>

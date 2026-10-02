@@ -52,6 +52,10 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--latar); co
 .tabel thead th { background: #f8fafc; color: var(--redup); font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--garis); padding: .7rem .75rem; white-space: nowrap; }
 .tabel td { padding: .8rem .75rem; border-color: #f0f2f5; }
 .tabel tbody tr:last-child td { border-bottom: 0; }
+/* Daftar unit: kotak bergulir dengan judul kolom tetap di atas */
+.gulir-daftar { max-height: 460px; overflow-y: auto; }
+.gulir-daftar thead th { position: sticky; top: 0; z-index: 2; }
+@media (max-width: 575.98px) { .gulir-daftar { max-height: 480px; } }
 .kartu-wa .tabel thead th { background: #f2faf5; color: #075e54; }
 .kode { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; border-radius: 6px; padding: .15rem .5rem; white-space: nowrap; }
 
