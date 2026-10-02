@@ -49,3 +49,15 @@ File JSON tidak bisa diberi komentar, jadi penjelasannya ditulis di sini:
 > Kredensial tidak boleh ditulis di kode. File `.env` sudah masuk `.gitignore`.
 
 > **Batas Vercel Hobby: maksimal 12 Serverless Functions per deployment.** Setiap file `.php` langsung di `api/` dihitung 1 function. File pembantu (bukan halaman) simpan di `api/lib/` agar tidak ikut dihitung.
+
+## Notifikasi Telegram (opsional, gratis)
+
+Selain WhatsApp (Fonnte), pengingat bisa dikirim lewat Telegram Bot:
+
+| Variabel | Isi |
+|---|---|
+| `NOTIF_VIA` | `wa` (default), `telegram`, atau `wa,telegram` |
+| `TELEGRAM_BOT_TOKEN` | Token bot dari @BotFather |
+| `TELEGRAM_CHAT_ID` | Chat id orang/grup (grup diawali `-`), bisa lebih dari 1 dipisah koma |
+
+Riwayat pengiriman Telegram tampil di kartu Riwayat Pengiriman WA dengan ikon Telegram.

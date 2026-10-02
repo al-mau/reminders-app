@@ -1,6 +1,9 @@
 <?php
 /**
- * Helper pengiriman WhatsApp via Fonnte.
+ * Helper pengiriman notifikasi: WhatsApp (via Fonnte) dan/atau Telegram Bot.
+ *  - NOTIF_VIA          : saluran yang dipakai: "wa" (default), "telegram", atau "wa,telegram"
+ *  - TELEGRAM_BOT_TOKEN : token bot dari @BotFather
+ *  - TELEGRAM_CHAT_ID   : chat id penerima (orang atau grup), bisa lebih dari 1 dipisah koma
  *  - FONNTE_TOKEN (Environment Variable) : token device dari dashboard fonnte.com
  *  - Nomor penerima diatur dari dashboard (tabel wa_penerima, bisa lebih dari 1 nomor).
  *    Jika belum ada nomor aktif di dashboard, dipakai WA_TARGET dari Environment Variables.
@@ -58,23 +61,141 @@ function daftarNomorPenerima(): array
     return array_values(array_unique(array_filter($nomor, 'nomorWaValid')));
 }
 
+/** Saluran notifikasi yang aktif menurut NOTIF_VIA, contoh: ['wa'], ['telegram'], ['wa', 'telegram'] */
+function saluranNotifikasi(): array
+{
+    $pilihan = array_map('trim', preg_split('/[,;+ ]+/', strtolower((string) env('NOTIF_VIA', 'wa'))));
+    $saluran = array_values(array_intersect(['wa', 'telegram'], $pilihan));
+    return $saluran ?: ['wa'];
+}
+
+/** Daftar chat id Telegram dari TELEGRAM_CHAT_ID (angka; grup diawali tanda minus) */
+function daftarChatTelegram(): array
+{
+    $ids = preg_split('/[\s,;]+/', (string) env('TELEGRAM_CHAT_ID', ''));
+    return array_values(array_unique(array_filter($ids, static fn($id) => (bool) preg_match('/^-?\d{3,20}$/', $id))));
+}
+
 /**
- * Kirim pesan WhatsApp ke semua nomor penerima aktif, lalu catat di riwayat (wa_log).
+ * Kirim notifikasi ke semua saluran aktif (WhatsApp dan/atau Telegram), lalu catat di riwayat (wa_log).
+ * Nama fungsi tetap "kirimWhatsApp" agar pemanggil lama (cron & dashboard) tidak perlu diubah.
  * @param string $jenis     'otomatis' (cron) atau 'manual' (tombol di dashboard)
  * @param string $ringkasan Daftar unit yang diingatkan, untuk riwayat
- * @return array{ok: bool, pesan: string}
+ * @return array{ok: bool, pesan: string}  ok = minimal satu saluran berhasil
  */
 function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasan = ''): array
 {
     global $pdo;
 
-    $nomor  = daftarNomorPenerima();
-    $target = implode(',', $nomor);
-    $hasil  = kirimKeFonnte($pesan, $target);
+    $ringkasan = $ringkasan !== '' ? $ringkasan : '-';
+    $saluran   = saluranNotifikasi();
+    $semua     = [];
 
-    catatWa($pdo, $jenis, $ringkasan !== '' ? $ringkasan : '-', $target !== '' ? $target : '-', $hasil['ok'], $hasil['pesan']);
+    if (in_array('wa', $saluran, true)) {
+        $target = implode(',', daftarNomorPenerima());
+        $hasil  = kirimKeFonnte($pesan, $target);
+        catatWa($pdo, $jenis, $ringkasan, $target !== '' ? $target : '-', $hasil['ok'], $hasil['pesan']);
+        $semua['WhatsApp'] = $hasil;
+    }
 
-    return $hasil;
+    if (in_array('telegram', $saluran, true)) {
+        $chat  = daftarChatTelegram();
+        $hasil = kirimKeTelegram($pesan, $chat);
+        // Penerima Telegram dicatat dengan awalan "tg:" agar riwayat bisa membedakannya dari nomor WA
+        catatWa($pdo, $jenis, $ringkasan, $chat ? 'tg:' . implode(',tg:', $chat) : '-', $hasil['ok'], $hasil['pesan']);
+        $semua['Telegram'] = $hasil;
+    }
+
+    if (count($semua) === 1) {
+        return reset($semua);
+    }
+    $ok    = (bool) array_filter($semua, static fn($h) => $h['ok']);
+    $pesan = implode('; ', array_map(static fn($nama, $h) => "$nama: {$h['pesan']}", array_keys($semua), $semua));
+    return ['ok' => $ok, 'pesan' => $pesan];
+}
+
+/** XAMPP (Windows) kadang belum mengatur sertifikat HTTPS untuk cURL -> pakai bawaan XAMPP */
+function pasangSertifikatXampp($curl): void
+{
+    if (ini_get('curl.cainfo')) {
+        return;
+    }
+    foreach ([dirname(PHP_BINARY, 2) . '/apache/bin/curl-ca-bundle.crt', dirname(PHP_BINARY, 2) . '/php/extras/ssl/cacert.pem'] as $ca) {
+        if (is_file($ca)) {
+            curl_setopt($curl, CURLOPT_CAINFO, $ca);
+            return;
+        }
+    }
+}
+
+/**
+ * Ubah format pesan WhatsApp ke HTML Telegram: *tebal* -> <b>tebal</b>.
+ * Teks lain di-escape agar karakter seperti < & > di nama unit tidak merusak pesan.
+ */
+function pesanKeHtmlTelegram(string $pesan): string
+{
+    $html = htmlspecialchars($pesan, ENT_NOQUOTES, 'UTF-8');
+    return preg_replace('/\*([^*\n]+)\*/u', '<b>$1</b>', $html);
+}
+
+/**
+ * Kirim pesan ke Telegram Bot (gratis, tanpa kuota untuk pemakaian seperti ini).
+ * Satu permintaan per chat id; berhasil jika minimal satu chat menerima.
+ * @return array{ok: bool, pesan: string}
+ */
+function kirimKeTelegram(string $pesan, array $chatIds): array
+{
+    $token = env('TELEGRAM_BOT_TOKEN');
+    if (!$token) {
+        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur.'];
+    }
+    if (!$chatIds) {
+        return ['ok' => false, 'pesan' => 'TELEGRAM_CHAT_ID belum diatur / tidak valid.'];
+    }
+
+    $url      = rtrim((string) env('TELEGRAM_API', 'https://api.telegram.org'), '/') . '/bot' . $token . '/sendMessage';
+    $html     = pesanKeHtmlTelegram($pesan);
+    $berhasil = 0;
+    $alasan   = '';
+
+    foreach ($chatIds as $chatId) {
+        $curl = curl_init();
+        curl_setopt_array($curl, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_POSTFIELDS     => [
+                'chat_id'                  => $chatId,
+                'text'                     => $html,
+                'parse_mode'               => 'HTML',
+                'disable_web_page_preview' => 'true',
+            ],
+        ]);
+        pasangSertifikatXampp($curl);
+        $response = curl_exec($curl);
+        $error    = curl_error($curl);
+        curl_close($curl);
+
+        // Telegram membalas {"ok": true, ...} atau {"ok": false, "description": "..."}
+        $res = $response === false ? null : json_decode($response, true);
+        if (!empty($res['ok'])) {
+            $berhasil++;
+        } else {
+            $alasan = $response === false ? 'Gagal menghubungi server Telegram.' : (string) ($res['description'] ?? 'Respon tidak valid');
+            error_log("Telegram gagal ($chatId): " . ($response === false ? $error : $response));
+        }
+    }
+
+    if ($berhasil === 0) {
+        return ['ok' => false, 'pesan' => $alasan];
+    }
+    $pesanHasil = "Terkirim ke $berhasil chat Telegram";
+    if ($berhasil < count($chatIds)) {
+        $pesanHasil .= ' (' . (count($chatIds) - $berhasil) . ' gagal: ' . $alasan . ')';
+    }
+    return ['ok' => true, 'pesan' => $pesanHasil];
 }
 
 /**
@@ -110,15 +231,7 @@ function kirimKeFonnte(string $pesan, string $target): array
         CURLOPT_HTTPHEADER     => ['Authorization: ' . $token],
     ]);
 
-    // XAMPP (Windows) kadang belum mengatur sertifikat HTTPS untuk cURL -> pakai bawaan XAMPP
-    if (!ini_get('curl.cainfo')) {
-        foreach ([dirname(PHP_BINARY, 2) . '/apache/bin/curl-ca-bundle.crt', dirname(PHP_BINARY, 2) . '/php/extras/ssl/cacert.pem'] as $ca) {
-            if (is_file($ca)) {
-                curl_setopt($curl, CURLOPT_CAINFO, $ca);
-                break;
-            }
-        }
-    }
+    pasangSertifikatXampp($curl);
 
     $response = curl_exec($curl);
     $error    = curl_error($curl);

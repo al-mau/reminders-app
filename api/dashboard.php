@@ -422,6 +422,7 @@ $riwayat_wa    = $pdo->query("SELECT * FROM wa_log ORDER BY id DESC LIMIT 30")->
 // Nomor -> nama penerima, agar kolom Penerima di riwayat menampilkan nama (bukan hanya nomor).
 // Nomor yang sudah dihapus dari daftar penerima tetap tampil sebagai nomor saja.
 $nama_penerima = array_column($penerima_list, 'nama', 'nomor');
+$saluran_notif = saluranNotifikasi(); // ['wa'], ['telegram'], atau keduanya (NOTIF_VIA)
 
 // --- PESAN NOTIFIKASI ---
 $alerts = [
@@ -768,6 +769,14 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         <span class="lencana lencana-hijau"><?= $penerima_aktif; ?> aktif</span>
                     </div>
                     <div class="card-body">
+                        <?php // Info saluran notifikasi (NOTIF_VIA): WhatsApp, Telegram, atau keduanya ?>
+                        <?php if (in_array('telegram', $saluran_notif, true)): ?>
+                            <div class="alert alert-light border small py-2 mb-3">
+                                <i class="fa-brands fa-telegram me-1" style="color:#229ed9"></i>
+                                Notifikasi juga dikirim ke <strong><?= count(daftarChatTelegram()); ?> chat Telegram</strong> (diatur di <code>TELEGRAM_CHAT_ID</code>).
+                                <?php if (!in_array('wa', $saluran_notif, true)): ?><br><strong>WhatsApp sedang tidak dipakai</strong> (<code>NOTIF_VIA=telegram</code>), daftar nomor di bawah diabaikan.<?php endif; ?>
+                            </div>
+                        <?php endif; ?>
                         <?php if (!$penerima_list): ?>
                             <p class="small text-redup mb-3">
                                 Belum ada nomor di sini.
@@ -847,7 +856,9 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             <td style="min-width: 160px;">
                                 <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
                                     <div class="text-nowrap">
-                                        <?php if (isset($nama_penerima[$no])): ?>
+                                        <?php if (strncmp($no, 'tg:', 3) === 0): ?>
+                                            <span class="fw-semibold" style="color:#229ed9"><i class="fa-brands fa-telegram"></i> Telegram</span> <span class="text-secondary"><?= e(substr($no, 3)); ?></span>
+                                        <?php elseif (isset($nama_penerima[$no])): ?>
                                             <span class="fw-semibold"><?= e($nama_penerima[$no]); ?></span> <span class="text-secondary">+<?= e($no); ?></span>
                                         <?php else: ?>
                                             <span class="text-secondary">+<?= e($no); ?></span>
