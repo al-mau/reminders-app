@@ -132,6 +132,24 @@ function kirimKeFonnte(string $pesan, string $target): array
 }
 
 /**
+ * Teks "Sisa Waktu" untuk pesan WA (dipakai pesan otomatis & manual), contoh:
+ * "Hari Ini (Jatuh Tempo)", "1 hari lagi (Besok / H-1)", "5 hari lagi", "Sudah Expired (Lewat 2 hari)".
+ */
+function keteranganSisaHari(int $sisa): string
+{
+    if ($sisa === 0) {
+        return 'Hari Ini (Jatuh Tempo)';
+    }
+    if ($sisa === 1) {
+        return '1 hari lagi (Besok / H-1)';
+    }
+    if ($sisa > 1) {
+        return "$sisa hari lagi";
+    }
+    return 'Sudah Expired (Lewat ' . abs($sisa) . ' hari)';
+}
+
+/**
  * Hitung selisih hari dari hari ini ke tanggal target.
  * Contoh: 0 = hari ini, 1 = besok (H-1), negatif = sudah lewat.
  */

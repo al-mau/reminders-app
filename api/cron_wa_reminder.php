@@ -42,32 +42,23 @@ $laporan = ['status' => true, 'tanggal' => $hari_ini, 'total' => count($rows), '
 
 if ($rows) {
     // Semua unit digabung dalam 1 pesan agar hemat kuota Fonnte & tidak terlihat spam
+    // Urutkan: unit HARI INI dulu, lalu BESOK (lalu menurut kode unit)
+    usort($rows, static fn($a, $b) => [$a['tanggal_akhir'], $a['kode_unit']] <=> [$b['tanggal_akhir'], $b['kode_unit']]);
     $grup = ['hari_ini' => [], 'besok' => []];
     foreach ($rows as $row) {
         $grup[$row['tanggal_akhir'] === $hari_ini ? 'hari_ini' : 'besok'][] = $row;
     }
 
-    // Fungsi kecil untuk menyusun daftar unit bernomor: "1. *KODE* - Nama  (tgl awal s/d tgl akhir)"
-    $baris = static function (array $daftar): string {
-        $teks = '';
-        foreach ($daftar as $i => $row) {
-            $teks .= ($i + 1) . ". *{$row['kode_unit']}* - {$row['nama_unit']}\n"
-                . "    " . date('d-m-Y', strtotime($row['tanggal_awal']))
-                . " s/d " . date('d-m-Y', strtotime($row['tanggal_akhir'])) . "\n";
-        }
-        return $teks;
-    };
-
-    // Susun isi pesan WA (*teks* = huruf tebal di WhatsApp)
-    $pesan  = "*PENGINGAT DEADLINE UNIT*\n\n";
+    // Susun isi pesan WA (*teks* = huruf tebal di WhatsApp).
+    // Setiap unit ditulis dalam format: Kode Unit / Nama Unit / Tanggal Awal / Tanggal Akhir / Sisa Waktu
+    $pesan  = "*PENGINGAT DEADLINE UNIT*\n";
     $pesan .= "Halo Admin, berikut " . count($rows) . " unit yang perlu segera di-update:\n";
-    if ($grup['hari_ini']) {
-        $pesan .= "\n*HARI INI - " . date('d-m-Y', strtotime($hari_ini)) . "* (" . count($grup['hari_ini']) . " unit)\n";
-        $pesan .= $baris($grup['hari_ini']);
-    }
-    if ($grup['besok']) {
-        $pesan .= "\n*H-1 / BESOK - " . date('d-m-Y', strtotime($besok)) . "* (" . count($grup['besok']) . " unit)\n";
-        $pesan .= $baris($grup['besok']);
+    foreach ($rows as $row) {
+        $pesan .= "\n*Kode Unit:* " . $row['kode_unit'] . "\n";
+        $pesan .= "*Nama Unit:* " . $row['nama_unit'] . "\n";
+        $pesan .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($row['tanggal_awal'])) . "\n";
+        $pesan .= "*Tanggal Akhir:* " . date('d-m-Y', strtotime($row['tanggal_akhir'])) . "\n";
+        $pesan .= "*Sisa Waktu:* " . keteranganSisaHari(hitungSisaHari($row['tanggal_akhir'])) . "\n";
     }
     // Kalimat penutup berisi tanggal akhir. Jika pesan berisi unit HARI INI dan BESOK
     // sekaligus, kedua tanggal disebutkan agar tidak membingungkan.
