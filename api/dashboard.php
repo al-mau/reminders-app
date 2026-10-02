@@ -455,7 +455,9 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
         .navbar { background: linear-gradient(135deg, #1e293b, #0f172a); }
         .card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
-        .card-header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; border-radius: 12px 12px 0 0 !important; font-weight: 600; }
+        .card-header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; border-radius: 12px 12px 0 0 !important; font-weight: 700; font-size: 1.25rem; color: #0f172a; }
+        /* Judul kartu (Input, Penerima WA, Daftar Unit, Riwayat WA) lebih besar dari teks lain; badge di sampingnya tetap kecil */
+        .card-header .badge { font-size: .8rem; }
         .btn-primary { background-color: #2563eb; border: none; border-radius: 8px; padding: 10px 20px; font-weight: 500; }
         .btn-primary:hover { background-color: #1d4ed8; }
         .table thead { background-color: #f1f5f9; color: #475569; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
