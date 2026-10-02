@@ -178,7 +178,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pesan .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($data_wa['tanggal_awal'])) . "\n";
         $pesan .= "*Tanggal Akhir:* " . date('d-m-Y', strtotime($data_wa['tanggal_akhir'])) . "\n";
         $pesan .= "*Sisa Waktu:* " . $ket_sisa . "\n\n";
-        $pesan .= "Pesan ini dikirim secara manual dari dashboard admin.";
+        // Kalimat penutup sama dengan pesan otomatis (cron_wa_reminder.php)
+        $pesan .= "Mohon segera update kembali usernya sebelum tanggal " . date('d-m-Y', strtotime($data_wa['tanggal_akhir']));
 
         $label = $data_wa['kode_unit'] . ' ' . $data_wa['nama_unit'];
         // Kirim manual tidak mengubah status pengingat unit (pengingat otomatis tetap berjalan sesuai jadwal)
