@@ -1,0 +1,76 @@
+=====================================================================
+  REMINDERS APP - VERSI XAMPP (berjalan di laptop / komputer kantor)
+=====================================================================
+
+Versi ini memakai database MySQL XAMPP di laptop (bukan Aiven) dan
+dibuka lewat http://localhost/reminders-app/ .
+Fiturnya sama dengan versi online (Vercel).
+
+PENTING
+- Data versi XAMPP TERPISAH dari versi online. Input di salah satu
+  tidak otomatis muncul di yang lain.
+- Aplikasi hanya bisa dibuka selama laptop menyala dan Apache + MySQL
+  di XAMPP Control Panel sudah di-START.
+- Pengingat WA otomatis hanya terkirim jika laptop menyala pada jamnya.
+- JANGAN jalankan pengingat otomatis XAMPP bersamaan dengan versi online
+  (cron-job.org) untuk data yang sama, nanti WA terkirim dobel.
+
+---------------------------------------------------------------------
+1. PASANG
+---------------------------------------------------------------------
+1) Extract zip ini, lalu pindahkan folder "reminders-app" ke:
+      D:\xampp\htdocs\     (atau C:\xampp\htdocs\ sesuai lokasi XAMPP)
+   Hasilnya: D:\xampp\htdocs\reminders-app\login.php
+2) Buka XAMPP Control Panel -> START Apache dan MySQL.
+3) Buat database: klik 2x  reminders-app\database\import_ke_xampp.bat
+   (membuat database "reminders_db" + semua tabel + contoh data).
+   Atau isi dengan data asli dari Aiven: lihat bagian 4.
+4) Buka browser: http://localhost/reminders-app/
+   - Belum ada akun? Halaman Daftar terbuka otomatis selama tabel
+     users masih kosong. Buat akun admin pertama di sana.
+   - Sesudah itu tambah akun lain lewat menu Kelola User.
+
+---------------------------------------------------------------------
+2. PENGATURAN (file .env di folder reminders-app)
+---------------------------------------------------------------------
+Buka file .env dengan Notepad. Yang perlu diisi:
+  FONNTE_TOKEN=   token device dari dashboard fonnte.com (untuk kirim WA)
+Yang lain sudah terisi untuk XAMPP standar (user root tanpa password).
+Jika MySQL XAMPP memakai password, isi DB_PASSWORD=.
+File .env tidak bisa dibuka dari browser (diblokir .htaccess).
+
+---------------------------------------------------------------------
+3. PENGINGAT WA OTOMATIS (pengganti cron-job.org)
+---------------------------------------------------------------------
+Coba manual: klik 2x  reminders-app\kirim_pengingat.bat
+Agar otomatis setiap hari jam 20.00:
+ 1) Tekan tombol Windows, ketik "Task Scheduler", buka.
+ 2) Klik "Create Basic Task..." -> Nama: Pengingat WA Reminders -> Next
+ 3) Trigger: Daily -> Next -> jam 20:00:00 -> Next
+ 4) Action: Start a program -> Next
+ 5) Program/script: Browse -> pilih ...\htdocs\reminders-app\kirim_pengingat.bat
+    Add arguments: auto
+ 6) Next -> Finish.
+Hasil setiap pengiriman tersimpan di file reminders-app\pengingat_log.txt
+Catatan: MySQL XAMPP harus sudah START saat jam 20.00.
+
+---------------------------------------------------------------------
+4. AMBIL DATA DARI VERSI ONLINE (Aiven) -> XAMPP  (opsional)
+---------------------------------------------------------------------
+1) Buka .env, isi AIVEN_DB_PASSWORD= (password Aiven, sama dengan
+   DB_PASSWORD di Vercel).
+2) Klik 2x  reminders-app\database\sync_dari_aiven.bat
+   Data di XAMPP akan DIGANTI dengan data Aiven (akun, unit, lampiran,
+   penerima WA, riwayat WA).
+
+---------------------------------------------------------------------
+5. JIKA ADA MASALAH
+---------------------------------------------------------------------
+- "Koneksi database gagal"  -> MySQL di XAMPP belum START / DB_* di .env salah.
+- Halaman "Not Found"       -> pastikan foldernya htdocs\reminders-app
+                               dan alamatnya http://localhost/reminders-app/
+- WA tidak terkirim         -> cek FONNTE_TOKEN, internet, dan status device
+                               di fonnte.com. Keterangan error ada di
+                               Riwayat Pengiriman WA (dashboard).
+- Tabel kurang / error tabel -> buka http://localhost/reminders-app/setup.php?key=<CRON_SECRET>
+                               (CRON_SECRET ada di file .env)

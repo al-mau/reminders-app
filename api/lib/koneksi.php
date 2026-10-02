@@ -19,7 +19,8 @@ if (!function_exists('env')) {
     // Muat file .env (hanya untuk development lokal, misal XAMPP).
     // Di Vercel file .env tidak ada; nilainya diambil dari Environment Variables.
     // Nilai yang sudah ada di Environment Variables TIDAK ditimpa oleh .env.
-    $envFile = dirname(__DIR__, 2) . '/.env';
+    // Dicari di folder project: versi GitHub (api/lib/) maupun versi XAMPP (lib/).
+    $envFile = is_readable(dirname(__DIR__) . '/.env') ? dirname(__DIR__) . '/.env' : dirname(__DIR__, 2) . '/.env';
     if (is_readable($envFile)) {
         foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
             $line = trim($line);

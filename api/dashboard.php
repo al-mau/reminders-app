@@ -442,7 +442,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Reminders</title>
 
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1e293b">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3602/3602145.png">
 
@@ -1151,7 +1151,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     const buf = await file.arrayBuffer();
                     frame.contentWindow.postMessage({ ext, buf }, '*', [buf]);
                 }, { once: true });
-                frame.src = '/vendor/pratinjau.html';
+                frame.src = 'vendor/pratinjau.html';
                 wadah.appendChild(frame);
             }
             popup.classList.add('tampil');
@@ -1159,7 +1159,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
 
         // Daftarkan service worker (sw.js) agar aplikasi bisa di-"Install" seperti aplikasi HP (PWA)
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+            window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
         }
     </script>
 </body>

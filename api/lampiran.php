@@ -190,7 +190,7 @@ header('Content-Type: text/html; charset=utf-8');
             const buf = await blob.arrayBuffer();
             frame.contentWindow.postMessage({ ext: k.ext, buf }, '*', [buf]);
         }, { once: true });
-        frame.src = '/vendor/pratinjau.html';
+        frame.src = 'vendor/pratinjau.html';
 
         document.body.append(bilah, frame);
     }
