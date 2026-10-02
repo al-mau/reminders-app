@@ -170,14 +170,7 @@ unset($_SESSION['flash_user']);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .navbar { background: linear-gradient(135deg, #1e293b, #0f172a); }
-        .card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
-        .card-header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; border-radius: 12px 12px 0 0 !important; font-weight: 600; }
-        .btn-primary { background-color: #2563eb; border: none; border-radius: 8px; font-weight: 500; }
-        .table thead { background-color: #f1f5f9; color: #475569; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
-    </style>
+    <link rel="stylesheet" href="tema.css?v=1">
 </head>
 <body>
 
@@ -191,7 +184,11 @@ unset($_SESSION['flash_user']);
     </div>
 </nav>
 
-<div class="container mb-5">
+<div class="container">
+    <div class="mb-4">
+        <h1 class="judul-halaman">Kelola User</h1>
+        <div class="text-redup small">Tambah akun admin, ganti password, atau hapus akun</div>
+    </div>
     <?php foreach ($flash as [$tipe, $pesan]): ?>
         <div class="alert alert-<?= e($tipe); ?> alert-dismissible fade show py-2" role="alert">
             <?= e($pesan); ?>
@@ -202,8 +199,11 @@ unset($_SESSION['flash_user']);
     <div class="row g-4">
         <!-- Kolom kiri: form tambah user -->
         <div class="col-lg-4">
-            <div class="card p-3">
-                <div class="card-header bg-transparent mb-2"><i class="fa-solid fa-user-plus text-primary me-2"></i> Tambah User</div>
+            <div class="card kartu kartu-input">
+                <div class="card-header">
+                    <span class="ikon-judul"><i class="fa-solid fa-user-plus"></i></span>
+                    <div><h2 class="kartu-judul">Tambah User</h2><div class="kartu-sub">Buat akun untuk admin baru</div></div>
+                </div>
                 <div class="card-body">
                     <form method="POST" action="users.php" autocomplete="off">
                         <?= csrf_field(); ?>
@@ -231,8 +231,8 @@ unset($_SESSION['flash_user']);
                 </div>
             </div>
 
-            <div class="card p-3 mt-4">
-                <div class="small text-secondary">
+            <div class="card kartu mt-4 p-3">
+                <div class="small text-redup">
                     <i class="fa-solid fa-lock me-1"></i>
                     Halaman Daftar publik: <strong class="<?= pendaftaranDibuka() ? 'text-warning' : 'text-success'; ?>"><?= pendaftaranDibuka() ? 'TERBUKA' : 'DITUTUP'; ?></strong>.
                     <?php if (pendaftaranDibuka()): ?>
@@ -245,13 +245,14 @@ unset($_SESSION['flash_user']);
         </div>
 
         <div class="col-lg-8">
-            <div class="card p-3">
-                <div class="card-header bg-transparent mb-2 d-flex justify-content-between">
-                    <span><i class="fa-solid fa-users text-primary me-2"></i> Daftar User</span>
-                    <span class="badge bg-primary-subtle text-primary"><?= count($users); ?> user</span>
+            <div class="card kartu kartu-daftar">
+                <div class="card-header">
+                    <span class="ikon-judul"><i class="fa-solid fa-users"></i></span>
+                    <div class="flex-grow-1"><h2 class="kartu-judul">Daftar User</h2><div class="kartu-sub">Akun yang bisa login ke aplikasi</div></div>
+                    <span class="lencana lencana-biru"><?= count($users); ?> user</span>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle tabel">
                         <thead>
                             <tr>
                                 <th>Username</th>
@@ -265,7 +266,7 @@ unset($_SESSION['flash_user']);
                             <tr>
                                 <td class="fw-semibold">
                                     <?= e($u['username']); ?>
-                                    <?php if ($isSaya): ?><span class="badge bg-success ms-1">Anda</span><?php endif; ?>
+                                    <?php if ($isSaya): ?><span class="lencana lencana-hijau ms-1">Anda</span><?php endif; ?>
                                 </td>
                                 <?php if ($adaNama): ?><td><?= e($u['nama_lengkap'] ?? ''); ?></td><?php endif; ?>
                                 <?php if ($adaTanggal): ?>
@@ -273,7 +274,7 @@ unset($_SESSION['flash_user']);
                                 <?php endif; ?>
                                 <td class="text-center">
                                     <div class="d-flex justify-content-center gap-1">
-                                        <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalPassword<?= $i; ?>" title="Ganti Password">
+                                        <button type="button" class="btn-ikon btn-ikon-kuning" data-bs-toggle="modal" data-bs-target="#modalPassword<?= $i; ?>" title="Ganti Password">
                                             <i class="fa-solid fa-key"></i>
                                         </button>
                                         <?php if (!$isSaya && count($users) > 1): ?>
@@ -282,7 +283,7 @@ unset($_SESSION['flash_user']);
                                             <?= csrf_field(); ?>
                                             <input type="hidden" name="aksi" value="hapus">
                                             <input type="hidden" name="username" value="<?= e($u['username']); ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus User"><i class="fa-solid fa-trash"></i></button>
+                                            <button type="submit" class="btn-ikon btn-ikon-merah" title="Hapus User"><i class="fa-solid fa-trash"></i></button>
                                         </form>
                                         <?php endif; ?>
                                     </div>
@@ -296,6 +297,8 @@ unset($_SESSION['flash_user']);
         </div>
     </div>
 </div>
+
+<div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
 
 <!-- Popup "Ganti Password" (satu popup untuk setiap user) -->
 <?php foreach ($users as $i => $u): ?>
