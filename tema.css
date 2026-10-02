@@ -1,0 +1,103 @@
+/*
+ * TEMA TAMPILAN BERSAMA (Dashboard & Kelola User)
+ * Warna lembut, sudut membulat, bayangan tipis. Diubah di sini = berlaku di semua halaman.
+ * Setelah mengubah file ini, naikkan angka ?v= di <link href="tema.css?v=..."> agar browser memuat versi baru.
+ */
+/* ===== Tema dasar: warna lembut, sudut membulat, bayangan tipis ===== */
+:root { --latar: #f4f6fa; --teks: #0f172a; --redup: #64748b; --garis: #e6e9ef; --utama: #2563eb; --radius: 14px; }
+body { font-family: 'Inter', system-ui, sans-serif; background: var(--latar); color: var(--teks); font-size: .95rem; }
+.navbar { background: linear-gradient(135deg, #1e293b, #0f172a); }
+.navbar-brand { font-size: 1.1rem; letter-spacing: .2px; }
+.judul-halaman { font-size: 1.5rem; font-weight: 700; margin: 0; }
+.text-redup { color: var(--redup) !important; }
+.min-w-0 { min-width: 0; }
+
+/* Kartu utama: putih bersih, judul berwarna lembut sesuai fungsinya */
+.kartu { background: #fff; border: 1px solid var(--garis); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 6px 18px rgba(16,24,40,.04); overflow: hidden; }
+.kartu > .card-header { display: flex; align-items: center; gap: .75rem; padding: .95rem 1.25rem; background: var(--warna-muda); border-bottom: 1px solid var(--garis); border-top: 3px solid var(--warna); }
+.kartu-judul { font-size: 1.15rem; font-weight: 700; color: var(--warna-tua); margin: 0; line-height: 1.2; }
+.kartu-sub { font-size: .78rem; color: var(--redup); }
+.ikon-judul { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; background: #fff; color: var(--warna); box-shadow: 0 1px 3px rgba(16,24,40,.08); font-size: 1.05rem; }
+.kartu > .card-body { padding: 1.25rem; }
+.kartu-input  { --warna: #1e3a8a; --warna-tua: #1e3a8a; --warna-muda: #eef2fb; }   /* biru gelap */
+.kartu-daftar { --warna: #475569; --warna-tua: #1e293b; --warna-muda: #f3f5f8; }   /* abu-abu */
+.kartu-wa     { --warna: #128c7e; --warna-tua: #075e54; --warna-muda: #e9f6ef; }   /* tema WhatsApp */
+.kartu-wa .ikon-judul { color: #25d366; }
+
+/* Kartu statistik: bisa diklik untuk memfilter tabel */
+.stat { display: flex; align-items: center; gap: .85rem; padding: 1rem 1.1rem; background: #fff; border: 1px solid var(--garis); border-radius: var(--radius); color: inherit; text-decoration: none; box-shadow: 0 1px 2px rgba(16,24,40,.04); transition: transform .15s, box-shadow .15s, border-color .15s; height: 100%; }
+.stat:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16,24,40,.08); color: inherit; }
+.stat.aktif { border-color: var(--c); box-shadow: 0 0 0 3px var(--bg); }
+.stat-ikon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; font-size: 1.1rem; background: var(--bg); color: var(--c); }
+.stat-label { display: block; font-size: .78rem; font-weight: 600; color: var(--redup); }
+.stat-angka { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1.15; color: var(--teks); }
+.stat-biru  { --c: #2563eb; --bg: #e8effd; }
+.stat-merah { --c: #d92d20; --bg: #fdecec; }
+.stat-kuning{ --c: #dc6803; --bg: #fff4e0; }
+.stat-abu   { --c: #475467; --bg: #eef1f5; }
+.stat-gelap { --c: #1d2939; --bg: #e4e7ec; }
+
+/* Form & tombol */
+.form-label { font-size: .8rem; font-weight: 600; color: #475467 !important; margin-bottom: .35rem; }
+.form-control, .form-select, .input-group-text { border-color: #dfe3ea; border-radius: 10px; }
+.form-control:focus, .form-select:focus { border-color: #93b4f5; box-shadow: 0 0 0 .2rem rgba(37,99,235,.12); }
+.btn { border-radius: 10px; font-weight: 500; }
+.btn-primary { background: var(--utama); border-color: var(--utama); }
+.btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+.btn-success { background: #128c7e; border-color: #128c7e; }
+.btn-success:hover { background: #0e7568; border-color: #0e7568; }
+
+/* Tabel: rapi dan mudah dibaca */
+.tabel { margin: 0; }
+.tabel thead th { background: #f8fafc; color: var(--redup); font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--garis); padding: .7rem .75rem; white-space: nowrap; }
+.tabel td { padding: .8rem .75rem; border-color: #f0f2f5; }
+.tabel tbody tr:last-child td { border-bottom: 0; }
+.kartu-wa .tabel thead th { background: #f2faf5; color: #075e54; }
+.kode { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; border-radius: 6px; padding: .15rem .5rem; white-space: nowrap; }
+
+/* Label status lembut (pengganti badge pekat) */
+.lencana { display: inline-flex; align-items: center; gap: .35rem; padding: .28rem .65rem; border-radius: 999px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.lencana-merah { background: #fdecec; color: #b42318; }
+.lencana-kuning{ background: #fff4e0; color: #b54708; }
+.lencana-abu   { background: #eef1f5; color: #475467; }
+.lencana-gelap { background: #e4e7ec; color: #1d2939; }
+.lencana-hijau { background: #e6f6ec; color: #067647; }
+.lencana-biru  { background: #e8effd; color: #1d4ed8; }
+.info-terkirim { font-size: .75rem; color: #128c7e; margin-top: .35rem; }
+
+/* Tombol aksi berbentuk ikon dengan warna lembut */
+.btn-ikon { width: 34px; height: 34px; border-radius: 10px; border: 0; display: inline-flex; align-items: center; justify-content: center; position: relative; transition: background .15s, transform .15s; }
+.btn-ikon:hover { transform: translateY(-1px); }
+.btn-ikon-kuning { background: #fff4e0; color: #b54708; } .btn-ikon-kuning:hover { background: #fde7c2; }
+.btn-ikon-biru   { background: #e6f1fd; color: #1d6fd8; } .btn-ikon-biru:hover   { background: #cfe3fb; }
+.btn-ikon-merah  { background: #fdecec; color: #c0262d; } .btn-ikon-merah:hover  { background: #fbd5d5; }
+.btn-ikon-hijau  { background: #e6f6ec; color: #128c7e; } .btn-ikon-hijau:hover  { background: #cdeedb; }
+.btn-ikon-abu    { background: #eef1f5; color: #475467; } .btn-ikon-abu:hover    { background: #dfe4ea; }
+.btn-ikon .jumlah { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--utama); color: #fff; font-size: .65rem; font-weight: 700; display: grid; place-items: center; }
+
+/* Penerima WA */
+.avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; background: #dcf3e5; color: #075e54; font-weight: 700; }
+.kartu-wa .list-group-item { background: transparent; border-color: #eef1f4; }
+.subjudul { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--redup); margin-bottom: .5rem; }
+
+/* Keadaan kosong */
+.kosong { text-align: center; padding: 2.5rem 1rem; color: var(--redup); }
+.kosong i { font-size: 1.8rem; opacity: .5; display: block; margin-bottom: .5rem; }
+
+/* Lain-lain */
+.alert { border: 0; border-radius: 12px; }
+.modal-content { border: 0; border-radius: 16px; }
+.pagination .page-link { border-radius: 8px !important; margin: 0 2px; border-color: var(--garis); }
+.kaki { color: var(--redup); font-size: .8rem; text-align: center; padding: 1.5rem 0 2rem; }
+
+/* Tampilan HP: lebih ringkas */
+@media (max-width: 575.98px) {
+    .judul-halaman { font-size: 1.3rem; }
+    .stat { padding: .75rem .8rem; gap: .6rem; }
+    .stat-ikon { width: 36px; height: 36px; font-size: .95rem; border-radius: 10px; }
+    .stat-angka { font-size: 1.3rem; }
+    .stat-label { font-size: .72rem; }
+    .kartu > .card-header { padding: .85rem 1rem; }
+    .kartu > .card-body { padding: 1rem; }
+    .kartu-judul { font-size: 1.05rem; }
+}

@@ -43,6 +43,16 @@ function jsonKeluar(array $data, int $kode = 200): void
     exit;
 }
 
+/** Huruf pertama nama (untuk lingkaran avatar penerima WA), contoh: "Alif" -> "A" */
+function inisial(string $nama): string
+{
+    $nama = trim($nama);
+    if ($nama === '') {
+        return '?';
+    }
+    return function_exists('mb_substr') ? mb_strtoupper(mb_substr($nama, 0, 1)) : strtoupper(substr($nama, 0, 1));
+}
+
 /** Simpan pesan notifikasi (hijau/merah) untuk ditampilkan setelah halaman dimuat ulang */
 function flash(string $tipe, string $pesan): void
 {
@@ -433,6 +443,20 @@ unset($_SESSION['flash_wa_error'], $_SESSION['flash']);
 
 $qs_base = 'search=' . urlencode($search) . '&filter=' . urlencode($filter);
 
+// --- KARTU STATISTIK: [filter, label, jumlah, ikon, warna] ---
+$kartu_statistik = [
+    ['semua', 'Total Unit', $stat_total, 'fa-layer-group', 'biru'],
+    ['hari_ini', 'Hari Ini', $stat_hari_ini, 'fa-circle-exclamation', 'merah'],
+    ['h1', 'H-1 (Besok)', $stat_h1, 'fa-clock', 'kuning'],
+    ['mendatang', 'Mendatang', $stat_mendatang, 'fa-calendar-days', 'abu'],
+    ['expired', 'Expired', $stat_expired, 'fa-calendar-xmark', 'gelap'],
+];
+
+// --- TANGGAL HARI INI dalam bahasa Indonesia, contoh: Kamis, 02 Oktober 2026 ---
+$nama_hari  = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+$nama_bulan = [1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+$tanggal_hari_ini = $nama_hari[(int) date('w')] . ', ' . date('d') . ' ' . $nama_bulan[(int) date('n')] . ' ' . date('Y');
+
 $accept_lampiran = '.' . implode(',.', array_keys(LAMPIRAN_TIPE));
 $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LAMPIRAN_MAKS_BYTE) . ' per file.';
 ?>
@@ -451,36 +475,8 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+    <link rel="stylesheet" href="tema.css?v=1">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
-        .navbar { background: linear-gradient(135deg, #1e293b, #0f172a); }
-        .card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
-        .card-header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; border-radius: 12px 12px 0 0 !important; font-weight: 700; font-size: 1.25rem; color: #0f172a; }
-        /* Judul kartu (Input, Penerima WA, Daftar Unit, Riwayat WA) lebih besar dari teks lain; badge di sampingnya tetap kecil */
-        .card-header .badge { font-size: .8rem; }
-        /* Warna lembut per kartu (garis atas + latar tipis). Isi tabel & kolom input tetap putih agar mudah dibaca */
-        .kartu-input  { background: #edf2fa; border-top: 4px solid #1e3a8a !important; }   /* biru gelap */
-        .kartu-input  .card-header { color: #1e3a8a; }
-        .kartu-daftar { background: #f1f3f6; border-top: 4px solid #475569 !important; }   /* abu-abu */
-        .kartu-daftar .card-header { color: #334155; }
-        .kartu-wa     { background: #eaf6ef; border-top: 4px solid #128c7e !important; }   /* tema WhatsApp (Penerima & Riwayat WA) */
-        .kartu-wa     .card-header { color: #075e54; }
-        .kartu-wa     .card-header .fa-whatsapp { color: #25d366 !important; }
-        .kartu-wa     .table thead th { --bs-table-bg: #dcefe4; color: #075e54; }
-        .kartu-wa     .list-group-item { background-color: #fbfdfc; }
-        .kartu-input .card-header, .kartu-daftar .card-header, .kartu-wa .card-header { border-bottom-color: rgba(15, 23, 42, .08); }
-        .btn-primary { background-color: #2563eb; border: none; border-radius: 8px; padding: 10px 20px; font-weight: 500; }
-        .btn-primary:hover { background-color: #1d4ed8; }
-        .table thead { background-color: #f1f5f9; color: #475569; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
-        .badge-status { padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
-        .stat-card { border-left: 4px solid; transition: transform 0.2s; }
-        .stat-card:hover { transform: translateY(-2px); }
-        .stat-total { border-color: #3b82f6; }
-        .stat-hari-ini { border-color: #ef4444; }
-        .stat-h1 { border-color: #f59e0b; }
-        .stat-mendatang { border-color: #6b7280; }
-        .stat-expired { border-color: #111827; }
-        .btn-aksi { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
         /* Popup pratinjau file sebelum disimpan (di atas popup Bootstrap) */
@@ -512,7 +508,16 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         </div>
     </nav>
 
-    <div class="container mb-5">
+    <div class="container">
+
+        <!-- Judul halaman + tanggal hari ini -->
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+            <div>
+                <h1 class="judul-halaman">Dashboard</h1>
+                <div class="text-redup small">Pantau deadline unit dan pengingat WhatsApp otomatis</div>
+            </div>
+            <div class="text-redup small"><i class="fa-regular fa-calendar me-1"></i> <?= e($tanggal_hari_ini); ?></div>
+        </div>
 
         <?php if ($alert): ?>
             <div class="alert alert-<?= $alert[0]; ?> alert-dismissible fade show" role="alert">
@@ -531,21 +536,25 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             </div>
         <?php endforeach; ?>
 
-        <div class="row row-cols-2 row-cols-md-5 g-3 mb-4">
-            <div class="col"><div class="card stat-card stat-total p-3"><div class="text-muted small fw-semibold">Total Unit</div><div class="h3 fw-bold text-dark mb-0"><?= $stat_total; ?></div></div></div>
-            <div class="col"><div class="card stat-card stat-hari-ini p-3"><div class="text-muted small fw-semibold">Hari Ini</div><div class="h3 fw-bold text-danger mb-0"><?= $stat_hari_ini; ?></div></div></div>
-            <div class="col"><div class="card stat-card stat-h1 p-3"><div class="text-muted small fw-semibold">H-1 (Besok)</div><div class="h3 fw-bold text-warning mb-0"><?= $stat_h1; ?></div></div></div>
-            <div class="col"><div class="card stat-card stat-mendatang p-3"><div class="text-muted small fw-semibold">Mendatang</div><div class="h3 fw-bold text-secondary mb-0"><?= $stat_mendatang; ?></div></div></div>
-            <div class="col"><div class="card stat-card stat-expired p-3"><div class="text-muted small fw-semibold">Expired</div><div class="h3 fw-bold text-dark mb-0"><?= $stat_expired; ?></div></div></div>
+        <!-- Kartu statistik: klik untuk menampilkan unit dengan status tersebut -->
+        <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-3 mb-4">
+            <?php foreach ($kartu_statistik as [$kunci, $label, $nilai, $ikon, $warna]): ?>
+                <div class="col">
+                    <a href="dashboard.php?filter=<?= $kunci; ?>#daftar" class="stat stat-<?= $warna; ?> <?= $filter === $kunci ? 'aktif' : ''; ?>" title="Tampilkan: <?= e($label); ?>">
+                        <span class="stat-ikon"><i class="fa-solid <?= $ikon; ?>"></i></span>
+                        <span><span class="stat-label"><?= e($label); ?></span><span class="stat-angka"><?= (int) $nilai; ?></span></span>
+                    </a>
+                </div>
+            <?php endforeach; ?>
         </div>
 
+        <!-- Baris 1: input unit baru (kiri) + daftar unit (kanan) -->
         <div class="row g-4">
-
-            <!-- Kolom kiri: form input unit baru + daftar penerima WA -->
             <div class="col-lg-4">
-                <div class="card p-3 kartu-input">
-                    <div class="card-header bg-transparent mb-2">
-                        <i class="fa-solid fa-square-plus text-primary me-2"></i> Input Unit & Deadline
+                <div class="card kartu kartu-input h-100">
+                    <div class="card-header">
+                        <span class="ikon-judul"><i class="fa-solid fa-square-plus"></i></span>
+                        <div><h2 class="kartu-judul">Input Unit & Deadline</h2><div class="kartu-sub">Tambah unit baru beserta lampirannya</div></div>
                     </div>
                     <div class="card-body">
                         <form method="POST" action="dashboard.php" enctype="multipart/form-data" data-upload="unit-baru">
@@ -580,107 +589,53 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         </form>
                     </div>
                 </div>
+            </div>
 
-                <div class="card p-3 mt-4 kartu-wa" id="penerima">
-                    <div class="card-header bg-transparent mb-2 d-flex justify-content-between align-items-center">
-                        <span><i class="fa-brands fa-whatsapp text-success me-2"></i> Penerima Notifikasi WA</span>
-                        <span class="badge bg-success-subtle text-success"><?= $penerima_aktif; ?> aktif</span>
+            <!-- Di HP daftar unit tampil lebih dulu, form input di bawahnya -->
+            <div class="col-lg-8 order-first order-lg-0">
+                <div class="card kartu kartu-daftar h-100" id="daftar">
+                    <div class="card-header">
+                        <span class="ikon-judul"><i class="fa-solid fa-list-check"></i></span>
+                        <div class="flex-grow-1"><h2 class="kartu-judul">Daftar Unit & Deadline</h2><div class="kartu-sub"><?= (int) $total_rows; ?> unit<?= ($search !== '' || $filter !== 'semua') ? ' sesuai pencarian / filter' : ''; ?></div></div>
                     </div>
-                    <div class="card-body pt-1">
-                        <?php if (!$penerima_list): ?>
-                            <p class="small text-muted mb-3">
-                                Belum ada nomor di sini.
-                                <?php if ($wa_target_env !== ''): ?>
-                                    Saat ini notifikasi dikirim ke nomor dari pengaturan server (<strong><?= e($wa_target_env); ?></strong>).
+                    <div class="card-body pb-0 flex-grow-0">
+                        <form method="GET" action="dashboard.php" class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-secondary"></i></span>
+                                    <input type="text" name="search" class="form-control" placeholder="Cari kode / nama unit..." value="<?= e($search); ?>">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <!-- Pilihan status langsung menampilkan hasil tanpa menekan tombol -->
+                                <select name="filter" class="form-select" onchange="this.form.submit()">
+                                    <option value="semua" <?= $filter === 'semua' ? 'selected' : ''; ?>>Semua Status</option>
+                                    <option value="hari_ini" <?= $filter === 'hari_ini' ? 'selected' : ''; ?>>Hari Ini</option>
+                                    <option value="h1" <?= $filter === 'h1' ? 'selected' : ''; ?>>H-1 (Besok)</option>
+                                    <option value="mendatang" <?= $filter === 'mendatang' ? 'selected' : ''; ?>>Mendatang</option>
+                                    <option value="expired" <?= $filter === 'expired' ? 'selected' : ''; ?>>Expired</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex gap-2">
+                                <button type="submit" class="btn btn-primary w-100" title="Cari"><i class="fa-solid fa-magnifying-glass"></i><span class="d-md-none ms-1">Cari</span></button>
+                                <?php if ($search !== '' || $filter !== 'semua'): ?>
+                                    <a href="dashboard.php#daftar" class="btn btn-light border" title="Hapus pencarian & filter"><i class="fa-solid fa-xmark"></i></a>
                                 <?php endif; ?>
-                                Tambahkan nomor di bawah agar bisa dikirim ke lebih dari 1 penerima.
-                            </p>
-                        <?php else: ?>
-                            <ul class="list-group list-group-flush mb-3">
-                                <?php foreach ($penerima_list as $p): $aktif = (int) $p['aktif'] === 1; ?>
-                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-2">
-                                    <div class="<?= $aktif ? '' : 'text-muted text-decoration-line-through'; ?>">
-                                        <div class="fw-semibold small"><?= e($p['nama']); ?></div>
-                                        <div class="small text-secondary">+<?= e($p['nomor']); ?></div>
-                                    </div>
-                                    <div class="d-flex gap-1">
-                                        <form method="POST" action="dashboard.php">
-                                            <?= csrf_field(); ?>
-                                            <input type="hidden" name="aksi" value="toggle_penerima">
-                                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
-                                            <button type="submit" class="btn btn-sm <?= $aktif ? 'btn-outline-secondary' : 'btn-outline-success'; ?>" title="<?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?>">
-                                                <i class="fa-solid <?= $aktif ? 'fa-pause' : 'fa-play'; ?>"></i>
-                                            </button>
-                                        </form>
-                                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus nomor ini dari penerima WA?')">
-                                            <?= csrf_field(); ?>
-                                            <input type="hidden" name="aksi" value="hapus_penerima">
-                                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus"><i class="fa-solid fa-trash"></i></button>
-                                        </form>
-                                    </div>
-                                </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php endif; ?>
-
-                        <form method="POST" action="dashboard.php" class="row g-2">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="tambah_penerima">
-                            <div class="col-12">
-                                <input type="text" name="nama" class="form-control form-control-sm" placeholder="Nama (contoh: Admin Kantor)" maxlength="100" required>
-                            </div>
-                            <div class="col-8">
-                                <input type="tel" name="nomor" class="form-control form-control-sm" placeholder="08xxxxxxxxxx" inputmode="numeric" required>
-                            </div>
-                            <div class="col-4">
-                                <button type="submit" class="btn btn-sm btn-success w-100"><i class="fa-solid fa-plus"></i> Tambah</button>
                             </div>
                         </form>
                     </div>
-                </div>
-            </div>
-
-            <!-- Kolom kanan: tabel daftar unit (cari, filter, edit, hapus, kirim WA, lampiran) -->
-            <div class="col-lg-8">
-                <div class="card p-3 kartu-daftar">
-                    <div class="card-header bg-transparent mb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <span><i class="fa-solid fa-list-check text-primary me-2"></i> Daftar Unit & Deadline</span>
-                    </div>
-
-                    <form method="GET" action="dashboard.php" class="row g-2 mb-3">
-                        <div class="col-md-6">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-secondary"></i></span>
-                                <input type="text" name="search" class="form-control" placeholder="Cari Kode / Nama Unit..." value="<?= e($search); ?>">
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <select name="filter" class="form-select form-select-sm">
-                                <option value="semua" <?= $filter === 'semua' ? 'selected' : ''; ?>>Semua Status</option>
-                                <option value="hari_ini" <?= $filter === 'hari_ini' ? 'selected' : ''; ?>>Hari Ini</option>
-                                <option value="h1" <?= $filter === 'h1' ? 'selected' : ''; ?>>H-1</option>
-                                <option value="mendatang" <?= $filter === 'mendatang' ? 'selected' : ''; ?>>Mendatang</option>
-                                <option value="expired" <?= $filter === 'expired' ? 'selected' : ''; ?>>Expired</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-sm btn-primary w-100">Tampilkan</button>
-                        </div>
-                    </form>
-
                     <div class="card-body p-0">
                         <div class="table-responsive">
-                            <table class="table table-hover align-middle mb-0">
+                            <table class="table table-hover align-middle tabel">
                                 <thead>
                                     <tr>
-                                        <th class="text-center" width="5%">NO</th>
-                                        <th>KODE UNIT</th>
-                                        <th>NAMA UNIT</th>
-                                        <th>TANGGAL AWAL</th>
-                                        <th>TANGGAL AKHIR</th>
-                                        <th class="text-center">DEADLINE</th>
-                                        <th class="text-center">AKSI</th>
+                                        <th class="text-center" width="5%">No</th>
+                                        <th>Kode</th>
+                                        <th>Nama Unit</th>
+                                        <th>Tgl Awal</th>
+                                        <th>Tgl Akhir</th>
+                                        <th class="text-center">Status</th>
+                                        <th class="text-center">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -690,25 +645,25 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                             $sisa_hari = $row['sisa_hari'];
 
                                             if ($sisa_hari === 0) {
-                                                $badge_deadline = '<span class="badge bg-danger badge-status"><i class="fa-solid fa-circle-exclamation me-1"></i> Hari Ini</span>';
+                                                $badge_deadline = '<span class="lencana lencana-merah"><i class="fa-solid fa-circle-exclamation"></i> Hari Ini</span>';
                                             } elseif ($sisa_hari === 1) {
-                                                $badge_deadline = '<span class="badge bg-warning text-dark badge-status"><i class="fa-solid fa-clock me-1"></i> H-1</span>';
+                                                $badge_deadline = '<span class="lencana lencana-kuning"><i class="fa-solid fa-clock"></i> H-1 (Besok)</span>';
                                             } elseif ($sisa_hari > 1) {
-                                                $badge_deadline = '<span class="badge bg-secondary badge-status">' . $sisa_hari . ' hari lagi</span>';
+                                                $badge_deadline = '<span class="lencana lencana-abu">' . $sisa_hari . ' hari lagi</span>';
                                             } else {
-                                                $badge_deadline = '<span class="badge bg-dark badge-status">Expired</span>';
+                                                $badge_deadline = '<span class="lencana lencana-gelap"><i class="fa-solid fa-calendar-xmark"></i> Expired</span>';
                                             }
                                         ?>
                                         <tr>
-                                            <td class="text-center fw-bold text-secondary"><?= $no++; ?></td>
-                                            <td><span class="badge bg-light text-dark border"><?= e($row['kode_unit']); ?></span></td>
+                                            <td class="text-center text-redup"><?= $no++; ?></td>
+                                            <td><span class="kode"><?= e($row['kode_unit']); ?></span></td>
                                             <td class="fw-semibold text-dark"><?= e($row['nama_unit']); ?></td>
-                                            <td class="text-secondary small"><?= date('d M Y', strtotime($row['tanggal_awal'])); ?></td>
-                                            <td class="text-secondary small"><?= date('d M Y', strtotime($row['tanggal_akhir'])); ?></td>
+                                            <td class="text-redup small text-nowrap"><?= date('d M Y', strtotime($row['tanggal_awal'])); ?></td>
+                                            <td class="small text-nowrap fw-semibold"><?= date('d M Y', strtotime($row['tanggal_akhir'])); ?></td>
                                             <td class="text-center">
                                                 <?= $badge_deadline; ?>
                                                 <?php if (!empty($row['terakhir_dikirim'])): ?>
-                                                    <div class="small text-success mt-1" title="Pengingat WA otomatis terakhir terkirim">
+                                                    <div class="info-terkirim" title="Pengingat WA otomatis terakhir terkirim">
                                                         <i class="fa-brands fa-whatsapp"></i> <?= date('d M Y', strtotime($row['terakhir_dikirim'])); ?>
                                                     </div>
                                                     <?php // Tombol "Kirim ulang" disembunyikan untuk unit expired: cron hanya mengirim unit yang deadline-nya hari ini/besok ?>
@@ -727,7 +682,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                             </td>
                                             <td class="text-center">
                                                 <div class="d-flex justify-content-center gap-1">
-                                                    <button type="button" class="btn btn-sm btn-warning text-dark rounded-circle btn-aksi"
+                                                    <button type="button" class="btn-ikon btn-ikon-kuning"
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#modalEdit<?= (int) $row['id']; ?>"
                                                             title="Edit Data">
@@ -735,13 +690,13 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                     </button>
 
                                                     <?php $jml_lampiran = count($lampiran_per_unit[(int) $row['id']] ?? []); ?>
-                                                    <button type="button" class="btn btn-sm btn-info text-white rounded-circle btn-aksi position-relative"
+                                                    <button type="button" class="btn-ikon btn-ikon-biru"
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#modalLampiran<?= (int) $row['id']; ?>"
                                                             title="Lampiran Dokumen">
                                                         <i class="fa-solid fa-paperclip"></i>
                                                         <?php if ($jml_lampiran > 0): ?>
-                                                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary" style="font-size:.6rem"><?= $jml_lampiran; ?></span>
+                                                            <span class="jumlah"><?= $jml_lampiran; ?></span>
                                                         <?php endif; ?>
                                                     </button>
 
@@ -750,7 +705,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                         <?= csrf_field(); ?>
                                                         <input type="hidden" name="aksi" value="hapus">
                                                         <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
-                                                        <button type="submit" class="btn btn-sm btn-danger rounded-circle btn-aksi" title="Hapus Data">
+                                                        <button type="submit" class="btn-ikon btn-ikon-merah" title="Hapus Data">
                                                             <i class="fa-solid fa-trash"></i>
                                                         </button>
                                                     </form>
@@ -761,7 +716,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                         <?= csrf_field(); ?>
                                                         <input type="hidden" name="aksi" value="kirim_wa">
                                                         <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
-                                                        <button type="submit" class="btn btn-sm btn-success rounded-circle btn-aksi" title="Kirim WhatsApp">
+                                                        <button type="submit" class="btn-ikon btn-ikon-hijau" title="Kirim WhatsApp">
                                                             <i class="fa-brands fa-whatsapp"></i>
                                                         </button>
                                                     </form>
@@ -771,7 +726,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="7" class="text-center py-4 text-muted">Data tidak ditemukan.</td>
+                                            <td colspan="7"><div class="kosong"><i class="fa-regular fa-folder-open"></i>Belum ada unit yang cocok. Tambahkan unit lewat form di samping atau ubah pencarian.</div></td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
@@ -779,7 +734,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         </div>
 
                         <?php if ($total_pages > 1): ?>
-                        <div class="d-flex justify-content-between align-items-center p-3 border-top flex-wrap gap-2">
+                        <div class="d-flex justify-content-between align-items-center px-3 py-3 border-top flex-wrap gap-2">
                             <span class="small text-muted">Menampilkan halaman <?= $page; ?> dari <?= $total_pages; ?> (Total: <?= $total_rows; ?> data)</span>
                             <nav>
                                 <ul class="pagination pagination-sm mb-0">
@@ -798,29 +753,96 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             </nav>
                         </div>
                         <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
 
+        <!-- Baris 2: bagian WhatsApp (penerima + riwayat), satu tema warna -->
+        <div class="row g-4 mt-0">
+            <div class="col-lg-4">
+                <div class="card kartu kartu-wa h-100" id="penerima">
+                    <div class="card-header">
+                        <span class="ikon-judul"><i class="fa-brands fa-whatsapp"></i></span>
+                        <div class="flex-grow-1"><h2 class="kartu-judul">Penerima Notifikasi WA</h2><div class="kartu-sub">Nomor yang menerima pengingat</div></div>
+                        <span class="lencana lencana-hijau"><?= $penerima_aktif; ?> aktif</span>
+                    </div>
+                    <div class="card-body">
+                        <?php if (!$penerima_list): ?>
+                            <p class="small text-redup mb-3">
+                                Belum ada nomor di sini.
+                                <?php if ($wa_target_env !== ''): ?>
+                                    Saat ini notifikasi dikirim ke nomor dari pengaturan server (<strong><?= e($wa_target_env); ?></strong>).
+                                <?php endif; ?>
+                                Tambahkan nomor di bawah agar bisa dikirim ke lebih dari 1 penerima.
+                            </p>
+                        <?php else: ?>
+                            <ul class="list-group list-group-flush mb-3">
+                                <?php foreach ($penerima_list as $p): $aktif = (int) $p['aktif'] === 1; ?>
+                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-2">
+                                    <div class="d-flex align-items-center gap-2 min-w-0 <?= $aktif ? '' : 'opacity-50'; ?>">
+                                        <span class="avatar"><?= e(inisial($p['nama'])); ?></span>
+                                        <div class="min-w-0">
+                                            <div class="fw-semibold small text-truncate"><?= e($p['nama']); ?><?php if (!$aktif): ?> <span class="lencana lencana-abu ms-1">Nonaktif</span><?php endif; ?></div>
+                                            <div class="small text-redup">+<?= e($p['nomor']); ?></div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-1">
+                                        <form method="POST" action="dashboard.php">
+                                            <?= csrf_field(); ?>
+                                            <input type="hidden" name="aksi" value="toggle_penerima">
+                                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
+                                            <button type="submit" class="btn-ikon <?= $aktif ? 'btn-ikon-abu' : 'btn-ikon-hijau'; ?>" title="<?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?>">
+                                                <i class="fa-solid <?= $aktif ? 'fa-pause' : 'fa-play'; ?>"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus nomor ini dari penerima WA?')">
+                                            <?= csrf_field(); ?>
+                                            <input type="hidden" name="aksi" value="hapus_penerima">
+                                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
+                                            <button type="submit" class="btn-ikon btn-ikon-merah" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+                                        </form>
+                                    </div>
+                                </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+
+                        <div class="subjudul mt-2">Tambah penerima</div>
+                        <form method="POST" action="dashboard.php" class="row g-2">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="tambah_penerima">
+                            <div class="col-12">
+                                <input type="text" name="nama" class="form-control form-control-sm" placeholder="Nama (contoh: Admin Kantor)" maxlength="100" required>
+                            </div>
+                            <div class="col-8">
+                                <input type="tel" name="nomor" class="form-control form-control-sm" placeholder="08xxxxxxxxxx" inputmode="numeric" required>
+                            </div>
+                            <div class="col-4">
+                                <button type="submit" class="btn btn-sm btn-success w-100"><i class="fa-solid fa-plus"></i> Tambah</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
 
-        </div>
-
-        <!-- Riwayat pengiriman WA -->
-        <div class="card p-3 mt-4 kartu-wa" id="riwayat">
-            <div class="card-header bg-transparent mb-2">
-                <i class="fa-brands fa-whatsapp text-success me-2"></i> Riwayat Pengiriman WA
-            </div>
-            <div class="table-responsive" style="max-height: 360px;">
-                <table class="table table-sm table-hover align-middle mb-0 small">
+            <div class="col-lg-8">
+                <div class="card kartu kartu-wa h-100" id="riwayat">
+                    <div class="card-header">
+                        <span class="ikon-judul"><i class="fa-solid fa-clock-rotate-left"></i></span>
+                        <div><h2 class="kartu-judul">Riwayat Pengiriman WA</h2><div class="kartu-sub">Pesan otomatis & manual yang sudah dikirim</div></div>
+                    </div>
+                    <div class="table-responsive" style="max-height: 360px;">
+                <table class="table table-sm table-hover align-middle tabel small">
                     <thead class="sticky-top"><tr><th>Waktu</th><th>Jenis</th><th>Unit</th><th>Penerima</th><th>Status</th></tr></thead>
                     <tbody>
                     <?php if (!$riwayat_wa): ?>
-                        <tr><td colspan="5" class="text-center text-muted py-3">Belum ada riwayat pengiriman.</td></tr>
+                        <tr><td colspan="5"><div class="kosong"><i class="fa-regular fa-comment-dots"></i>Belum ada riwayat pengiriman.</div></td></tr>
                     <?php endif; ?>
                     <?php foreach ($riwayat_wa as $w): $ok = $w['status'] === 'berhasil'; ?>
                         <tr>
                             <td class="text-nowrap"><?= date('d M Y H:i', strtotime($w['waktu'])); ?></td>
-                            <td><span class="badge <?= $w['jenis'] === 'otomatis' ? 'bg-primary' : 'bg-secondary'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
+                            <td><span class="lencana <?= $w['jenis'] === 'otomatis' ? 'lencana-biru' : 'lencana-abu'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
                             <td style="min-width: 180px;"><?= e($w['ringkasan']); ?></td>
                             <td style="min-width: 160px;">
                                 <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
@@ -835,7 +857,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                 <?php if (trim($w['penerima']) === '-'): ?><span class="text-muted">-</span><?php endif; ?>
                             </td>
                             <td>
-                                <span class="badge <?= $ok ? 'bg-success' : 'bg-danger'; ?>"><?= $ok ? 'Berhasil' : 'Gagal'; ?></span>
+                                <span class="lencana <?= $ok ? 'lencana-hijau' : 'lencana-merah'; ?>"><i class="fa-solid <?= $ok ? 'fa-check' : 'fa-xmark'; ?>"></i> <?= $ok ? 'Berhasil' : 'Gagal'; ?></span>
                                 <?php if (!$ok && $w['keterangan']): ?><div class="text-danger" style="font-size:.75rem"><?= e($w['keterangan']); ?></div><?php endif; ?>
                             </td>
                         </tr>
@@ -843,8 +865,12 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     </tbody>
                 </table>
             </div>
-            <div class="form-text mt-2">Menampilkan 30 catatan terakhir.</div>
+            <div class="form-text px-3 py-2 border-top m-0">Menampilkan 30 catatan terakhir.</div>
+                </div>
+            </div>
         </div>
+
+        <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
     </div>
 
     <!-- Modal Edit (diletakkan di luar tabel agar HTML valid) -->
