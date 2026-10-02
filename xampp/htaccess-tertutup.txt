@@ -1,0 +1,2 @@
+# Folder ini hanya untuk dipakai oleh kode PHP, tidak boleh dibuka dari browser.
+Require all denied

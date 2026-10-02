@@ -110,6 +110,16 @@ function kirimKeFonnte(string $pesan, string $target): array
         CURLOPT_HTTPHEADER     => ['Authorization: ' . $token],
     ]);
 
+    // XAMPP (Windows) kadang belum mengatur sertifikat HTTPS untuk cURL -> pakai bawaan XAMPP
+    if (!ini_get('curl.cainfo')) {
+        foreach ([dirname(PHP_BINARY, 2) . '/apache/bin/curl-ca-bundle.crt', dirname(PHP_BINARY, 2) . '/php/extras/ssl/cacert.pem'] as $ca) {
+            if (is_file($ca)) {
+                curl_setopt($curl, CURLOPT_CAINFO, $ca);
+                break;
+            }
+        }
+    }
+
     $response = curl_exec($curl);
     $error    = curl_error($curl);
     curl_close($curl);

@@ -10,7 +10,7 @@
       "status": 404
     },
     {
-      "src": "/(\\.env.*|database/.*)",
+      "src": "/(\\.env.*|database/.*|xampp/.*)",
       "status": 404
     },
     {

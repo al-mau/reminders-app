@@ -1,0 +1,9 @@
+# Pengaturan Apache (XAMPP) untuk Reminders App.
+# Halaman utama = index.php, daftar isi folder tidak ditampilkan,
+# dan file rahasia/teknis tidak bisa dibuka dari browser.
+DirectoryIndex index.php
+Options -Indexes
+
+<FilesMatch "^(\.env.*|cron_lokal\.php|.*\.bat|.*\.txt|.*\.sql|.*\.md)$">
+    Require all denied
+</FilesMatch>

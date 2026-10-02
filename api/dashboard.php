@@ -178,7 +178,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pesan .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($data_wa['tanggal_awal'])) . "\n";
         $pesan .= "*Tanggal Akhir:* " . date('d-m-Y', strtotime($data_wa['tanggal_akhir'])) . "\n";
         $pesan .= "*Sisa Waktu:* " . $ket_sisa . "\n\n";
-        $pesan .= "Pesan ini dikirim secara manual dari dashboard admin.";
+        // Kalimat penutup sama dengan pesan otomatis (cron_wa_reminder.php)
+        $pesan .= "Mohon segera update kembali usernya sebelum tanggal " . date('d-m-Y', strtotime($data_wa['tanggal_akhir']));
 
         $label = $data_wa['kode_unit'] . ' ' . $data_wa['nama_unit'];
         // Kirim manual tidak mengubah status pengingat unit (pengingat otomatis tetap berjalan sesuai jadwal)
@@ -442,7 +443,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Reminders</title>
 
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1e293b">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3602/3602145.png">
 
@@ -1151,7 +1152,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     const buf = await file.arrayBuffer();
                     frame.contentWindow.postMessage({ ext, buf }, '*', [buf]);
                 }, { once: true });
-                frame.src = '/vendor/pratinjau.html';
+                frame.src = 'vendor/pratinjau.html';
                 wadah.appendChild(frame);
             }
             popup.classList.add('tampil');
@@ -1159,7 +1160,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
 
         // Daftarkan service worker (sw.js) agar aplikasi bisa di-"Install" seperti aplikasi HP (PWA)
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+            window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
         }
     </script>
 </body>
