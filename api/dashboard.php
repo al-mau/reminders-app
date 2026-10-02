@@ -441,7 +441,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Reminders</title>
+    <title>Dashboard - Aplikasi Pengingat Jadwal</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1e293b">
@@ -455,7 +455,20 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
         .navbar { background: linear-gradient(135deg, #1e293b, #0f172a); }
         .card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
-        .card-header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; border-radius: 12px 12px 0 0 !important; font-weight: 600; }
+        .card-header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; border-radius: 12px 12px 0 0 !important; font-weight: 700; font-size: 1.25rem; color: #0f172a; }
+        /* Judul kartu (Input, Penerima WA, Daftar Unit, Riwayat WA) lebih besar dari teks lain; badge di sampingnya tetap kecil */
+        .card-header .badge { font-size: .8rem; }
+        /* Warna lembut per kartu (garis atas + latar tipis). Isi tabel & kolom input tetap putih agar mudah dibaca */
+        .kartu-input  { background: #edf2fa; border-top: 4px solid #1e3a8a !important; }   /* biru gelap */
+        .kartu-input  .card-header { color: #1e3a8a; }
+        .kartu-daftar { background: #f1f3f6; border-top: 4px solid #475569 !important; }   /* abu-abu */
+        .kartu-daftar .card-header { color: #334155; }
+        .kartu-wa     { background: #eaf6ef; border-top: 4px solid #128c7e !important; }   /* tema WhatsApp (Penerima & Riwayat WA) */
+        .kartu-wa     .card-header { color: #075e54; }
+        .kartu-wa     .card-header .fa-whatsapp { color: #25d366 !important; }
+        .kartu-wa     .table thead th { --bs-table-bg: #dcefe4; color: #075e54; }
+        .kartu-wa     .list-group-item { background-color: #fbfdfc; }
+        .kartu-input .card-header, .kartu-daftar .card-header, .kartu-wa .card-header { border-bottom-color: rgba(15, 23, 42, .08); }
         .btn-primary { background-color: #2563eb; border: none; border-radius: 8px; padding: 10px 20px; font-weight: 500; }
         .btn-primary:hover { background-color: #1d4ed8; }
         .table thead { background-color: #f1f5f9; color: #475569; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -485,7 +498,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <nav class="navbar navbar-expand-lg navbar-dark mb-4 py-3 shadow-sm">
         <div class="container">
             <a class="navbar-brand fw-bold" href="dashboard.php">
-                <i class="fa-solid fa-bell me-2 text-warning"></i> Reminders App
+                <i class="fa-solid fa-bell me-2 text-warning"></i> Aplikasi Pengingat Jadwal
             </a>
             <div class="d-flex align-items-center gap-3">
                 <span class="text-white-50 d-none d-sm-inline"><i class="fa-solid fa-user me-1"></i> Halo, <strong class="text-white"><?= e($_SESSION['username'] ?? 'Admin'); ?></strong></span>
@@ -530,7 +543,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
 
             <!-- Kolom kiri: form input unit baru + daftar penerima WA -->
             <div class="col-lg-4">
-                <div class="card p-3">
+                <div class="card p-3 kartu-input">
                     <div class="card-header bg-transparent mb-2">
                         <i class="fa-solid fa-square-plus text-primary me-2"></i> Input Unit & Deadline
                     </div>
@@ -568,7 +581,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     </div>
                 </div>
 
-                <div class="card p-3 mt-4" id="penerima">
+                <div class="card p-3 mt-4 kartu-wa" id="penerima">
                     <div class="card-header bg-transparent mb-2 d-flex justify-content-between align-items-center">
                         <span><i class="fa-brands fa-whatsapp text-success me-2"></i> Penerima Notifikasi WA</span>
                         <span class="badge bg-success-subtle text-success"><?= $penerima_aktif; ?> aktif</span>
@@ -630,7 +643,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
 
             <!-- Kolom kanan: tabel daftar unit (cari, filter, edit, hapus, kirim WA, lampiran) -->
             <div class="col-lg-8">
-                <div class="card p-3">
+                <div class="card p-3 kartu-daftar">
                     <div class="card-header bg-transparent mb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <span><i class="fa-solid fa-list-check text-primary me-2"></i> Daftar Unit & Deadline</span>
                     </div>
@@ -793,7 +806,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         </div>
 
         <!-- Riwayat pengiriman WA -->
-        <div class="card p-3 mt-4" id="riwayat">
+        <div class="card p-3 mt-4 kartu-wa" id="riwayat">
             <div class="card-header bg-transparent mb-2">
                 <i class="fa-brands fa-whatsapp text-success me-2"></i> Riwayat Pengiriman WA
             </div>

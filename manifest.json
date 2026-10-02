@@ -1,6 +1,6 @@
 {
-  "name": "Reminders App",
-  "short_name": "Reminders",
+  "name": "Aplikasi Pengingat Jadwal",
+  "short_name": "Pengingat Jadwal",
   "description": "Aplikasi Pengingat Deadline Unit",
   "start_url": "dashboard.php",
   "display": "standalone",

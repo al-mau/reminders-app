@@ -1,5 +1,5 @@
 =====================================================================
-  REMINDERS APP - VERSI XAMPP (berjalan di laptop / komputer kantor)
+  APLIKASI PENGINGAT JADWAL - VERSI XAMPP (berjalan di laptop / komputer kantor)
 =====================================================================
 
 Versi ini memakai database MySQL XAMPP di laptop (bukan Aiven) dan
@@ -45,7 +45,7 @@ File .env tidak bisa dibuka dari browser (diblokir .htaccess).
 Coba manual: klik 2x  reminders-app\kirim_pengingat.bat
 Agar otomatis setiap hari jam 20.00:
  1) Tekan tombol Windows, ketik "Task Scheduler", buka.
- 2) Klik "Create Basic Task..." -> Nama: Pengingat WA Reminders -> Next
+ 2) Klik "Create Basic Task..." -> Nama: Aplikasi Pengingat Jadwal -> Next
  3) Trigger: Daily -> Next -> jam 20:00:00 -> Next
  4) Action: Start a program -> Next
  5) Program/script: Browse -> pilih ...\htdocs\reminders-app\kirim_pengingat.bat
