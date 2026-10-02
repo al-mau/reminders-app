@@ -20,7 +20,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--latar); co
 .ikon-judul { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; background: #fff; color: var(--warna); box-shadow: 0 1px 3px rgba(16,24,40,.08); font-size: 1.05rem; }
 .kartu > .card-body { padding: 1.25rem; }
 .kartu-input  { --warna: #1e3a8a; --warna-tua: #1e3a8a; --warna-muda: #eef2fb; }   /* biru gelap */
-.kartu-daftar { --warna: #475569; --warna-tua: #1e293b; --warna-muda: #f3f5f8; }   /* abu-abu */
+.kartu-daftar { --warna: #1e3a8a; --warna-tua: #1e3a8a; --warna-muda: #eef2fb; }   /* biru gelap (sama dengan Input) */
 .kartu-wa     { --warna: #128c7e; --warna-tua: #075e54; --warna-muda: #e9f6ef; }   /* tema WhatsApp */
 .kartu-wa .ikon-judul { color: #25d366; }
 
