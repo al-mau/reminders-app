@@ -468,8 +468,6 @@ $kartu_statistik = [
 $nama_hari  = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 $nama_bulan = [1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $tanggal_hari_ini = $nama_hari[(int) date('w')] . ', ' . date('d') . ' ' . $nama_bulan[(int) date('n')] . ' ' . date('Y');
-$zona_waktu       = date_default_timezone_get();
-$label_zona       = ['Asia/Jakarta' => 'WIB', 'Asia/Pontianak' => 'WIB', 'Asia/Makassar' => 'WITA', 'Asia/Jayapura' => 'WIT'][$zona_waktu] ?? '';
 // Ada pencarian / filter aktif? (untuk keterangan & tombol hapus filter)
 $sedang_menyaring = $search !== '' || $filter !== 'semua' || $tgl_dari !== '' || $tgl_sampai !== '';
 
@@ -491,7 +489,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=4">
+    <link rel="stylesheet" href="tema.css?v=5">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -532,11 +530,8 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                 <h1 class="judul-halaman">Dashboard</h1>
                 <div class="text-redup small">Pantau deadline unit dan pengingat WhatsApp otomatis</div>
             </div>
-            <!-- Jam & tanggal hari ini (jam berjalan otomatis setiap detik) -->
-            <div class="jam-hari-ini">
-                <div class="jam-waktu"><i class="fa-regular fa-clock me-2"></i><span id="jamSekarang"><?= date('H:i:s'); ?></span> <small><?= e($label_zona); ?></small></div>
-                <div class="jam-tanggal"><i class="fa-regular fa-calendar me-2"></i><span id="tanggalSekarang"><?= e($tanggal_hari_ini); ?></span></div>
-            </div>
+            <!-- Tanggal hari ini -->
+            <div class="tanggal-hari-ini"><i class="fa-regular fa-calendar me-2"></i><?= e($tanggal_hari_ini); ?></div>
         </div>
 
         <?php if ($alert): ?>
@@ -1216,25 +1211,6 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
             }
             popup.classList.add('tampil');
         }
-
-        // Jam & tanggal di bagian atas: diperbarui setiap detik menurut zona waktu aplikasi
-        (() => {
-            const zona = <?= json_encode($zona_waktu); ?>;
-            const jam = document.getElementById('jamSekarang'), tgl = document.getElementById('tanggalSekarang');
-            if (!jam) return;
-            let fJam, fTgl;
-            try {
-                fJam = new Intl.DateTimeFormat('id-ID', { timeZone: zona, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-                fTgl = new Intl.DateTimeFormat('id-ID', { timeZone: zona, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-            } catch (_) { return; }
-            const perbarui = () => {
-                const kini = new Date();
-                jam.textContent = fJam.format(kini).replace(/\./g, ':');
-                tgl.textContent = fTgl.format(kini);
-            };
-            perbarui();
-            setInterval(perbarui, 1000);
-        })();
 
         // Daftarkan service worker (sw.js) agar aplikasi bisa di-"Install" seperti aplikasi HP (PWA)
         if ('serviceWorker' in navigator) {
