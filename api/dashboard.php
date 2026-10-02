@@ -169,17 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Hitung sisa hari untuk ditulis di pesan (0 = hari ini, negatif = sudah lewat)
-        $sisa_hari = hitungSisaHari($data_wa['tanggal_akhir']);
-
-        if ($sisa_hari === 0) {
-            $ket_sisa = "Hari Ini (Jatuh Tempo)";
-        } elseif ($sisa_hari === 1) {
-            $ket_sisa = "1 hari lagi (Besok / H-1)";
-        } elseif ($sisa_hari > 1) {
-            $ket_sisa = "$sisa_hari hari lagi";
-        } else {
-            $ket_sisa = "Sudah Expired (Lewat " . abs($sisa_hari) . " hari)";
-        }
+        $ket_sisa = keteranganSisaHari(hitungSisaHari($data_wa['tanggal_akhir']));
 
         $pesan  = "*NOTIFIKASI PENGINGAT DEADLINE*\n\n";
         $pesan .= "Halo Admin, berikut detail unit:\n\n";
