@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Reminders App</title>
+    <title>Login - Aplikasi Pengingat Jadwal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="card-login">
     <div class="text-center mb-4">
         <i class="fa-solid fa-bell fa-2x text-primary mb-2"></i>
-        <h4>Reminders App</h4>
+        <h4>Aplikasi Pengingat Jadwal</h4>
         <p class="text-secondary small">Masukkan username & password untuk masuk</p>
     </div>
 

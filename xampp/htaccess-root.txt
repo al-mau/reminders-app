@@ -1,4 +1,4 @@
-# Pengaturan Apache (XAMPP) untuk Reminders App.
+# Pengaturan Apache (XAMPP) untuk Aplikasi Pengingat Jadwal.
 # Halaman utama = index.php, daftar isi folder tidak ditampilkan,
 # dan file rahasia/teknis tidak bisa dibuka dari browser.
 DirectoryIndex index.php

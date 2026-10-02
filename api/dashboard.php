@@ -441,7 +441,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Reminders</title>
+    <title>Dashboard - Aplikasi Pengingat Jadwal</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1e293b">
@@ -487,7 +487,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <nav class="navbar navbar-expand-lg navbar-dark mb-4 py-3 shadow-sm">
         <div class="container">
             <a class="navbar-brand fw-bold" href="dashboard.php">
-                <i class="fa-solid fa-bell me-2 text-warning"></i> Reminders App
+                <i class="fa-solid fa-bell me-2 text-warning"></i> Aplikasi Pengingat Jadwal
             </a>
             <div class="d-flex align-items-center gap-3">
                 <span class="text-white-50 d-none d-sm-inline"><i class="fa-solid fa-user me-1"></i> Halo, <strong class="text-white"><?= e($_SESSION['username'] ?? 'Admin'); ?></strong></span>

@@ -1,4 +1,4 @@
-CARA MEMASANG DATABASE REMINDERS APP DI XAMPP
+CARA MEMASANG DATABASE APLIKASI PENGINGAT JADWAL DI XAMPP
 ===============================================
 
 Isi folder ini:

@@ -5,9 +5,9 @@ rem  dari file reminders_db.sql (struktur tabel + contoh data).
 rem  Cukup dijalankan sekali di awal. Untuk mengisi data asli dari Aiven,
 rem  pakai sync_dari_aiven.bat.
 rem ==========================================================
-title Import Database Reminders App ke XAMPP
+title Import Database Aplikasi Pengingat Jadwal ke XAMPP
 echo ==========================================================
-echo   IMPORT DATABASE REMINDERS APP KE XAMPP
+echo   IMPORT DATABASE APLIKASI PENGINGAT JADWAL KE XAMPP
 echo ==========================================================
 echo.
 echo Pastikan MySQL di XAMPP Control Panel sudah di-START.

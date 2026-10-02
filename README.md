@@ -1,4 +1,4 @@
-# Reminders App
+# Aplikasi Pengingat Jadwal
 
 Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp via Fonnte, di-deploy ke Vercel (`vercel-php`).
 

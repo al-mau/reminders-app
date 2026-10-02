@@ -166,7 +166,7 @@ unset($_SESSION['flash_user']);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola User - Reminders App</title>
+    <title>Kelola User - Aplikasi Pengingat Jadwal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -183,7 +183,7 @@ unset($_SESSION['flash_user']);
 
 <nav class="navbar navbar-dark mb-4 py-3 shadow-sm">
     <div class="container">
-        <a class="navbar-brand fw-bold" href="dashboard.php"><i class="fa-solid fa-bell me-2 text-warning"></i> Reminders App</a>
+        <a class="navbar-brand fw-bold" href="dashboard.php"><i class="fa-solid fa-bell me-2 text-warning"></i> Aplikasi Pengingat Jadwal</a>
         <div class="d-flex align-items-center gap-2">
             <a href="dashboard.php" class="btn btn-outline-light btn-sm rounded-pill px-3"><i class="fa-solid fa-arrow-left me-1"></i> Dashboard</a>
             <a href="logout.php" class="btn btn-outline-light btn-sm rounded-pill px-3"><i class="fa-solid fa-right-from-bracket me-1"></i> Logout</a>
