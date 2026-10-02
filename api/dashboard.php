@@ -731,9 +731,12 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             </table>
                         </div>
 
+                        <?php // Keterangan hanya muncul jika unit melebihi batas tampil (500) ?>
+                        <?php if ($total_rows > count($data_tampil)): ?>
                         <div class="form-text px-3 py-2 border-top m-0">
-                            Menampilkan <?= count($data_tampil); ?> unit<?= $total_rows > count($data_tampil) ? ' dari ' . $total_rows . ' (gunakan pencarian / filter untuk menemukan unit lainnya)' : ''; ?>. Gulir ke bawah untuk melihat semuanya.
+                            Menampilkan <?= count($data_tampil); ?> dari <?= $total_rows; ?> unit. Gunakan pencarian / filter untuk menemukan unit lainnya.
                         </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -856,8 +859,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     </tbody>
                 </table>
             </div>
-            <div class="form-text px-3 py-2 border-top m-0">Menampilkan 30 catatan terakhir.</div>
-                </div>
+                            </div>
             </div>
         </div>
 
