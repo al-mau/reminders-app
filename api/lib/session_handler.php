@@ -51,11 +51,20 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
     // Dipanggil PHP di akhir request: simpan data sesi ke tabel sessions
     public function write($id, $data): bool {
         try {
+            // Sesi kosong & belum pernah tersimpan (pengunjung tanpa login, bot, cek otomatis Vercel)
+            // tidak perlu disimpan -> tabel sessions tidak dipenuhi baris kosong
+            if ($data === '' && ($this->dataAwal[$id] ?? null) === null) {
+                return true;
+            }
             // Lewati jika data tidak berubah dan baru diperbarui < 5 menit lalu (hemat 1x ke DB)
             if (($this->dataAwal[$id] ?? null) === $data && time() - ($this->aksesAwal[$id] ?? 0) < self::SEGARKAN_DETIK) {
                 return true;
             }
             $access = time();
+            // Bersihkan sesi tidak aktif > 24 jam sesekali (tidak bergantung pengaturan PHP server)
+            if (random_int(1, 50) === 1) {
+                $this->gc(86400);
+            }
             $stmt = $this->pdo->prepare("REPLACE INTO sessions (id, data, last_accessed) VALUES (:id, :data, :access)");
             return $stmt->execute([
                 ':id' => $id,
