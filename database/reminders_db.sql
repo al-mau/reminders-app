@@ -58,7 +58,6 @@ CREATE TABLE IF NOT EXISTS lampiran (
     isi            MEDIUMBLOB   NOT NULL,
     jumlah_bagian  INT          NOT NULL DEFAULT 0,
     selesai        TINYINT(1)   NOT NULL DEFAULT 1,
-    thumbnail      MEDIUMBLOB   NULL,
     diunggah_oleh  VARCHAR(50)  NULL,
     dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_deadline_id (deadline_id)
