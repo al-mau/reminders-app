@@ -110,6 +110,15 @@
       repeating-linear-gradient(90deg, #6b7684 0 60px, #59636f 60px 64px); }
   .video .play { width: 112px; height: 112px; border-radius: 50%; border: 3px solid #fff; display: grid; place-items: center; margin: 0 auto 36px; font-size: 40px; cursor: pointer; transition: transform .2s; }
   .video .play:hover { transform: scale(1.06); }
+  .video .play { background: transparent; color: #fff; }
+
+  /* ===== Modal video ===== */
+  .vmodal { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: none; align-items: center; justify-content: center; z-index: 500; padding: 16px; }
+  .vmodal.open { display: flex; }
+  .vmodal .box { position: relative; width: min(1100px, 100%); aspect-ratio: 16 / 9; background: #000; }
+  .vmodal .box iframe, .vmodal .box video { width: 100%; height: 100%; border: 0; display: block; }
+  .vmodal .close { position: absolute; top: -44px; right: 0; background: none; border: 0; color: #fff; font-size: 34px; line-height: 1; cursor: pointer; }
+  .vmodal .msg { color: #fff; display: grid; place-items: center; height: 100%; text-align: center; padding: 24px; font-size: 17px; }
   .video h2 { font-family: 'Roboto', sans-serif; font-weight: 700; font-size: clamp(26px, 3.5vw, 60px); padding: 0 16px; }
 
   /* ===== Section heading ===== */
@@ -403,7 +412,12 @@
 <!-- ===== Video Profil ===== -->
 <section class="video">
   <div>
-    <div class="play"><i class="fa-solid fa-play"></i></div>
+    <!--
+      ISI VIDEO DI SINI (atribut data-video), pilih salah satu:
+        - File lokal : data-video="video/profil.mp4"   (taruh file di folder ibtpi-clone/video/)
+        - YouTube    : data-video="https://www.youtube.com/watch?v=XXXXXXXXXXX"
+    -->
+    <button class="play" id="playVideo" data-video="video/profil.mp4" aria-label="Putar video profil"><i class="fa-solid fa-play"></i></button>
     <h2>Profil Institut Bisnis dan Teknologi Pelita Indonesia</h2>
   </div>
 </section>
@@ -603,6 +617,13 @@
   </div>
 </footer>
 
+<div class="vmodal" id="vmodal" role="dialog" aria-modal="true" aria-label="Video profil">
+  <div class="box">
+    <button class="close" id="vclose" aria-label="Tutup video">&times;</button>
+    <div id="vbody" style="height:100%"></div>
+  </div>
+</div>
+
 <button class="fab fab-top" id="toTop" aria-label="Kembali ke atas"><i class="fa-solid fa-arrow-up"></i></button>
 <span class="fab fab-wa" aria-label="WhatsApp"><i class="fa-brands fa-whatsapp"></i></span>
 
@@ -668,6 +689,51 @@
     document.getElementById('prev').addEventListener('click', function () { show(idx - 1); restart(); });
     document.getElementById('next').addEventListener('click', function () { show(idx + 1); restart(); });
     restart();
+
+    // ===== Video profil (modal) =====
+    var vmodal = document.getElementById('vmodal');
+    var vbody = document.getElementById('vbody');
+
+    function youtubeId(url) {
+      var m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/);
+      return m ? m[1] : null;
+    }
+
+    function openVideo(src) {
+      vbody.innerHTML = '';
+      var id = youtubeId(src);
+      if (id) {
+        var f = document.createElement('iframe');
+        f.src = 'https://www.youtube.com/embed/' + id + '?autoplay=1&rel=0';
+        f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+        f.allowFullscreen = true;
+        f.referrerPolicy = 'strict-origin-when-cross-origin';
+        vbody.appendChild(f);
+      } else {
+        var v = document.createElement('video');
+        v.src = src; v.controls = true; v.autoplay = true; v.playsInline = true;
+        v.addEventListener('error', function () {
+          vbody.innerHTML = '<div class="msg">Video tidak ditemukan.<br>Taruh file video di <b>' + src + '</b> atau ganti atribut data-video.</div>';
+        });
+        vbody.appendChild(v);
+      }
+      vmodal.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeVideo() {
+      vmodal.classList.remove('open');
+      vbody.innerHTML = ''; // hentikan pemutaran
+      document.body.style.overflow = '';
+    }
+
+    document.getElementById('playVideo').addEventListener('click', function () {
+      var src = this.getAttribute('data-video').trim();
+      if (src) openVideo(src);
+    });
+    document.getElementById('vclose').addEventListener('click', closeVideo);
+    vmodal.addEventListener('click', function (e) { if (e.target === vmodal) closeVideo(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && vmodal.classList.contains('open')) closeVideo(); });
 
     // ===== Tombol kembali ke atas =====
     var toTop = document.getElementById('toTop');
