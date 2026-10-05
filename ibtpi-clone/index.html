@@ -45,7 +45,8 @@
   header.nav { background: #fff; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #eee; }
   header.nav .container { display: flex; align-items: center; justify-content: space-between; min-height: 120px; }
   .brand { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-  .brand svg { width: 66px; height: 66px; flex-shrink: 0; }
+  .brand .logo-full { height: 66px; width: auto; display: block; }
+  .brand .emblem { width: 66px; height: auto; flex-shrink: 0; }
   .brand .txt { line-height: 1; }
   .brand .txt .top { font-family: 'Roboto', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 1.5px; color: #222; transform: scaleY(1.15); display: block; padding-bottom: 6px; border-bottom: 3px solid var(--red); }
   .brand .txt .bottom { font-family: 'Roboto', sans-serif; font-weight: 700; font-size: 37px; letter-spacing: -.5px; display: block; margin-top: 2px; }
@@ -91,9 +92,7 @@
   .rektor h2 { font-family: 'Roboto', sans-serif; font-weight: 700; font-size: 46px; color: var(--blue-title); margin-bottom: 30px; }
   .rektor p { font-size: 18px; line-height: 2.1; color: var(--muted); text-align: justify; margin-bottom: 26px; }
   .rektor .photo-wrap { text-align: center; padding-top: 10px; }
-  .rektor .photo { width: 270px; height: 340px; margin: 0 auto; border-radius: 0 0 135px 135px; background: linear-gradient(#fff 0%, #fff 30%, #1c2b55 30%); position: relative; overflow: hidden; display: grid; place-items: center; }
-  .rektor .photo i { font-size: 210px; color: #2b3f78; margin-top: 60px; }
-  .rektor .photo::before { content: "\f19d"; font-family: "Font Awesome 6 Free"; font-weight: 900; position: absolute; top: 0; font-size: 110px; color: #111; }
+  .rektor .photo { width: 100%; max-width: 422px; height: auto; display: block; margin: 0 auto; border-radius: 0 0 50% 50% / 0 0 22% 22%; }
   .rektor .role { color: var(--link-blue); font-weight: 700; font-size: 20px; margin-top: 14px; }
   .rektor .name { font-weight: 700; font-size: 20px; color: #333; margin-top: 4px; }
 
@@ -183,7 +182,7 @@
   footer .brand .txt .top, footer .brand .txt .bottom { white-space: nowrap; }
   footer .brand .txt .top { font-size: 12px; }
   footer .brand .txt .bottom { font-size: 30px; }
-  footer .brand svg { width: 56px; height: 56px; }
+  footer .brand .emblem { width: 60px; }
   footer .about { line-height: 1.95; margin: 26px 0; }
   footer h4 { color: var(--yellow-text); font-family: 'Roboto', sans-serif; font-weight: 700; font-size: 32px; margin-bottom: 30px; }
   footer h5 { color: #fff; font-family: 'Roboto', sans-serif; font-weight: 700; font-size: 23px; margin: 26px 0 18px; }
@@ -219,7 +218,7 @@
   @media (max-width: 1100px) {
     .burger { display: block; }
     header.nav .container { min-height: 84px; }
-    .brand svg { width: 50px; height: 50px; }
+    .brand .logo-full { height: 46px; }
     .brand .txt .top { font-size: 11px; }
     .brand .txt .bottom { font-size: 27px; }
     .menu { display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; flex-direction: column; align-items: stretch; gap: 0; padding: 8px 16px; box-shadow: 0 10px 20px rgba(0,0,0,.1); max-height: 75vh; overflow-y: auto; }
@@ -260,6 +259,7 @@
     .event .info { padding: 24px 20px; }
     .lokasi iframe { height: 380px; }
     .cta-box h3 { font-size: 26px; }
+    .brand .logo-full { height: 38px; }
   }
 </style>
 </head>
@@ -290,22 +290,7 @@
 <!-- ===== Navbar ===== -->
 <header class="nav">
   <div class="container">
-    <a class="brand" id="brand">
-      <svg viewBox="0 0 100 100" aria-hidden="true">
-        <circle cx="50" cy="50" r="48" fill="#fff" stroke="#1f4e9c" stroke-width="3"/>
-        <circle cx="50" cy="50" r="36" fill="#fff" stroke="#1f4e9c" stroke-width="2"/>
-        <circle cx="50" cy="50" r="27" fill="#f5c400"/>
-        <circle cx="50" cy="50" r="19" fill="#fff"/>
-        <path d="M50 30 C44 40 44 48 50 54 C56 48 56 40 50 30 Z" fill="#c8102e"/>
-        <rect x="46" y="54" width="8" height="16" fill="#1f4e9c"/>
-        <text x="50" y="16" font-size="7" text-anchor="middle" fill="#1f4e9c" font-family="Arial" font-weight="700">IBT PELITA</text>
-        <text x="50" y="92" font-size="7" text-anchor="middle" fill="#1f4e9c" font-family="Arial" font-weight="700">PEKANBARU</text>
-      </svg>
-      <span class="txt">
-        <span class="top">INSTITUT BISNIS &amp; TEKNOLOGI</span>
-        <span class="bottom"><span class="p">Pelita</span> <span class="i">Indonesia</span></span>
-      </span>
-    </a>
+    <a class="brand" id="brand"><img class="logo-full" src="img/logo.png" alt="Institut Bisnis &amp; Teknologi Pelita Indonesia"></a>
 
     <button class="burger" id="burger" aria-label="Buka menu"><i class="fa-solid fa-bars"></i></button>
 
@@ -380,7 +365,7 @@
       <span class="btn-yellow">Selengkapnya</span>
     </div>
     <div class="photo-wrap">
-      <div class="photo"><i class="fa-solid fa-user-tie"></i></div>
+      <img class="photo" src="img/rektor.png" alt="Rektor IBT Pelita Indonesia">
       <div class="role">Rektor Institut Bisnis dan Teknologi Pelita Indonesia</div>
       <div class="name">Prof. Dr. Amries Rusli Tanjung, S.E., M.M., Ak.</div>
     </div>
@@ -555,16 +540,7 @@
     <div class="grid">
       <div>
         <a class="brand">
-          <svg viewBox="0 0 100 100" aria-hidden="true">
-        <circle cx="50" cy="50" r="48" fill="#fff" stroke="#1f4e9c" stroke-width="3"/>
-        <circle cx="50" cy="50" r="36" fill="#fff" stroke="#1f4e9c" stroke-width="2"/>
-        <circle cx="50" cy="50" r="27" fill="#f5c400"/>
-        <circle cx="50" cy="50" r="19" fill="#fff"/>
-        <path d="M50 30 C44 40 44 48 50 54 C56 48 56 40 50 30 Z" fill="#c8102e"/>
-        <rect x="46" y="54" width="8" height="16" fill="#1f4e9c"/>
-        <text x="50" y="16" font-size="7" text-anchor="middle" fill="#1f4e9c" font-family="Arial" font-weight="700">IBT PELITA</text>
-        <text x="50" y="92" font-size="7" text-anchor="middle" fill="#1f4e9c" font-family="Arial" font-weight="700">PEKANBARU</text>
-      </svg>
+          <img class="emblem" src="img/emblem.png" alt="">
           <span class="txt"><span class="top">INSTITUT BISNIS &amp; TEKNOLOGI</span><span class="bottom"><span class="p">Pelita</span> <span class="i">Indonesia</span></span></span>
         </a>
         <p class="about">SK Menristekdikti nomor 1007/KPT/I/2019 tentang izin penggabungan STIE dan STIKOM Pelita Indonesia di Pekanbaru yang bergabung menjadi Institut Bisnis dan Teknologi Pelita Indonesia.</p>
