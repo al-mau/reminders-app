@@ -7,7 +7,8 @@
  *
  * Opsi tambahan di akhir URL:
  *   &bersihkan=1              -> hapus sesi login lama, catatan login gagal lama,
- *                                upload lampiran yang terputus, tabel audit_log lama
+ *                                upload lampiran yang terputus, tabel audit_log lama,
+ *                                kolom lampiran.thumbnail lama
  *   &bersihkan=1&hapus=a,b    -> hapus tabel a & b (hanya tabel yang TIDAK dipakai aplikasi)
  */
 require_once __DIR__ . '/lib/koneksi.php';
@@ -84,6 +85,13 @@ try {
         if ($pdo->query("SHOW TABLES LIKE 'audit_log'")->fetchColumn()) {
             $pdo->exec("DROP TABLE audit_log");
             echo "- Tabel audit_log dihapus\n";
+        }
+
+        // Sisa fitur thumbnail lampiran yang sudah dihapus
+        $kolomLampiran = $pdo->query("SHOW COLUMNS FROM lampiran")->fetchAll(PDO::FETCH_COLUMN);
+        if (in_array('thumbnail', $kolomLampiran, true)) {
+            $pdo->exec("ALTER TABLE lampiran DROP COLUMN thumbnail");
+            echo "- Kolom lampiran.thumbnail dihapus\n";
         }
 
         // Sesi login yang tidak dipakai > 1 hari

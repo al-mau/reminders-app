@@ -21,12 +21,11 @@ if (empty($_SESSION['login'])) {
 }
 
 pastikanTabelTambahan($pdo);
-$token_csrf = csrf_token(); // dipakai pemuat untuk menyimpan thumbnail lampiran lama
 session_write_close(); // tidak mengubah sesi; lepaskan agar unduhan paralel tidak saling menunggu
 
 $id = (int) ($_GET['id'] ?? 0);
 
-$stmt = $pdo->prepare("SELECT id, nama_file, ekstensi, ukuran, jumlah_bagian, (thumbnail IS NOT NULL) AS ada_thumb FROM lampiran WHERE id = ? AND selesai = 1");
+$stmt = $pdo->prepare("SELECT id, nama_file, ekstensi, ukuran, jumlah_bagian FROM lampiran WHERE id = ? AND selesai = 1");
 $stmt->execute([$id]);
 $file = $stmt->fetch();
 
@@ -44,23 +43,6 @@ $olehBrowser = in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'webp'], true);
 $berpotongan = (int) $file['jumlah_bagian'] > 0;
 
 header('X-Content-Type-Options: nosniff');
-
-// --- Thumbnail halaman depan (gambar kecil di kolom Dokumen tabel Daftar Unit) ---
-if (isset($_GET['thumb'])) {
-    $t = $pdo->prepare("SELECT thumbnail FROM lampiran WHERE id = ?");
-    $t->execute([$id]);
-    $gambar = $t->fetchColumn();
-    if (!$gambar) {
-        http_response_code(404);
-        exit;
-    }
-    header('Content-Type: image/jpeg');
-    header('Cache-Control: private, max-age=86400'); // thumbnail tidak berubah -> boleh disimpan browser 1 hari
-    header('Content-Length: ' . strlen($gambar));
-    echo $gambar;
-    exit;
-}
-
 header('Cache-Control: private, no-store');
 
 // --- Satu potongan file (dipanggil oleh pemuat di bawah) ---
@@ -117,10 +99,6 @@ $konfig = [
     'ext'    => $ext,
     // 'browser' = PDF/gambar, 'pratinjau' = Word/Excel/CSV/TXT, '' = unduh
     'lihat'  => $inline ? ($olehBrowser ? 'browser' : 'pratinjau') : '',
-    // Lampiran lama (PDF/gambar) belum punya thumbnail -> dibuat sekali saat dibuka
-    'thumb'  => !$file['ada_thumb'] && $olehBrowser,
-    'csrf'   => $token_csrf,
-    'id'     => $id,
 ];
 header('Content-Type: text/html; charset=utf-8');
 ?>
@@ -153,7 +131,6 @@ header('Content-Type: text/html; charset=utf-8');
     <div class="bar"><div class="isi" id="isi"></div></div>
     <div class="kecil" id="status"></div>
 </div>
-<script src="vendor/thumbnail.js?v=1"></script>
 <script>
 (async () => {
     const k = <?= json_encode($konfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
@@ -172,7 +149,6 @@ header('Content-Type: text/html; charset=utf-8');
         }
         const blob = new Blob(bagian, { type: k.mime });
         if (blob.size !== k.ukuran) throw new Error('Ukuran file tidak cocok, coba lagi.');
-        await simpanThumbnailLama(blob);
         const url = URL.createObjectURL(blob);
 
         if (k.lihat === 'browser') {
@@ -191,22 +167,6 @@ header('Content-Type: text/html; charset=utf-8');
     } catch (err) {
         judul.textContent = 'Gagal memuat file';
         status.textContent = err.message;
-    }
-
-    // Lampiran lama (PDF/gambar) belum punya thumbnail: buat sekali dari file yang sudah terunduh,
-    // lalu kirim ke server (maks. tunggu 4 detik agar membuka file tidak terasa lambat)
-    async function simpanThumbnailLama(blob) {
-        if (!k.thumb || !window.buatThumbnail || !navigator.sendBeacon) return;
-        judul.textContent = 'Menyiapkan file…';
-        const thumb = await Promise.race([buatThumbnail(blob, k.ext), new Promise((r) => setTimeout(() => r(null), 4000))]);
-        if (!thumb) return;
-        const f = new FormData();
-        f.append('aksi', 'lampiran_thumbnail');
-        f.append('ajax', '1');
-        f.append('csrf_token', k.csrf);
-        f.append('id', k.id);
-        f.append('thumbnail', thumb, 'thumbnail.jpg');
-        navigator.sendBeacon('dashboard.php', f); // tetap terkirim walau halaman langsung berpindah
     }
 
     // Ganti halaman menjadi: bilah judul (nama file + tombol Unduh) + kotak pratinjau.
