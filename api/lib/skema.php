@@ -45,7 +45,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v4'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v5'])) {
         return;
     }
 
@@ -70,6 +70,7 @@ function pastikanTabelTambahan(PDO $pdo): void
         isi            MEDIUMBLOB   NOT NULL,
         jumlah_bagian  INT          NOT NULL DEFAULT 0,
         selesai        TINYINT(1)   NOT NULL DEFAULT 1,
+        thumbnail      MEDIUMBLOB   NULL,
         diunggah_oleh  VARCHAR(50)  NULL,
         dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_deadline_id (deadline_id)
@@ -82,6 +83,10 @@ function pastikanTabelTambahan(PDO $pdo): void
     }
     if (!in_array('selesai', $kolomLampiran, true)) {
         $pdo->exec("ALTER TABLE lampiran ADD COLUMN selesai TINYINT(1) NOT NULL DEFAULT 1");
+    }
+    // Gambar kecil halaman depan (JPEG) untuk kolom Dokumen di tabel Daftar Unit
+    if (!in_array('thumbnail', $kolomLampiran, true)) {
+        $pdo->exec("ALTER TABLE lampiran ADD COLUMN thumbnail MEDIUMBLOB NULL");
     }
 
     // Potongan isi file (lampiran > 768 KB disimpan beberapa baris)
@@ -117,7 +122,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v4'] = true;
+        $_SESSION['skema_tambahan_v5'] = true;
     }
 }
 
@@ -313,6 +318,45 @@ function selesaikanLampiran(PDO $pdo, int $lampiranId): array
 
     $pdo->prepare("UPDATE lampiran SET selesai = 1 WHERE id = ?")->execute([$lampiranId]);
     return $lamp;
+}
+
+/**
+ * Simpan thumbnail (JPEG kecil) halaman depan lampiran. Thumbnail dibuat di browser
+ * (vendor/thumbnail.js) dari file yang diunggah, jadi server cukup memeriksa & menyimpan.
+ * Hanya diisi jika belum ada; jika tidak valid, diabaikan diam-diam (lampiran tetap tersimpan).
+ */
+const LAMPIRAN_THUMB_MAKS = 200 * 1024; // 200 KB
+function simpanThumbnailLampiran(PDO $pdo, int $lampiranId, array $file): bool
+{
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])
+        || $file['size'] <= 0 || $file['size'] > LAMPIRAN_THUMB_MAKS) {
+        return false;
+    }
+    $info = @getimagesize($file['tmp_name']);
+    if (!$info || $info[2] !== IMAGETYPE_JPEG || $info[0] > 600 || $info[1] > 900) {
+        return false;
+    }
+    $stmt = $pdo->prepare(
+        "UPDATE lampiran SET thumbnail = ? WHERE id = ? AND selesai = 1 AND thumbnail IS NULL",
+        [PDO::ATTR_EMULATE_PREPARES => false] // data biner dikirim apa adanya
+    );
+    $stmt->bindValue(1, file_get_contents($file['tmp_name']), PDO::PARAM_LOB);
+    $stmt->bindValue(2, $lampiranId, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->rowCount() > 0;
+}
+
+/** Ikon Font Awesome + kelas warna untuk lampiran tanpa thumbnail, berdasarkan ekstensi */
+function ikonLampiran(string $ext): array
+{
+    $ext = strtolower($ext);
+    return match (true) {
+        $ext === 'pdf'                                       => ['fa-file-pdf', 'thumb-pdf'],
+        in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true) => ['fa-file-image', 'thumb-gambar'],
+        in_array($ext, ['doc', 'docx'], true)                => ['fa-file-word', 'thumb-word'],
+        in_array($ext, ['xls', 'xlsx', 'csv'], true)         => ['fa-file-excel', 'thumb-excel'],
+        default                                              => ['fa-file-lines', 'thumb-teks'],
+    };
 }
 
 /** Hapus lampiran beserta semua potongannya */

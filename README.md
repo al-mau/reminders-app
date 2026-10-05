@@ -22,7 +22,7 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 | `vercel.json` | Pengaturan Vercel (lihat penjelasan di bawah) |
 | `sw.js`, `manifest.json` | PWA: aplikasi bisa di-"Install" di HP/laptop |
 | `xampp/` | Bahan versi XAMPP: `bash xampp/build.sh` membuat `reminders-app-xampp.zip` (lihat `xampp/CARA_PAKAI_XAMPP.txt`) |
-| `vendor/` | Pratinjau lampiran tanpa unduh: `pratinjau.html` + library Word (mammoth) & Excel (SheetJS) |
+| `vendor/` | Pratinjau lampiran tanpa unduh: `pratinjau.html` + library Word (mammoth) & Excel (SheetJS); thumbnail halaman depan: `thumbnail.js` + pdf.js |
 
 ### Penjelasan `vercel.json`
 
