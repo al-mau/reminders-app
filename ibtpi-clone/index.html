@@ -113,6 +113,19 @@
   .video .play:hover { transform: scale(1.06); }
   .video .play { background: transparent; color: #fff; }
 
+  /* ===== Layar "Mohon Menunggu..." (tombol HOME) ===== */
+  .loader { position: fixed; inset: 0; z-index: 1000; background: #fff; display: none; opacity: 0; transition: opacity .25s; }
+  .loader.show { display: block; }
+  .loader.visible { opacity: 1; }
+  .loader .text { position: absolute; top: 22%; left: 0; right: 0; text-align: center; font-family: 'Open Sans', sans-serif; font-weight: 700; font-size: 22px; color: #7a7a7a; }
+  .loader .dots { position: absolute; top: 47%; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 14px; height: 50px; }
+  .loader .dots span { width: 32px; height: 32px; border-radius: 50%; animation: loader-pulse 1.2s ease-in-out infinite; transform: scale(.45); }
+  .loader .dots span:nth-child(1) { background: #0b2a55; }
+  .loader .dots span:nth-child(2) { background: #0f3a78; animation-delay: .15s; }
+  .loader .dots span:nth-child(3) { background: #1a5a99; animation-delay: .3s; }
+  .loader .dots span:nth-child(4) { background: #2a7ab8; animation-delay: .45s; }
+  @keyframes loader-pulse { 0%, 100% { transform: scale(.45); } 40% { transform: scale(1); } }
+
   /* ===== Modal video ===== */
   .vmodal { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: none; align-items: center; justify-content: center; z-index: 500; padding: 16px; }
   .vmodal.open { display: flex; }
@@ -323,7 +336,7 @@
 
     <!-- Semua link menu hanya bisa diklik (status aktif berubah), tidak berpindah halaman/section -->
     <ul class="menu" id="menu">
-      <li><a class="nav-link"><i class="fa-solid fa-house"></i> Home</a></li>
+      <li><a class="nav-link" id="navHome"><i class="fa-solid fa-house"></i> Home</a></li>
       <li class="has-dd">
         <a class="nav-link">Profil <i class="fa-solid fa-chevron-down caret"></i></a>
         <ul class="dropdown">
@@ -621,6 +634,11 @@
   </div>
 </footer>
 
+<div class="loader" id="loader" role="status" aria-live="polite">
+  <div class="text">Mohon Menunggu...</div>
+  <div class="dots"><span></span><span></span><span></span><span></span></div>
+</div>
+
 <div class="vmodal" id="vmodal" role="dialog" aria-modal="true" aria-label="Video profil">
   <div class="box">
     <button class="close" id="vclose" aria-label="Tutup video">&times;</button>
@@ -694,6 +712,29 @@
     document.getElementById('prev').addEventListener('click', function () { show(idx - 1); restart(); });
     document.getElementById('next').addEventListener('click', function () { show(idx + 1); restart(); });
     restart();
+
+    // ===== Tombol HOME: tampilkan "Mohon Menunggu..." lalu kembali ke awal halaman =====
+    var loader = document.getElementById('loader');
+    var LAMA_LOADING = 1800; // milidetik
+    document.getElementById('navHome').addEventListener('click', function () {
+      if (loader.classList.contains('show')) return;
+      loader.classList.add('show');
+      document.body.style.overflow = 'hidden';
+      requestAnimationFrame(function () { loader.classList.add('visible'); });
+      setTimeout(function () {
+        // Kembali ke kondisi awal: paling atas, slide pertama, menu tertutup
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        show(0); restart();
+        menu.classList.remove('open');
+        document.querySelectorAll('#menu li.open').forEach(function (li) { li.classList.remove('open'); });
+        document.activeElement && document.activeElement.blur();
+        loader.classList.remove('visible');
+        setTimeout(function () {
+          loader.classList.remove('show');
+          document.body.style.overflow = '';
+        }, 250);
+      }, LAMA_LOADING);
+    });
 
     // ===== Video profil (modal) =====
     var vmodal = document.getElementById('vmodal');
