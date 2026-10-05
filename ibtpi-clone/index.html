@@ -25,7 +25,7 @@
   a { color: inherit; text-decoration: none; }
   ul { list-style: none; }
   .container { max-width: 1500px; margin: 0 auto; padding: 0 16px; width: 100%; }
-  @media (min-width: 1200px) { .container { padding: 0 220px; max-width: none; } }
+  @media (min-width: 1200px) { .container { padding: 0 max(16px, calc((100% - 1460px) / 2)); max-width: none; } }
 
   /* ===== Topbar ===== */
   .topbar { background: var(--navy); color: #fff; font-size: 15px; }
@@ -43,8 +43,8 @@
 
   /* ===== Navbar ===== */
   header.nav { background: #fff; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #eee; }
-  header.nav .container { display: flex; align-items: center; justify-content: space-between; min-height: 120px; }
-  .brand { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  header.nav .container { display: flex; align-items: center; justify-content: space-between; gap: 40px; min-height: 120px; }
+  .brand { display: flex; align-items: center; gap: 6px; cursor: pointer; flex-shrink: 0; }
   .brand .logo-full { height: 66px; width: auto; display: block; }
   .brand .emblem { width: 66px; height: auto; flex-shrink: 0; }
   .brand .txt { line-height: 1; }
@@ -53,9 +53,9 @@
   .brand .txt .bottom .p { color: var(--red); }
   .brand .txt .bottom .i { color: #1f4e9c; }
 
-  .menu { display: flex; align-items: center; gap: 36px; }
+  .menu { display: flex; align-items: center; gap: clamp(14px, 1.7vw, 36px); }
   .menu > li { position: relative; }
-  .menu > li > a { font-family: 'Roboto', sans-serif; font-size: 19px; font-weight: 500; color: #222; text-transform: uppercase; display: flex; align-items: center; gap: 6px; padding: 46px 0; cursor: pointer; transition: color .2s; }
+  .menu > li > a { font-family: 'Roboto', sans-serif; font-size: clamp(16px, 1.3vw, 19px); font-weight: 500; color: #222; text-transform: uppercase; display: flex; align-items: center; gap: 6px; padding: 46px 0; white-space: nowrap; cursor: pointer; transition: color .2s; }
   .menu > li > a .caret { font-size: 13px; }
   .menu > li:hover > a { color: var(--yellow-text); }
 
@@ -66,13 +66,14 @@
   .dropdown a:hover { color: var(--yellow-text); }
   .dropdown a .fa-angle-right { font-size: 13px; }
   .dropdown .has-sub { position: relative; }
-  .sub-dd { position: absolute; top: 0; left: 100%; min-width: 312px; background: var(--navy); opacity: 0; visibility: hidden; transition: opacity .2s; box-shadow: 0 8px 20px rgba(0,0,0,.2); }
-  .dropdown .has-sub:hover > .sub-dd { opacity: 1; visibility: visible; }
+  .sub-dd { position: absolute; top: 0; left: 100%; min-width: 312px; background: var(--navy); display: none; box-shadow: 0 8px 20px rgba(0,0,0,.2); }
+  .dropdown .has-sub:hover > .sub-dd { display: block; }
+  .dropdown .has-sub.flip > .sub-dd { left: auto; right: 100%; } /* buka ke kiri bila tidak muat di kanan */
   .dropdown .has-sub:hover > a { color: var(--yellow-text); }
   .sub-dd li:last-child a { border-bottom: 0; }
 
   /* Perkecil ukuran keseluruhan di desktop */
-  @media (min-width: 1101px) { body { zoom: .85; } }
+  @media (min-width: 1200px) { body { zoom: .85; } }
 
   .burger { display: none; background: none; border: 0; font-size: 28px; color: var(--navy); cursor: pointer; }
 
@@ -235,10 +236,9 @@
 
   /* ===== Responsive ===== */
   @media (max-width: 1400px) {
-    .menu { gap: 22px; }
-    .menu > li > a { font-size: 16px; }
+    .brand .logo-full { height: 56px; }
   }
-  @media (max-width: 1100px) {
+  @media (max-width: 1199px) {
     .burger { display: block; }
     header.nav .container { min-height: 84px; }
     .brand .logo-full { height: 46px; }
@@ -250,7 +250,7 @@
     .menu > li > a .caret { margin-left: auto; }
     .dropdown { position: static; opacity: 1; visibility: visible; transform: none; display: none; box-shadow: none; min-width: 0; }
     .menu > li.open .dropdown { display: block; }
-    .sub-dd { position: static; opacity: 1; visibility: visible; display: none; box-shadow: none; min-width: 0; background: var(--navy-dark); }
+    .sub-dd { position: static; display: none; box-shadow: none; min-width: 0; background: var(--navy-dark); }
     .sub-dd a { padding-left: 45px; }
     .dropdown .has-sub.open > .sub-dd { display: block; }
     .menu > li:hover .dropdown { opacity: 1; }
@@ -634,7 +634,7 @@
 <script>
   (function () {
     var menu = document.getElementById('menu');
-    var mobile = function () { return window.matchMedia('(max-width: 1100px)').matches; };
+    var mobile = function () { return window.matchMedia('(max-width: 1199px)').matches; };
 
     // ===== Menu atas: hanya bisa diklik, tidak pindah halaman/section =====
     // Warna kuning hanya muncul saat kursor di atas menu (lewat CSS :hover)
@@ -666,6 +666,16 @@
     // Link topbar & logo juga tidak berpindah ke mana pun
     document.querySelectorAll('.top-links a, .brand, main a, section a, footer a, .cta-box a').forEach(function (a) {
       a.addEventListener('click', function (e) { e.preventDefault(); });
+    });
+
+    // Submenu prodi: buka ke kiri bila di kanan tidak cukup ruang
+    document.querySelectorAll('#menu .has-sub').forEach(function (li) {
+      li.addEventListener('mouseenter', function () {
+        if (mobile()) return;
+        var dd = li.closest('.dropdown').getBoundingClientRect();
+        var zoom = parseFloat(getComputedStyle(document.body).zoom) || 1;
+        li.classList.toggle('flip', dd.right + 312 * zoom > document.documentElement.clientWidth);
+      });
     });
 
     document.getElementById('burger').addEventListener('click', function () {
