@@ -605,7 +605,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=7">
+    <link rel="stylesheet" href="tema.css?v=8">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -682,7 +682,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         <!-- Baris 1: input unit baru (kiri) + daftar unit (kanan) -->
         <div class="row g-4">
             <div class="col-lg-4">
-                <div class="card kartu kartu-input h-100">
+                <div class="card kartu kartu-input">
                     <div class="card-header">
                         <span class="ikon-judul"><i class="fa-solid fa-square-plus"></i></span>
                         <div><h2 class="kartu-judul">Input Unit & Deadline</h2><div class="kartu-sub">Tambah unit baru beserta lampirannya</div></div>
@@ -841,7 +841,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                 <?php endif; ?>
                                             </td>
                                             <td class="text-center">
-                                                <div class="d-flex justify-content-center gap-1">
+                                                <div class="aksi-grid">
                                                     <button type="button" class="btn-ikon btn-ikon-kuning"
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#modalEdit<?= (int) $row['id']; ?>"
@@ -902,7 +902,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         <!-- Baris 2: bagian WhatsApp (penerima + riwayat), satu tema warna -->
         <div class="row g-4 mt-0">
             <div class="col-lg-4">
-                <div class="card kartu kartu-wa h-100" id="penerima">
+                <div class="card kartu kartu-wa" id="penerima">
                     <div class="card-header">
                         <span class="ikon-judul"><i class="fa-brands fa-whatsapp"></i></span>
                         <div class="flex-grow-1"><h2 class="kartu-judul">Penerima Notifikasi WA</h2><div class="kartu-sub">Nomor yang menerima pengingat</div></div>

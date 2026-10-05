@@ -87,6 +87,9 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--latar); co
 .btn-ikon-merah  { background: #fdecec; color: #c0262d; } .btn-ikon-merah:hover  { background: #fbd5d5; }
 .btn-ikon-hijau  { background: #e6f6ec; color: #128c7e; } .btn-ikon-hijau:hover  { background: #cdeedb; }
 .btn-ikon-abu    { background: #eef1f5; color: #475467; } .btn-ikon-abu:hover    { background: #dfe4ea; }
+/* Tombol aksi di tabel Daftar Unit: 2 x 2 agar tabel tidak terlalu lebar */
+.aksi-grid { display: inline-grid; grid-template-columns: repeat(2, 34px); gap: 5px; }
+.aksi-grid form { display: contents; }
 .btn-ikon .jumlah { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--utama); color: #fff; font-size: .65rem; font-weight: 700; display: grid; place-items: center; }
 
 /* Penerima WA */
