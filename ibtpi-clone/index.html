@@ -57,13 +57,13 @@
   .menu > li { position: relative; }
   .menu > li > a { font-family: 'Roboto', sans-serif; font-size: 19px; font-weight: 500; color: #222; text-transform: uppercase; display: flex; align-items: center; gap: 6px; padding: 46px 0; cursor: pointer; transition: color .2s; }
   .menu > li > a .caret { font-size: 13px; }
-  .menu > li:hover > a, .menu > li > a.active { color: var(--yellow-text); }
+  .menu > li:hover > a { color: var(--yellow-text); }
 
   .dropdown { position: absolute; top: 100%; left: 0; min-width: 312px; background: var(--navy); opacity: 0; visibility: hidden; transform: translateY(8px); transition: all .2s; box-shadow: 0 8px 20px rgba(0,0,0,.2); }
   .menu > li:hover .dropdown { opacity: 1; visibility: visible; transform: translateY(0); }
   .dropdown a { display: flex; justify-content: space-between; align-items: center; color: #fff; font-family: 'Roboto', sans-serif; font-weight: 500; font-size: 16px; text-transform: uppercase; padding: 14px 25px; border-bottom: 1px solid rgba(255,255,255,.08); cursor: pointer; }
   .dropdown li:last-child a { border-bottom: 0; }
-  .dropdown a:hover, .dropdown a.active { color: var(--yellow-text); }
+  .dropdown a:hover { color: var(--yellow-text); }
   .dropdown a .fa-angle-right { font-size: 13px; }
   .dropdown .has-sub { position: relative; }
   .sub-dd { position: absolute; top: 0; left: 100%; min-width: 312px; background: var(--navy); opacity: 0; visibility: hidden; transition: opacity .2s; box-shadow: 0 8px 20px rgba(0,0,0,.2); }
@@ -637,14 +637,7 @@
     var mobile = function () { return window.matchMedia('(max-width: 1100px)').matches; };
 
     // ===== Menu atas: hanya bisa diklik, tidak pindah halaman/section =====
-    function setActive(el) {
-      document.querySelectorAll('#menu a').forEach(function (a) { a.classList.remove('active'); });
-      el.classList.add('active');
-      var sub = el.closest('.sub-dd');
-      if (sub) sub.parentElement.querySelector(':scope > a').classList.add('active');
-      var parent = el.closest('.has-dd');
-      if (parent) parent.querySelector('.nav-link').classList.add('active');
-    }
+    // Warna kuning hanya muncul saat kursor di atas menu (lewat CSS :hover)
 
     document.querySelectorAll('#menu .nav-link').forEach(function (link) {
       link.addEventListener('click', function (e) {
@@ -654,7 +647,6 @@
           li.classList.toggle('open'); // mobile: buka/tutup submenu
           return;
         }
-        setActive(link);
         if (mobile()) menu.classList.remove('open');
       });
     });
@@ -667,7 +659,6 @@
           li.classList.toggle('open'); // mobile: buka/tutup daftar prodi
           return;
         }
-        setActive(link);
         if (mobile()) menu.classList.remove('open');
       });
     });
