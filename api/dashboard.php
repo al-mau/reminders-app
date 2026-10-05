@@ -53,6 +53,31 @@ function inisial(string $nama): string
     return function_exists('mb_substr') ? mb_strtoupper(mb_substr($nama, 0, 1)) : strtoupper(substr($nama, 0, 1));
 }
 
+/**
+ * Tombol pindah halaman: [‹ Sebelumnya] [2 / 5] [Berikutnya ›].
+ * Parameter lain di URL (pencarian, tanggal, halaman tabel lain) tetap dipertahankan.
+ * Tidak tampil jika hanya ada 1 halaman.
+ */
+function tombolHalaman(int $hal, int $jumlah, string $param, string $jangkar): string
+{
+    if ($jumlah <= 1) {
+        return '';
+    }
+    $url = static function (int $ke) use ($param, $jangkar): string {
+        $q = array_filter(array_merge($_GET, [$param => $ke]), static fn($v) => $v !== '' && $v !== null);
+        unset($q['status']);
+        return 'dashboard.php?' . e(http_build_query($q)) . '#' . $jangkar;
+    };
+    $sebelum = $hal > 1
+        ? '<a class="btn btn-sm btn-light border" href="' . $url($hal - 1) . '"><i class="fa-solid fa-chevron-left me-1"></i>Sebelumnya</a>'
+        : '<span class="btn btn-sm btn-light border disabled"><i class="fa-solid fa-chevron-left me-1"></i>Sebelumnya</span>';
+    $sesudah = $hal < $jumlah
+        ? '<a class="btn btn-sm btn-light border" href="' . $url($hal + 1) . '">Berikutnya<i class="fa-solid fa-chevron-right ms-1"></i></a>'
+        : '<span class="btn btn-sm btn-light border disabled">Berikutnya<i class="fa-solid fa-chevron-right ms-1"></i></span>';
+    return '<div class="d-flex justify-content-end align-items-center gap-2 px-3 py-2 border-top">'
+        . $sebelum . '<span class="small text-redup px-1">' . $hal . ' / ' . $jumlah . '</span>' . $sesudah . '</div>';
+}
+
 /** Simpan pesan notifikasi (hijau/merah) untuk ditampilkan setelah halaman dimuat ulang */
 function flash(string $tipe, string $pesan): void
 {
@@ -395,13 +420,14 @@ $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM deadline $where_sql");
 $stmtCount->execute($params);
 $total_rows = (int) $stmtCount->fetchColumn();
 
-// Semua unit ditampilkan dalam satu daftar yang bisa digulir (tanpa nomor halaman).
-// Batas pengaman agar halaman tetap ringan; jika lebih, gunakan pencarian / filter.
-$batas_tampil = 500;
-$offset       = 0;
+// Daftar unit ditampilkan 5 per halaman (?hal=2, ?hal=3, ...)
+const DATA_PER_HALAMAN = 5;
+$jumlah_hal = max(1, (int) ceil($total_rows / DATA_PER_HALAMAN));
+$hal        = min($jumlah_hal, max(1, (int) ($_GET['hal'] ?? 1)));
+$offset     = ($hal - 1) * DATA_PER_HALAMAN;
 
-// Batas berupa integer -> aman disisipkan langsung
-$stmtData = $pdo->prepare("SELECT * FROM deadline $where_sql ORDER BY id DESC LIMIT $batas_tampil");
+// LIMIT/OFFSET berupa integer -> aman disisipkan langsung
+$stmtData = $pdo->prepare("SELECT * FROM deadline $where_sql ORDER BY id DESC LIMIT " . DATA_PER_HALAMAN . " OFFSET $offset");
 $stmtData->execute($params);
 
 $data_tampil = [];
@@ -430,7 +456,11 @@ $penerima_aktif  = count(array_filter($penerima_list, static fn($p) => (int) $p[
 $wa_target_env   = normalisasiNomorWa((string) env('WA_TARGET', ''));
 
 // --- RIWAYAT PENGIRIMAN WA (30 terakhir) ---
-$riwayat_wa    = $pdo->query("SELECT * FROM wa_log ORDER BY id DESC LIMIT 30")->fetchAll();
+// Riwayat juga 5 per halaman (?hal_wa=2, ...), terbaru di atas
+$total_wa      = (int) $pdo->query("SELECT COUNT(*) FROM wa_log")->fetchColumn();
+$jumlah_hal_wa = max(1, (int) ceil($total_wa / DATA_PER_HALAMAN));
+$hal_wa        = min($jumlah_hal_wa, max(1, (int) ($_GET['hal_wa'] ?? 1)));
+$riwayat_wa    = $pdo->query("SELECT * FROM wa_log ORDER BY id DESC LIMIT " . DATA_PER_HALAMAN . " OFFSET " . (($hal_wa - 1) * DATA_PER_HALAMAN))->fetchAll();
 // Nomor -> nama penerima, agar kolom Penerima di riwayat menampilkan nama (bukan hanya nomor).
 // Nomor yang sudah dihapus dari daftar penerima tetap tampil sebagai nomor saja.
 $nama_penerima = array_column($penerima_list, 'nama', 'nomor');
@@ -489,7 +519,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=5">
+    <link rel="stylesheet" href="tema.css?v=6">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -644,8 +674,8 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         </form>
                     </div>
                     <div class="card-body p-0">
-                        <!-- Daftar bisa digulir ke bawah; judul kolom tetap terlihat -->
-                        <div class="table-responsive gulir-daftar">
+                        <!-- Daftar unit: 5 per halaman, tombol pindah halaman di bawah -->
+                        <div class="table-responsive">
                             <table class="table table-hover align-middle tabel">
                                 <thead>
                                     <tr>
@@ -753,12 +783,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             </table>
                         </div>
 
-                        <?php // Keterangan hanya muncul jika unit melebihi batas tampil (500) ?>
-                        <?php if ($total_rows > count($data_tampil)): ?>
-                        <div class="form-text px-3 py-2 border-top m-0">
-                            Menampilkan <?= count($data_tampil); ?> dari <?= $total_rows; ?> unit. Gunakan pencarian / filter untuk menemukan unit lainnya.
-                        </div>
-                        <?php endif; ?>
+                        <?= tombolHalaman($hal, $jumlah_hal, 'hal', 'daftar'); ?>
                     </div>
                 </div>
             </div>
@@ -846,9 +871,9 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         <span class="ikon-judul"><i class="fa-solid fa-clock-rotate-left"></i></span>
                         <div><h2 class="kartu-judul">Riwayat Pengiriman WA</h2><div class="kartu-sub">Pesan otomatis & manual yang sudah dikirim</div></div>
                     </div>
-                    <div class="table-responsive" style="max-height: 360px;">
+                    <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle tabel small">
-                    <thead class="sticky-top"><tr><th>Waktu</th><th>Jenis</th><th>Unit</th><th>Penerima</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Waktu</th><th>Jenis</th><th>Unit</th><th>Penerima</th><th>Status</th></tr></thead>
                     <tbody>
                     <?php if (!$riwayat_wa): ?>
                         <tr><td colspan="5"><div class="kosong"><i class="fa-regular fa-comment-dots"></i>Belum ada riwayat pengiriman.</div></td></tr>
@@ -881,6 +906,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     </tbody>
                 </table>
             </div>
+                    <?= tombolHalaman($hal_wa, $jumlah_hal_wa, 'hal_wa', 'riwayat'); ?>
                             </div>
             </div>
         </div>
