@@ -78,6 +78,27 @@ function tombolHalaman(int $hal, int $jumlah, string $param, string $jangkar): s
         . $sebelum . '<span class="small text-redup px-1">' . $hal . ' / ' . $jumlah . '</span>' . $sesudah . '</div>';
 }
 
+/** URL dashboard dengan parameter saat ini, kecuali yang disebut di $hapus (untuk tombol ✕) */
+function urlTanpa(array $hapus, string $jangkar): string
+{
+    $q = array_diff_key($_GET, array_flip(array_merge($hapus, ['status'])));
+    $q = array_filter($q, static fn($v) => is_string($v) && $v !== '');
+    return 'dashboard.php' . ($q ? '?' . e(http_build_query($q)) : '') . '#' . $jangkar;
+}
+
+/** Input tersembunyi untuk mempertahankan parameter bagian lain saat form pencarian dikirim */
+function inputTersembunyi(array $nama): string
+{
+    $html = '';
+    foreach ($nama as $n) {
+        $v = $_GET[$n] ?? '';
+        if (is_string($v) && $v !== '') {
+            $html .= '<input type="hidden" name="' . e($n) . '" value="' . e($v) . '">';
+        }
+    }
+    return $html;
+}
+
 /** Simpan pesan notifikasi (hijau/merah) untuk ditampilkan setelah halaman dimuat ulang */
 function flash(string $tipe, string $pesan): void
 {
@@ -455,12 +476,45 @@ $penerima_list   = $pdo->query("SELECT * FROM wa_penerima ORDER BY id")->fetchAl
 $penerima_aktif  = count(array_filter($penerima_list, static fn($p) => (int) $p['aktif'] === 1));
 $wa_target_env   = normalisasiNomorWa((string) env('WA_TARGET', ''));
 
-// --- RIWAYAT PENGIRIMAN WA (30 terakhir) ---
-// Riwayat juga 5 per halaman (?hal_wa=2, ...), terbaru di atas
-$total_wa      = (int) $pdo->query("SELECT COUNT(*) FROM wa_log")->fetchColumn();
+// --- RIWAYAT PENGIRIMAN WA: pencarian + 5 per halaman (?hal_wa=2, ...), terbaru di atas ---
+$cari_wa   = trim((string) ($_GET['cari_wa'] ?? ''));
+$status_wa = in_array($_GET['status_wa'] ?? '', ['berhasil', 'gagal'], true) ? $_GET['status_wa'] : '';
+$tgl_wa    = tanggal_valid((string) ($_GET['tgl_wa'] ?? '')) ? (string) $_GET['tgl_wa'] : '';
+
+$where_wa  = [];
+$params_wa = [];
+if ($cari_wa !== '') {
+    // Cocokkan unit, nomor penerima, keterangan error, dan NAMA penerima (nama -> nomor dari daftar penerima)
+    $kolom = ["ringkasan LIKE :q1", "penerima LIKE :q2", "keterangan LIKE :q3"];
+    $params_wa += [':q1' => "%$cari_wa%", ':q2' => "%$cari_wa%", ':q3' => "%$cari_wa%"];
+    foreach ($penerima_list as $i => $p) {
+        if (stripos($p['nama'], $cari_wa) !== false) {
+            $kolom[] = "penerima LIKE :n$i";
+            $params_wa[":n$i"] = '%' . $p['nomor'] . '%';
+        }
+    }
+    $where_wa[] = '(' . implode(' OR ', $kolom) . ')';
+}
+if ($status_wa !== '') {
+    $where_wa[] = "status = :st";
+    $params_wa[':st'] = $status_wa;
+}
+if ($tgl_wa !== '') {
+    $where_wa[] = "waktu >= :t1 AND waktu < :t2";
+    $params_wa[':t1'] = "$tgl_wa 00:00:00";
+    $params_wa[':t2'] = date('Y-m-d', strtotime("$tgl_wa +1 day")) . ' 00:00:00';
+}
+$where_wa_sql      = $where_wa ? 'WHERE ' . implode(' AND ', $where_wa) : '';
+$menyaring_riwayat = (bool) $where_wa;
+
+$stmtWa = $pdo->prepare("SELECT COUNT(*) FROM wa_log $where_wa_sql");
+$stmtWa->execute($params_wa);
+$total_wa      = (int) $stmtWa->fetchColumn();
 $jumlah_hal_wa = max(1, (int) ceil($total_wa / DATA_PER_HALAMAN));
 $hal_wa        = min($jumlah_hal_wa, max(1, (int) ($_GET['hal_wa'] ?? 1)));
-$riwayat_wa    = $pdo->query("SELECT * FROM wa_log ORDER BY id DESC LIMIT " . DATA_PER_HALAMAN . " OFFSET " . (($hal_wa - 1) * DATA_PER_HALAMAN))->fetchAll();
+$stmtWa = $pdo->prepare("SELECT * FROM wa_log $where_wa_sql ORDER BY id DESC LIMIT " . DATA_PER_HALAMAN . " OFFSET " . (($hal_wa - 1) * DATA_PER_HALAMAN));
+$stmtWa->execute($params_wa);
+$riwayat_wa = $stmtWa->fetchAll();
 // Nomor -> nama penerima, agar kolom Penerima di riwayat menampilkan nama (bukan hanya nomor).
 // Nomor yang sudah dihapus dari daftar penerima tetap tampil sebagai nomor saja.
 $nama_penerima = array_column($penerima_list, 'nama', 'nomor');
@@ -647,6 +701,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         <form method="GET" action="dashboard.php#daftar" class="row g-2 mb-3">
                             <?php // Filter status dari kartu statistik tetap ikut saat mencari ?>
                             <?php if ($filter !== 'semua'): ?><input type="hidden" name="filter" value="<?= e($filter); ?>"><?php endif; ?>
+                            <?= inputTersembunyi(['cari_wa', 'status_wa', 'tgl_wa', 'hal_wa']); ?>
                             <div class="col-12">
                                 <div class="input-group">
                                     <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-secondary"></i></span>
@@ -668,7 +723,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             <div class="col-md-2 d-flex gap-2">
                                 <button type="submit" class="btn btn-primary w-100" title="Cari"><i class="fa-solid fa-magnifying-glass"></i><span class="d-md-none ms-1">Cari</span></button>
                                 <?php if ($sedang_menyaring): ?>
-                                    <a href="dashboard.php#daftar" class="btn btn-light border" title="Hapus pencarian & filter"><i class="fa-solid fa-xmark"></i></a>
+                                    <a href="<?= urlTanpa(['search', 'dari', 'sampai', 'filter', 'hal'], 'daftar'); ?>" class="btn btn-light border" title="Hapus pencarian & filter"><i class="fa-solid fa-xmark"></i></a>
                                 <?php endif; ?>
                             </div>
                         </form>
@@ -869,14 +924,42 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                 <div class="card kartu kartu-wa h-100" id="riwayat">
                     <div class="card-header">
                         <span class="ikon-judul"><i class="fa-solid fa-clock-rotate-left"></i></span>
-                        <div><h2 class="kartu-judul">Riwayat Pengiriman WA</h2><div class="kartu-sub">Pesan otomatis & manual yang sudah dikirim</div></div>
+                        <div><h2 class="kartu-judul">Riwayat Pengiriman WA</h2><div class="kartu-sub"><?= $total_wa; ?> pengiriman<?= $menyaring_riwayat ? ' sesuai pencarian' : ''; ?></div></div>
+                    </div>
+                    <!-- Pencarian riwayat: kata kunci (unit / penerima / keterangan), status, tanggal kirim -->
+                    <div class="card-body pb-0 flex-grow-0">
+                        <form method="GET" action="dashboard.php#riwayat" class="row g-2 mb-3">
+                            <?= inputTersembunyi(['search', 'dari', 'sampai', 'filter', 'hal']); ?>
+                            <div class="col-12 col-md-4">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-secondary"></i></span>
+                                    <input type="text" name="cari_wa" class="form-control" placeholder="Cari unit / penerima..." value="<?= e($cari_wa); ?>">
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <select name="status_wa" class="form-select" aria-label="Status pengiriman">
+                                    <option value="">Semua status</option>
+                                    <option value="berhasil" <?= $status_wa === 'berhasil' ? 'selected' : ''; ?>>Berhasil</option>
+                                    <option value="gagal" <?= $status_wa === 'gagal' ? 'selected' : ''; ?>>Gagal</option>
+                                </select>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <input type="date" name="tgl_wa" class="form-control" value="<?= e($tgl_wa); ?>" title="Tanggal kirim" aria-label="Tanggal kirim">
+                            </div>
+                            <div class="col-12 col-md-2 d-flex gap-2">
+                                <button type="submit" class="btn btn-success w-100" title="Cari riwayat"><i class="fa-solid fa-magnifying-glass"></i><span class="d-md-none ms-1">Cari</span></button>
+                                <?php if ($menyaring_riwayat): ?>
+                                    <a href="<?= urlTanpa(['cari_wa', 'status_wa', 'tgl_wa', 'hal_wa'], 'riwayat'); ?>" class="btn btn-light border" title="Hapus pencarian riwayat"><i class="fa-solid fa-xmark"></i></a>
+                                <?php endif; ?>
+                            </div>
+                        </form>
                     </div>
                     <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle tabel small">
                     <thead><tr><th>Waktu</th><th>Jenis</th><th>Unit</th><th>Penerima</th><th>Status</th></tr></thead>
                     <tbody>
                     <?php if (!$riwayat_wa): ?>
-                        <tr><td colspan="5"><div class="kosong"><i class="fa-regular fa-comment-dots"></i>Belum ada riwayat pengiriman.</div></td></tr>
+                        <tr><td colspan="5"><div class="kosong"><i class="fa-regular fa-comment-dots"></i><?= $menyaring_riwayat ? 'Tidak ada riwayat yang cocok dengan pencarian.' : 'Belum ada riwayat pengiriman.'; ?></div></td></tr>
                     <?php endif; ?>
                     <?php foreach ($riwayat_wa as $w): $ok = $w['status'] === 'berhasil'; ?>
                         <tr>
