@@ -78,6 +78,30 @@ function tombolHalaman(int $hal, int $jumlah, string $param, string $jangkar): s
         . $sebelum . '<span class="small text-redup px-1">' . $hal . ' / ' . $jumlah . '</span>' . $sesudah . '</div>';
 }
 
+/**
+ * Pecah kolom ringkasan riwayat WA menjadi daftar unit "(kode) nama".
+ * Format baru: satu unit per baris. Format lama: "kode nama, kode nama" -> diubah ke "(kode) nama".
+ */
+function daftarUnitRiwayat(string $ringkasan): array
+{
+    $ringkasan = trim($ringkasan);
+    if ($ringkasan === '' || $ringkasan === '-') {
+        return ['-'];
+    }
+    if (str_contains($ringkasan, "\n")) {
+        return array_values(array_filter(array_map('trim', explode("\n", $ringkasan)), 'strlen'));
+    }
+    $hasil = [];
+    foreach (array_filter(array_map('trim', explode(', ', $ringkasan)), 'strlen') as $unit) {
+        if ($unit[0] !== '(' && str_contains($unit, ' ')) {
+            [$kode, $nama] = explode(' ', $unit, 2);
+            $unit = "($kode) $nama";
+        }
+        $hasil[] = $unit;
+    }
+    return $hasil;
+}
+
 /** URL dashboard dengan parameter saat ini, kecuali yang disebut di $hapus (untuk tombol ✕) */
 function urlTanpa(array $hapus, string $jangkar): string
 {
@@ -129,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $aksi = $_POST['aksi'] ?? '';
 
     // --- UPLOAD LAMPIRAN BERPOTONGAN (dipanggil JavaScript) ---
-    if (in_array($aksi, ['lampiran_mulai', 'lampiran_bagian', 'lampiran_selesai'], true)) {
+    if (in_array($aksi, ['lampiran_mulai', 'lampiran_bagian', 'lampiran_selesai', 'lampiran_thumbnail'], true)) {
         try {
             if ($aksi === 'lampiran_mulai') {
                 $id = mulaiLampiran($pdo, (int) ($_POST['deadline_id'] ?? 0), (string) ($_POST['nama'] ?? ''),
@@ -140,7 +164,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 simpanBagianLampiran($pdo, (int) ($_POST['id'] ?? 0), (int) ($_POST['urutan'] ?? -1), $_FILES['bagian'] ?? []);
                 jsonKeluar(['ok' => true]);
             }
+            if ($aksi === 'lampiran_thumbnail') {
+                // Thumbnail untuk lampiran lama, dibuat saat lampiran dibuka (lampiran.php)
+                jsonKeluar(['ok' => simpanThumbnailLampiran($pdo, (int) ($_POST['id'] ?? 0), $_FILES['thumbnail'] ?? [])]);
+            }
             selesaikanLampiran($pdo, (int) ($_POST['id'] ?? 0));
+            // Thumbnail halaman depan (opsional) ikut dikirim browser bersama tanda selesai
+            if (!empty($_FILES['thumbnail'])) {
+                simpanThumbnailLampiran($pdo, (int) ($_POST['id'] ?? 0), $_FILES['thumbnail']);
+            }
             jsonKeluar(['ok' => true]);
         } catch (InvalidArgumentException $e) {
             jsonKeluar(['ok' => false, 'pesan' => $e->getMessage()], 422);
@@ -237,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Kalimat penutup sama dengan pesan otomatis (cron_wa_reminder.php)
         $pesan .= "Mohon segera update kembali usernya sebelum tanggal " . date('d-m-Y', strtotime($data_wa['tanggal_akhir']));
 
-        $label = $data_wa['kode_unit'] . ' ' . $data_wa['nama_unit'];
+        $label = '(' . $data_wa['kode_unit'] . ') ' . $data_wa['nama_unit'];
         // Kirim manual tidak mengubah status pengingat unit (pengingat otomatis tetap berjalan sesuai jadwal)
         $hasil = kirimWhatsApp($pesan, 'manual', $label);
         if (!$hasil['ok']) {
@@ -462,7 +494,7 @@ $lampiran_per_unit = [];
 if ($data_tampil) {
     $ids = array_map(static fn($r) => (int) $r['id'], $data_tampil);
     $stmtLamp = $pdo->query(
-        "SELECT id, deadline_id, nama_file, ekstensi, ukuran, diunggah_oleh, dibuat_tanggal
+        "SELECT id, deadline_id, nama_file, ekstensi, ukuran, diunggah_oleh, dibuat_tanggal, (thumbnail IS NOT NULL) AS ada_thumb
          FROM lampiran WHERE selesai = 1 AND deadline_id IN (" . implode(',', $ids) . ") ORDER BY id"
     );
     foreach ($stmtLamp->fetchAll() as $l) {
@@ -573,7 +605,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=6">
+    <link rel="stylesheet" href="tema.css?v=8">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -650,7 +682,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         <!-- Baris 1: input unit baru (kiri) + daftar unit (kanan) -->
         <div class="row g-4">
             <div class="col-lg-4">
-                <div class="card kartu kartu-input h-100">
+                <div class="card kartu kartu-input">
                     <div class="card-header">
                         <span class="ikon-judul"><i class="fa-solid fa-square-plus"></i></span>
                         <div><h2 class="kartu-judul">Input Unit & Deadline</h2><div class="kartu-sub">Tambah unit baru beserta lampirannya</div></div>
@@ -737,6 +769,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         <th class="text-center" width="5%">No</th>
                                         <th>Kode</th>
                                         <th>Nama Unit</th>
+                                        <th class="text-center">Dokumen</th>
                                         <th>Tgl Awal</th>
                                         <th>Tgl Akhir</th>
                                         <th class="text-center">Status</th>
@@ -762,7 +795,29 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         <tr>
                                             <td class="text-center text-redup"><?= $no++; ?></td>
                                             <td><span class="kode"><?= e($row['kode_unit']); ?></span></td>
-                                            <td class="fw-semibold text-dark"><?= e($row['nama_unit']); ?></td>
+                                            <td class="fw-semibold text-dark" style="min-width: 150px;"><?= e($row['nama_unit']); ?></td>
+                                            <td class="text-center">
+                                                <?php // Kolom Dokumen: thumbnail halaman depan lampiran pertama (atau ikon jenis file) ?>
+                                                <?php $lamp_unit = $lampiran_per_unit[(int) $row['id']] ?? []; ?>
+                                                <?php if ($lamp_unit): $l0 = $lamp_unit[0]; $ext0 = strtolower($l0['ekstensi']); [$ikon0, $kelas0] = ikonLampiran($ext0); ?>
+                                                    <?php if (in_array($ext0, LAMPIRAN_BISA_DILIHAT, true)): ?>
+                                                        <a href="lampiran.php?id=<?= (int) $l0['id']; ?>&lihat=1" target="_blank" rel="noopener"
+                                                    <?php else: ?>
+                                                        <a href="#" data-bs-toggle="modal" data-bs-target="#modalLampiran<?= (int) $row['id']; ?>"
+                                                    <?php endif; ?>
+                                                       class="thumb <?= $l0['ada_thumb'] ? '' : 'thumb-ikon ' . $kelas0; ?>" title="<?= e($l0['nama_file']); ?> - klik untuk melihat">
+                                                        <?php if ($l0['ada_thumb']): ?>
+                                                            <img src="lampiran.php?id=<?= (int) $l0['id']; ?>&thumb=1" alt="Halaman depan <?= e($l0['nama_file']); ?>" loading="lazy">
+                                                        <?php else: ?>
+                                                            <i class="fa-solid <?= $ikon0; ?>"></i>
+                                                        <?php endif; ?>
+                                                        <?php if (count($lamp_unit) > 1): ?><span class="lebih">+<?= count($lamp_unit) - 1; ?></span><?php endif; ?>
+                                                    </a>
+                                                    <span class="thumb-nama" title="<?= e($l0['nama_file']); ?>"><?= e($l0['nama_file']); ?></span>
+                                                <?php else: ?>
+                                                    <span class="text-redup">&mdash;</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td class="text-redup small text-nowrap"><?= date('d M Y', strtotime($row['tanggal_awal'])); ?></td>
                                             <td class="small text-nowrap fw-semibold"><?= date('d M Y', strtotime($row['tanggal_akhir'])); ?></td>
                                             <td class="text-center">
@@ -786,7 +841,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                 <?php endif; ?>
                                             </td>
                                             <td class="text-center">
-                                                <div class="d-flex justify-content-center gap-1">
+                                                <div class="aksi-grid">
                                                     <button type="button" class="btn-ikon btn-ikon-kuning"
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#modalEdit<?= (int) $row['id']; ?>"
@@ -831,7 +886,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="7"><div class="kosong"><i class="fa-regular fa-folder-open"></i>Belum ada unit yang cocok. Tambahkan unit lewat form di samping atau ubah pencarian.</div></td>
+                                            <td colspan="8"><div class="kosong"><i class="fa-regular fa-folder-open"></i>Belum ada unit yang cocok. Tambahkan unit lewat form di samping atau ubah pencarian.</div></td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
@@ -847,7 +902,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         <!-- Baris 2: bagian WhatsApp (penerima + riwayat), satu tema warna -->
         <div class="row g-4 mt-0">
             <div class="col-lg-4">
-                <div class="card kartu kartu-wa h-100" id="penerima">
+                <div class="card kartu kartu-wa" id="penerima">
                     <div class="card-header">
                         <span class="ikon-judul"><i class="fa-brands fa-whatsapp"></i></span>
                         <div class="flex-grow-1"><h2 class="kartu-judul">Penerima Notifikasi WA</h2><div class="kartu-sub">Nomor yang menerima pengingat</div></div>
@@ -965,7 +1020,11 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         <tr>
                             <td class="text-nowrap"><?= date('d M Y H:i', strtotime($w['waktu'])); ?></td>
                             <td><span class="lencana <?= $w['jenis'] === 'otomatis' ? 'lencana-biru' : 'lencana-abu'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
-                            <td style="min-width: 180px;"><?= e($w['ringkasan']); ?></td>
+                            <td style="min-width: 180px;">
+                                <?php foreach (daftarUnitRiwayat($w['ringkasan']) as $i => $unit): ?>
+                                    <div><?= $i + 1; ?>. <?= e($unit); ?></div>
+                                <?php endforeach; ?>
+                            </td>
                             <td style="min-width: 160px;">
                                 <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
                                     <div class="text-nowrap">
@@ -1099,6 +1158,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <?php endforeach; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="vendor/thumbnail.js?v=1"></script>
     <script>
         // Buka kembali modal lampiran setelah upload / hapus
         <?php if ($buka_lampiran > 0): ?>
@@ -1152,7 +1212,11 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                 await kirim(f);
                 onProgres((i + 1) / jumlah);
             }
-            await kirim(dataForm({ aksi: 'lampiran_selesai', id: mulai.id }));
+            // Tanda selesai + thumbnail halaman depan (PDF/gambar) untuk kolom Dokumen di tabel
+            const selesai = dataForm({ aksi: 'lampiran_selesai', id: mulai.id });
+            const thumb = window.buatThumbnail ? await buatThumbnail(file, file.name.split('.').pop()) : null;
+            if (thumb) selesai.append('thumbnail', thumb, 'thumbnail.jpg');
+            await kirim(selesai);
         }
 
         // Unggah semua file yang dipilih secara berurutan sambil memperbarui progress bar

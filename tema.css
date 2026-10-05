@@ -65,6 +65,18 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--latar); co
 .lencana-gelap { background: #e4e7ec; color: #1d2939; }
 .lencana-hijau { background: #e6f6ec; color: #067647; }
 .lencana-biru  { background: #e8effd; color: #1d4ed8; }
+/* Kolom Dokumen: thumbnail halaman depan lampiran / ikon jenis file */
+.thumb { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 60px; border-radius: 6px; border: 1px solid #dfe3ea; background: #fff; overflow: hidden; box-shadow: 0 1px 3px rgba(16,24,40,.08); vertical-align: middle; transition: transform .15s; text-decoration: none; }
+.thumb:hover { transform: scale(1.06); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.thumb .lebih { position: absolute; right: -1px; bottom: -1px; background: #1e3a8a; color: #fff; font-size: .62rem; font-weight: 700; padding: 1px 5px; border-radius: 6px 0 6px 0; }
+.thumb-ikon { font-size: 1.4rem; }
+.thumb-pdf { background: #fdecec; color: #c0262d; }
+.thumb-gambar { background: #e8effd; color: #1d4ed8; }
+.thumb-word { background: #eaf1fd; color: #2b579a; }
+.thumb-excel { background: #e7f5ec; color: #1d6f42; }
+.thumb-teks { background: #eef1f5; color: #475467; }
+.thumb-nama { display: block; max-width: 70px; margin: 3px auto 0; font-size: .68rem; color: var(--redup); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .info-terkirim { font-size: .75rem; color: #128c7e; margin-top: .35rem; }
 
 /* Tombol aksi berbentuk ikon dengan warna lembut */
@@ -75,6 +87,9 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--latar); co
 .btn-ikon-merah  { background: #fdecec; color: #c0262d; } .btn-ikon-merah:hover  { background: #fbd5d5; }
 .btn-ikon-hijau  { background: #e6f6ec; color: #128c7e; } .btn-ikon-hijau:hover  { background: #cdeedb; }
 .btn-ikon-abu    { background: #eef1f5; color: #475467; } .btn-ikon-abu:hover    { background: #dfe4ea; }
+/* Tombol aksi di tabel Daftar Unit: 2 x 2 agar tabel tidak terlalu lebar */
+.aksi-grid { display: inline-grid; grid-template-columns: repeat(2, 34px); gap: 5px; }
+.aksi-grid form { display: contents; }
 .btn-ikon .jumlah { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--utama); color: #fff; font-size: .65rem; font-weight: 700; display: grid; place-items: center; }
 
 /* Penerima WA */
