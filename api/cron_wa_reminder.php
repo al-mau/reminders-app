@@ -72,7 +72,8 @@ if ($rows) {
     $pesan .= "\nMohon segera update kembali usernya sebelum tanggal $batas";
 
     // Ringkasan nama unit untuk dicatat di Riwayat Pengiriman WA
-    $ringkasan = implode(', ', array_map(static fn($r) => $r['kode_unit'] . ' ' . $r['nama_unit'], $rows));
+    // Format "(kode) nama", satu unit per baris -> tampil bernomor di Riwayat WA
+    $ringkasan = implode("\n", array_map(static fn($r) => '(' . $r['kode_unit'] . ') ' . $r['nama_unit'], $rows));
     $hasil     = kirimWhatsApp($pesan, 'otomatis', $ringkasan);
 
     // Tandai sudah dikirim agar tidak terkirim ganda hari ini

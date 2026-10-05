@@ -78,6 +78,30 @@ function tombolHalaman(int $hal, int $jumlah, string $param, string $jangkar): s
         . $sebelum . '<span class="small text-redup px-1">' . $hal . ' / ' . $jumlah . '</span>' . $sesudah . '</div>';
 }
 
+/**
+ * Pecah kolom ringkasan riwayat WA menjadi daftar unit "(kode) nama".
+ * Format baru: satu unit per baris. Format lama: "kode nama, kode nama" -> diubah ke "(kode) nama".
+ */
+function daftarUnitRiwayat(string $ringkasan): array
+{
+    $ringkasan = trim($ringkasan);
+    if ($ringkasan === '' || $ringkasan === '-') {
+        return ['-'];
+    }
+    if (str_contains($ringkasan, "\n")) {
+        return array_values(array_filter(array_map('trim', explode("\n", $ringkasan)), 'strlen'));
+    }
+    $hasil = [];
+    foreach (array_filter(array_map('trim', explode(', ', $ringkasan)), 'strlen') as $unit) {
+        if ($unit[0] !== '(' && str_contains($unit, ' ')) {
+            [$kode, $nama] = explode(' ', $unit, 2);
+            $unit = "($kode) $nama";
+        }
+        $hasil[] = $unit;
+    }
+    return $hasil;
+}
+
 /** URL dashboard dengan parameter saat ini, kecuali yang disebut di $hapus (untuk tombol ✕) */
 function urlTanpa(array $hapus, string $jangkar): string
 {
@@ -245,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Kalimat penutup sama dengan pesan otomatis (cron_wa_reminder.php)
         $pesan .= "Mohon segera update kembali usernya sebelum tanggal " . date('d-m-Y', strtotime($data_wa['tanggal_akhir']));
 
-        $label = $data_wa['kode_unit'] . ' ' . $data_wa['nama_unit'];
+        $label = '(' . $data_wa['kode_unit'] . ') ' . $data_wa['nama_unit'];
         // Kirim manual tidak mengubah status pengingat unit (pengingat otomatis tetap berjalan sesuai jadwal)
         $hasil = kirimWhatsApp($pesan, 'manual', $label);
         if (!$hasil['ok']) {
@@ -996,7 +1020,11 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         <tr>
                             <td class="text-nowrap"><?= date('d M Y H:i', strtotime($w['waktu'])); ?></td>
                             <td><span class="lencana <?= $w['jenis'] === 'otomatis' ? 'lencana-biru' : 'lencana-abu'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
-                            <td style="min-width: 180px;"><?= e($w['ringkasan']); ?></td>
+                            <td style="min-width: 180px;">
+                                <?php foreach (daftarUnitRiwayat($w['ringkasan']) as $i => $unit): ?>
+                                    <div><?= $i + 1; ?>. <?= e($unit); ?></div>
+                                <?php endforeach; ?>
+                            </td>
                             <td style="min-width: 160px;">
                                 <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
                                     <div class="text-nowrap">
