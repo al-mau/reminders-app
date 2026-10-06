@@ -1,0 +1,91 @@
+=====================================================================
+  APLIKASI PENGINGAT JADWAL - VERSI LARAVEL HERD (laptop Windows)
+=====================================================================
+
+Versi ini dijalankan oleh Laravel Herd dan dibuka lewat
+      http://reminders-app.test
+Database tetap memakai MySQL dari XAMPP (Herd gratis tidak punya MySQL).
+Fiturnya sama dengan versi online (Vercel) dan versi XAMPP.
+
+PENTING
+- Di XAMPP Control Panel cukup START "MySQL" saja. JANGAN start "Apache",
+  karena Apache dan Herd sama-sama memakai port 80 (bentrok).
+- Jangan taruh folder ini di xampp\htdocs. Pakai folder Herd (lihat bawah).
+- Data di laptop ini TERPISAH dari versi online (Aiven).
+- Jangan jalankan pengingat otomatis laptop bersamaan dengan cron-job.org
+  untuk data yang sama, nanti pesan terkirim dobel.
+
+---------------------------------------------------------------------
+1. PASANG
+---------------------------------------------------------------------
+1) Extract zip ini, lalu pindahkan folder "reminders-app" ke folder Herd:
+      C:\Users\<nama kamu>\Herd\
+   Hasilnya: C:\Users\<nama kamu>\Herd\reminders-app\public\index.php
+   (Atau: buka Herd -> General -> "Herd Paths" untuk melihat foldernya.)
+2) Buka Herd -> menu PHP -> pastikan memakai PHP 8.2 atau lebih baru.
+3) Buka XAMPP Control Panel -> START MySQL (Apache JANGAN di-start).
+4) Buat database: klik 2x  reminders-app\database\import_ke_xampp.bat
+   (membuat database "reminders_db" + semua tabel + contoh data).
+   Kalau database reminders_db dari versi XAMPP sudah ada, LEWATI langkah
+   ini: Herd langsung memakai data yang sama.
+   Ingin data asli dari Aiven? Lihat bagian 4.
+5) Buka browser: http://reminders-app.test
+   - Belum ada akun? Halaman Daftar terbuka otomatis selama tabel
+     users masih kosong. Buat akun admin pertama di sana.
+
+Catatan: nama alamat mengikuti nama folder. Folder "pengingat" -> http://pengingat.test
+
+---------------------------------------------------------------------
+2. PENGATURAN (file .env di folder reminders-app, BUKAN di public)
+---------------------------------------------------------------------
+Buka file .env dengan Notepad. Yang perlu diisi:
+  FONNTE_TOKEN=   token device dari dashboard fonnte.com (untuk kirim WA)
+Opsional, kirim lewat Telegram (gratis):
+  NOTIF_VIA=telegram   (atau wa,telegram untuk keduanya)
+  TELEGRAM_BOT_TOKEN=  token dari @BotFather
+  TELEGRAM_CHAT_ID=    chat id orang / grup penerima
+DB_* sudah terisi untuk MySQL XAMPP standar (user root tanpa password).
+Jika MySQL memakai password, isi DB_PASSWORD=.
+File .env, lib\ dan database\ berada di luar folder public, jadi tidak
+bisa dibuka dari browser.
+
+---------------------------------------------------------------------
+3. PENGINGAT OTOMATIS (pengganti cron-job.org)
+---------------------------------------------------------------------
+Coba manual: klik 2x  reminders-app\kirim_pengingat.bat
+Agar otomatis setiap hari jam 20.00:
+ 1) Tekan tombol Windows, ketik "Task Scheduler", buka.
+ 2) Klik "Create Basic Task..." -> Nama: Aplikasi Pengingat Jadwal -> Next
+ 3) Trigger: Daily -> Next -> jam 20:00:00 -> Next
+ 4) Action: Start a program -> Next
+ 5) Program/script: Browse -> pilih ...\Herd\reminders-app\kirim_pengingat.bat
+    Add arguments: auto
+ 6) Next -> Finish.
+Hasil setiap pengiriman tersimpan di file reminders-app\pengingat_log.txt
+Catatan: laptop menyala dan MySQL XAMPP sudah START saat jam 20.00.
+(Herd tidak perlu dibuka untuk pengingat; yang dipakai hanya PHP-nya.)
+
+---------------------------------------------------------------------
+4. AMBIL DATA DARI VERSI ONLINE (Aiven) -> MySQL lokal  (opsional)
+---------------------------------------------------------------------
+1) Buka .env, isi AIVEN_DB_PASSWORD= (password Aiven, sama dengan
+   DB_PASSWORD di Vercel).
+2) Klik 2x  reminders-app\database\sync_dari_aiven.bat
+   Data di MySQL lokal akan DIGANTI dengan data Aiven.
+
+---------------------------------------------------------------------
+5. JIKA ADA MASALAH
+---------------------------------------------------------------------
+- reminders-app.test tidak terbuka -> pastikan Herd berjalan (ikon di tray)
+                               dan folder ada di dalam folder Herd.
+- Muncul "404 Not Found"        -> pastikan ada file reminders-app\public\index.php
+                               (jangan sampai foldernya dobel:
+                               reminders-app\reminders-app\...).
+- "Koneksi database gagal"      -> MySQL XAMPP belum START / DB_* di .env salah.
+- Port 80 dipakai / Herd error  -> STOP Apache di XAMPP Control Panel.
+- WA tidak terkirim             -> cek FONNTE_TOKEN, internet, status device
+                               di fonnte.com. Keterangan error ada di
+                               Riwayat Pengiriman (dashboard).
+- kirim_pengingat.bat: "PHP Herd tidak ditemukan" -> isi PHP_MANUAL di file bat.
+- Tabel kurang / error tabel    -> buka http://reminders-app.test/setup.php?key=<CRON_SECRET>
+                               (CRON_SECRET ada di file .env)

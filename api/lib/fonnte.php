@@ -114,13 +114,28 @@ function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasa
     return ['ok' => $ok, 'pesan' => $pesan];
 }
 
-/** XAMPP (Windows) kadang belum mengatur sertifikat HTTPS untuk cURL -> pakai bawaan XAMPP */
+/**
+ * XAMPP / Laravel Herd (Windows) kadang belum mengatur sertifikat HTTPS untuk cURL
+ * -> pakai file sertifikat bawaan PHP/XAMPP yang ditemukan.
+ */
 function pasangSertifikatXampp($curl): void
 {
     if (ini_get('curl.cainfo')) {
         return;
     }
-    foreach ([dirname(PHP_BINARY, 2) . '/apache/bin/curl-ca-bundle.crt', dirname(PHP_BINARY, 2) . '/php/extras/ssl/cacert.pem'] as $ca) {
+    $kandidat = [
+        ini_get('openssl.cafile') ?: '',
+        dirname(PHP_BINARY, 2) . '/apache/bin/curl-ca-bundle.crt',
+        dirname(PHP_BINARY, 2) . '/php/extras/ssl/cacert.pem',
+        dirname(PHP_BINARY) . '/extras/ssl/cacert.pem',
+        // Herd memakai PHP sendiri; jika XAMPP juga terpasang, pinjam sertifikatnya
+        'C:/xampp/apache/bin/curl-ca-bundle.crt',
+        'D:/xampp/apache/bin/curl-ca-bundle.crt',
+    ];
+    foreach ($kandidat as $ca) {
+        if ($ca === '') {
+            continue;
+        }
         if (is_file($ca)) {
             curl_setopt($curl, CURLOPT_CAINFO, $ca);
             return;
