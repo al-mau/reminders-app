@@ -262,8 +262,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pesan .= "Mohon segera update kembali usernya sebelum tanggal " . date('d-m-Y', strtotime($data_wa['tanggal_akhir']));
 
         $label = '(' . $data_wa['kode_unit'] . ') ' . $data_wa['nama_unit'];
+        // Saluran dipilih dari menu tombol kirim: WhatsApp, Telegram, atau keduanya
+        $via = [
+            'wa'       => ['wa'],
+            'telegram' => ['telegram'],
+            'semua'    => ['wa', 'telegram'],
+        ][(string) ($_POST['via'] ?? '')] ?? null;
+
         // Kirim manual tidak mengubah status pengingat unit (pengingat otomatis tetap berjalan sesuai jadwal)
-        $hasil = kirimWhatsApp($pesan, 'manual', $label);
+        $hasil = kirimWhatsApp($pesan, 'manual', $label, $via);
         if (!$hasil['ok']) {
             $_SESSION['flash_wa_error'] = $hasil['pesan'];
         } else {
@@ -565,7 +572,7 @@ unset($_SESSION['tg_ditemukan']);
 
 // --- RIWAYAT PENGIRIMAN WA: pencarian + 5 per halaman (?hal_wa=2, ...), terbaru di atas ---
 $cari_wa   = trim((string) ($_GET['cari_wa'] ?? ''));
-$status_wa = in_array($_GET['status_wa'] ?? '', ['berhasil', 'gagal'], true) ? $_GET['status_wa'] : '';
+$status_wa = in_array($_GET['status_wa'] ?? '', ['berhasil', 'sebagian', 'gagal'], true) ? $_GET['status_wa'] : '';
 $tgl_wa    = tanggal_valid((string) ($_GET['tgl_wa'] ?? '')) ? (string) $_GET['tgl_wa'] : '';
 
 $where_wa  = [];
@@ -607,6 +614,9 @@ $riwayat_wa = $stmtWa->fetchAll();
 $nama_penerima = array_column($penerima_list, 'nama', 'nomor');
 $nama_telegram = array_column($telegram_list, 'nama', 'chat_id');
 $saluran_notif = saluranNotifikasi(); // ['wa'], ['telegram'], atau keduanya (NOTIF_VIA)
+// Saluran yang bisa dipilih di tombol kirim manual (token sudah diisi)
+$bisa_wa = (string) env('FONNTE_TOKEN', '') !== '';
+$bisa_tg = (string) env('TELEGRAM_BOT_TOKEN', '') !== '';
 
 // --- PESAN NOTIFIKASI ---
 $alerts = [
@@ -661,7 +671,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=10">
+    <link rel="stylesheet" href="tema.css?v=11">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -856,8 +866,8 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                             <td class="text-center">
                                                 <?= $badge_deadline; ?>
                                                 <?php if (!empty($row['terakhir_dikirim'])): ?>
-                                                    <div class="info-terkirim" title="Pengingat WA otomatis terakhir terkirim">
-                                                        <i class="fa-brands fa-whatsapp"></i> <?= date('d M Y', strtotime($row['terakhir_dikirim'])); ?>
+                                                    <div class="info-terkirim" title="Pengingat otomatis terakhir terkirim">
+                                                        <i class="fa-solid fa-paper-plane"></i> <?= date('d M Y', strtotime($row['terakhir_dikirim'])); ?>
                                                     </div>
                                                     <?php // Tombol "Kirim ulang" disembunyikan untuk unit expired: cron hanya mengirim unit yang deadline-nya hari ini/besok ?>
                                                     <?php if ($sisa_hari >= 0): ?>
@@ -903,15 +913,35 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                         </button>
                                                     </form>
 
-                                                    <form method="POST" action="dashboard.php" class="d-inline"
-                                                          onsubmit="return confirm(this.dataset.konfirmasi)"
-                                                          data-konfirmasi="Kirim notifikasi WhatsApp sekarang untuk unit <?= e($row['nama_unit']); ?>?">
+                                                    <?php // Tombol kirim manual: pilih saluran WhatsApp, Telegram, atau keduanya ?>
+                                                    <form method="POST" action="dashboard.php" class="dropdown d-inline"
+                                                          onsubmit="return confirm('Kirim notifikasi lewat ' + (event.submitter ? event.submitter.dataset.label : 'saluran pilihan') + ' sekarang untuk unit ' + this.dataset.unit + '?')"
+                                                          data-unit="<?= e($row['nama_unit']); ?>">
                                                         <?= csrf_field(); ?>
                                                         <input type="hidden" name="aksi" value="kirim_wa">
                                                         <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
-                                                        <button type="submit" class="btn-ikon btn-ikon-hijau" title="Kirim WhatsApp">
-                                                            <i class="fa-brands fa-whatsapp"></i>
+                                                        <button type="button" class="btn-ikon btn-ikon-hijau" title="Kirim notifikasi"
+                                                                data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">
+                                                            <i class="fa-solid fa-paper-plane"></i>
                                                         </button>
+                                                        <ul class="dropdown-menu dropdown-menu-end menu-kirim">
+                                                            <li><h6 class="dropdown-header">Kirim notifikasi via</h6></li>
+                                                            <li>
+                                                                <button type="submit" name="via" value="wa" data-label="WhatsApp" class="dropdown-item" <?= $bisa_wa ? '' : 'disabled'; ?>>
+                                                                    <i class="fa-brands fa-whatsapp ikon-wa"></i> WhatsApp<?= $bisa_wa ? '' : ' <small class="text-muted">(token belum diatur)</small>'; ?>
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button type="submit" name="via" value="telegram" data-label="Telegram" class="dropdown-item" <?= $bisa_tg ? '' : 'disabled'; ?>>
+                                                                    <i class="fa-brands fa-telegram ikon-tg"></i> Telegram<?= $bisa_tg ? '' : ' <small class="text-muted">(token belum diatur)</small>'; ?>
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button type="submit" name="via" value="semua" data-label="WhatsApp dan Telegram" class="dropdown-item" <?= $bisa_wa && $bisa_tg ? '' : 'disabled'; ?>>
+                                                                    <i class="fa-solid fa-paper-plane"></i> WhatsApp + Telegram
+                                                                </button>
+                                                            </li>
+                                                        </ul>
                                                     </form>
                                                 </div>
                                             </td>
@@ -1127,6 +1157,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                 <select name="status_wa" class="form-select" aria-label="Status pengiriman">
                                     <option value="">Semua status</option>
                                     <option value="berhasil" <?= $status_wa === 'berhasil' ? 'selected' : ''; ?>>Berhasil</option>
+                                    <option value="sebagian" <?= $status_wa === 'sebagian' ? 'selected' : ''; ?>>Sebagian gagal</option>
                                     <option value="gagal" <?= $status_wa === 'gagal' ? 'selected' : ''; ?>>Gagal</option>
                                 </select>
                             </div>
@@ -1148,7 +1179,11 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     <?php if (!$riwayat_wa): ?>
                         <tr><td colspan="5"><div class="kosong"><i class="fa-regular fa-comment-dots"></i><?= $menyaring_riwayat ? 'Tidak ada riwayat yang cocok dengan pencarian.' : 'Belum ada riwayat pengiriman.'; ?></div></td></tr>
                     <?php endif; ?>
-                    <?php foreach ($riwayat_wa as $w): $ok = $w['status'] === 'berhasil'; ?>
+                    <?php foreach ($riwayat_wa as $w):
+                        $ok = $w['status'] === 'berhasil';
+                        // Hasil per saluran ['wa' => [...], 'telegram' => [...]] jika dikirim lewat WA & Telegram sekaligus
+                        $per_saluran = array_column(!empty($w['detail']) ? (json_decode($w['detail'], true) ?: []) : [], null, 'saluran');
+                    ?>
                         <tr>
                             <td class="text-nowrap"><?= date('d M Y H:i', strtotime($w['waktu'])); ?></td>
                             <td><span class="lencana <?= $w['jenis'] === 'otomatis' ? 'lencana-biru' : 'lencana-abu'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
@@ -1160,6 +1195,10 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             <td style="min-width: 160px;">
                                 <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
                                     <div class="text-nowrap">
+                                        <?php $sal = strncmp($no, 'tg:', 3) === 0 ? 'telegram' : 'wa'; ?>
+                                        <?php if (isset($per_saluran[$sal])): $ok_sal = !empty($per_saluran[$sal]['ok']); ?>
+                                            <i class="fa-solid <?= $ok_sal ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger'; ?>" title="<?= $ok_sal ? 'Terkirim' : 'Gagal'; ?>"></i>
+                                        <?php endif; ?>
                                         <?php if (strncmp($no, 'tg:', 3) === 0): ?>
                                             <?php $cid = substr($no, 3); ?>
                                             <span class="fw-semibold" style="color:#229ed9"><i class="fa-brands fa-telegram"></i> <?= e($nama_telegram[$cid] ?? 'Telegram'); ?></span> <span class="text-secondary"><?= e($cid); ?></span>
@@ -1173,8 +1212,18 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                 <?php if (trim($w['penerima']) === '-'): ?><span class="text-muted">-</span><?php endif; ?>
                             </td>
                             <td>
-                                <span class="lencana <?= $ok ? 'lencana-hijau' : 'lencana-merah'; ?>"><i class="fa-solid <?= $ok ? 'fa-check' : 'fa-xmark'; ?>"></i> <?= $ok ? 'Berhasil' : 'Gagal'; ?></span>
-                                <?php if (!$ok && $w['keterangan']): ?><div class="text-danger" style="font-size:.75rem"><?= e($w['keterangan']); ?></div><?php endif; ?>
+                                <?php if ($w['status'] === 'berhasil'): ?>
+                                    <span class="lencana lencana-hijau"><i class="fa-solid fa-check"></i> Berhasil</span>
+                                <?php elseif ($w['status'] === 'sebagian'): ?>
+                                    <span class="lencana lencana-kuning"><i class="fa-solid fa-triangle-exclamation"></i> Sebagian</span>
+                                <?php else: ?>
+                                    <span class="lencana lencana-merah"><i class="fa-solid fa-xmark"></i> Gagal</span>
+                                <?php endif; ?>
+                                <?php // Alasan gagal: per saluran (pengiriman WA & Telegram sekaligus) atau keterangan biasa ?>
+                                <?php foreach ($per_saluran as $sal => $h): if (!empty($h['ok']) || empty($h['pesan'])) continue; ?>
+                                    <div class="text-danger" style="font-size:.75rem"><?= e(namaSaluran($sal) . ': ' . $h['pesan']); ?></div>
+                                <?php endforeach; ?>
+                                <?php if (!$per_saluran && !$ok && $w['keterangan']): ?><div class="text-danger" style="font-size:.75rem"><?= e($w['keterangan']); ?></div><?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

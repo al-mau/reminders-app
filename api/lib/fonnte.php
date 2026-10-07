@@ -150,20 +150,24 @@ function cariChatTelegram(): array
  * Nama fungsi tetap "kirimWhatsApp" agar pemanggil lama (cron & dashboard) tidak perlu diubah.
  * @param string $jenis     'otomatis' (cron) atau 'manual' (tombol di dashboard)
  * @param string $ringkasan Daftar unit yang diingatkan, untuk riwayat
+ * @param array|null $saluran ['wa'], ['telegram'], atau keduanya; null = ikut NOTIF_VIA
+ *                            (dipakai tombol kirim manual yang memilih saluran sendiri)
  * @return array{ok: bool, pesan: string}  ok = minimal satu saluran berhasil
  */
-function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasan = ''): array
+function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasan = '', ?array $saluran = null): array
 {
     global $pdo;
 
     $ringkasan = $ringkasan !== '' ? $ringkasan : '-';
-    $saluran   = saluranNotifikasi();
+    $saluran   = $saluran ?: saluranNotifikasi();
     $semua     = [];
+
+    $catatan   = [];
 
     if (in_array('wa', $saluran, true)) {
         $target = implode(',', daftarNomorPenerima());
         $hasil  = kirimKeFonnte($pesan, $target);
-        catatWa($pdo, $jenis, $ringkasan, $target !== '' ? $target : '-', $hasil['ok'], $hasil['pesan']);
+        $catatan[] = ['saluran' => 'wa', 'penerima' => $target !== '' ? $target : '-'] + $hasil;
         $semua['WhatsApp'] = $hasil;
     }
 
@@ -171,9 +175,12 @@ function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasa
         $chat  = daftarChatTelegram();
         $hasil = kirimKeTelegram($pesan, $chat);
         // Penerima Telegram dicatat dengan awalan "tg:" agar riwayat bisa membedakannya dari nomor WA
-        catatWa($pdo, $jenis, $ringkasan, $chat ? 'tg:' . implode(',tg:', $chat) : '-', $hasil['ok'], $hasil['pesan']);
+        $catatan[] = ['saluran' => 'telegram', 'penerima' => $chat ? 'tg:' . implode(',tg:', $chat) : '-'] + $hasil;
         $semua['Telegram'] = $hasil;
     }
+
+    // WA & Telegram dari satu pengiriman dicatat sebagai satu baris riwayat
+    catatPengiriman($pdo, $jenis, $ringkasan, $catatan);
 
     if (count($semua) === 1) {
         return reset($semua);

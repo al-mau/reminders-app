@@ -81,6 +81,10 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--latar); co
 /* Penerima WA */
 .avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; background: #dcf3e5; color: #075e54; font-weight: 700; }
 .kartu-wa .list-group-item { background: transparent; border-color: #eef1f4; }
+.menu-kirim { min-width: 210px; font-size: .9rem; }
+.menu-kirim .dropdown-item { display: flex; align-items: center; gap: .5rem; }
+.menu-kirim i { width: 18px; text-align: center; }
+.menu-kirim .ikon-wa { color: #25d366; } .menu-kirim .ikon-tg { color: #229ed9; }
 .kartu-tg .list-group-item { background: transparent; border-color: #eef1f4; }
 .avatar-tg { background: #dceefa; color: #0b6aa2; }
 .tg-ditemukan { background: #f5fafe; border: 1px dashed #b9dcf2; border-radius: 10px; }
