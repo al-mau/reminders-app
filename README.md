@@ -22,6 +22,7 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 | `vercel.json` | Pengaturan Vercel (lihat penjelasan di bawah) |
 | `sw.js`, `manifest.json` | PWA: aplikasi bisa di-"Install" di HP/laptop |
 | `xampp/` | Bahan versi XAMPP: `bash xampp/build.sh` membuat `reminders-app-xampp.zip` (lihat `xampp/CARA_PAKAI_XAMPP.txt`) |
+| `herd/` | Bahan versi Laravel Herd: `bash herd/build.sh` membuat `reminders-app-herd.zip` (halaman di `public/`, database tetap MySQL XAMPP; lihat `herd/CARA_PAKAI_HERD.txt`) |
 | `vendor/` | Pratinjau lampiran tanpa unduh: `pratinjau.html` + library Word (mammoth) & Excel (SheetJS) |
 
 ### Penjelasan `vercel.json`
@@ -58,6 +59,6 @@ Selain WhatsApp (Fonnte), pengingat bisa dikirim lewat Telegram Bot:
 |---|---|
 | `NOTIF_VIA` | `wa` (default), `telegram`, atau `wa,telegram` |
 | `TELEGRAM_BOT_TOKEN` | Token bot dari @BotFather |
-| `TELEGRAM_CHAT_ID` | Chat id orang/grup (grup diawali `-`), bisa lebih dari 1 dipisah koma |
+| `TELEGRAM_CHAT_ID` | Opsional. Chat id cadangan jika belum ada penerima Telegram di dashboard (kartu **Penerima Telegram**); grup diawali `-`, bisa lebih dari 1 dipisah koma |
 
 Riwayat pengiriman Telegram tampil di kartu Riwayat Pengiriman WA dengan ikon Telegram.

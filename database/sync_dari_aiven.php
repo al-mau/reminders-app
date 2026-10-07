@@ -26,7 +26,7 @@ if (PHP_SAPI !== 'cli') {
 date_default_timezone_set('Asia/Jakarta');
 
 // Tabel yang disalin dari Aiven ke XAMPP (urutan tidak penting)
-$tabelDisalin = ['users', 'deadline', 'wa_penerima', 'lampiran', 'lampiran_bagian', 'wa_log'];
+$tabelDisalin = ['users', 'deadline', 'wa_penerima', 'telegram_penerima', 'lampiran', 'lampiran_bagian', 'wa_log'];
 
 /** Tampilkan pesan di layar dengan jam, contoh: [20:00:01] OK `users`: 3 baris disalin */
 function tulis(string $pesan): void
