@@ -45,7 +45,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v4'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v5'])) {
         return;
     }
 
@@ -54,6 +54,15 @@ function pastikanTabelTambahan(PDO $pdo): void
         id             INT AUTO_INCREMENT PRIMARY KEY,
         nama           VARCHAR(100) NOT NULL,
         nomor          VARCHAR(20)  NOT NULL UNIQUE,
+        aktif          TINYINT(1)   NOT NULL DEFAULT 1,
+        dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Daftar chat Telegram penerima pengingat (diatur dari dashboard)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS telegram_penerima (
+        id             INT AUTO_INCREMENT PRIMARY KEY,
+        nama           VARCHAR(100) NOT NULL,
+        chat_id        VARCHAR(25)  NOT NULL UNIQUE,
         aktif          TINYINT(1)   NOT NULL DEFAULT 1,
         dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
@@ -117,7 +126,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v4'] = true;
+        $_SESSION['skema_tambahan_v5'] = true;
     }
 }
 

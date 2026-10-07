@@ -379,6 +379,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // --- 8. KELOLA PENERIMA TELEGRAM ---
+    if ($aksi === 'tambah_telegram') {
+        $nama   = trim((string) ($_POST['nama'] ?? ''));
+        $chatId = preg_replace('/\s+/', '', (string) ($_POST['chat_id'] ?? ''));
+
+        if ($nama === '' || !chatIdTelegramValid($chatId)) {
+            flash('danger', 'Nama wajib diisi dan Chat ID Telegram harus berupa angka (grup diawali tanda minus, contoh: -1001234567890).');
+        } else {
+            try {
+                $cek = $pdo->prepare("SELECT nama, aktif FROM telegram_penerima WHERE chat_id = ?");
+                $cek->execute([$chatId]);
+                $ada = $cek->fetch();
+
+                if ($ada) {
+                    flash('warning', "Chat ID $chatId sudah terdaftar atas nama \"{$ada['nama']}\" (status: "
+                        . ((int) $ada['aktif'] === 1 ? 'aktif' : 'nonaktif — klik tombol ▶ untuk mengaktifkan') . ').');
+                } else {
+                    $pdo->prepare("INSERT INTO telegram_penerima (nama, chat_id, dibuat_tanggal) VALUES (?, ?, ?)")
+                        ->execute([function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100), $chatId, date('Y-m-d H:i:s')]);
+                    flash('success', "Chat Telegram $nama ($chatId) ditambahkan sebagai penerima.");
+                }
+            } catch (PDOException $e) {
+                error_log('Tambah penerima Telegram gagal: ' . $e->getMessage());
+                flash('danger', 'Gagal menyimpan Chat ID: ' . $e->getMessage());
+            }
+        }
+        header("Location: dashboard.php#telegram");
+        exit;
+    }
+
+    if ($aksi === 'toggle_telegram') {
+        $pdo->prepare("UPDATE telegram_penerima SET aktif = 1 - aktif WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
+        header("Location: dashboard.php#telegram");
+        exit;
+    }
+
+    if ($aksi === 'hapus_telegram') {
+        $pdo->prepare("DELETE FROM telegram_penerima WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
+        flash('warning', 'Chat Telegram penerima dihapus.');
+        header("Location: dashboard.php#telegram");
+        exit;
+    }
+
+    // Cari chat yang baru mengirim pesan ke bot -> ditampilkan sekali di kartu Telegram (tombol "Tambah")
+    if ($aksi === 'cari_telegram') {
+        $hasil = cariChatTelegram();
+        if (!$hasil['ok']) {
+            flash('danger', 'Gagal mencari chat Telegram: ' . $hasil['pesan']);
+        } elseif (!$hasil['chat']) {
+            flash('warning', 'Belum ada chat baru. Minta penerima membuka bot lalu klik Start (di grup: ketik /start@nama_bot), kemudian klik Cari lagi.');
+        } else {
+            $_SESSION['tg_ditemukan'] = $hasil['chat'];
+        }
+        header("Location: dashboard.php#telegram");
+        exit;
+    }
+
     header("Location: dashboard.php");
     exit;
 }
@@ -499,6 +556,12 @@ $buka_lampiran = (int) ($_GET['lampiran'] ?? 0);
 $penerima_list   = $pdo->query("SELECT * FROM wa_penerima ORDER BY id")->fetchAll();
 $penerima_aktif  = count(array_filter($penerima_list, static fn($p) => (int) $p['aktif'] === 1));
 $wa_target_env   = normalisasiNomorWa((string) env('WA_TARGET', ''));
+$telegram_list   = $pdo->query("SELECT * FROM telegram_penerima ORDER BY id")->fetchAll();
+$telegram_aktif  = count(array_filter($telegram_list, static fn($t) => (int) $t['aktif'] === 1));
+$telegram_env    = $telegram_list ? [] : array_filter(preg_split('/[\s,;]+/', (string) env('TELEGRAM_CHAT_ID', '')), 'chatIdTelegramValid');
+// Hasil tombol "Cari chat" (sekali tampil). Chat yang sudah terdaftar tidak ditampilkan lagi.
+$tg_ditemukan    = array_diff_key($_SESSION['tg_ditemukan'] ?? [], array_flip(array_column($telegram_list, 'chat_id')));
+unset($_SESSION['tg_ditemukan']);
 
 // --- RIWAYAT PENGIRIMAN WA: pencarian + 5 per halaman (?hal_wa=2, ...), terbaru di atas ---
 $cari_wa   = trim((string) ($_GET['cari_wa'] ?? ''));
@@ -542,6 +605,7 @@ $riwayat_wa = $stmtWa->fetchAll();
 // Nomor -> nama penerima, agar kolom Penerima di riwayat menampilkan nama (bukan hanya nomor).
 // Nomor yang sudah dihapus dari daftar penerima tetap tampil sebagai nomor saja.
 $nama_penerima = array_column($penerima_list, 'nama', 'nomor');
+$nama_telegram = array_column($telegram_list, 'nama', 'chat_id');
 $saluran_notif = saluranNotifikasi(); // ['wa'], ['telegram'], atau keduanya (NOTIF_VIA)
 
 // --- PESAN NOTIFIKASI ---
@@ -549,8 +613,8 @@ $alerts = [
     'success_add'     => ['success', 'Data berhasil disimpan!'],
     'success_update'  => ['info', 'Data berhasil diperbarui!'],
     'success_delete'  => ['warning', 'Data berhasil dihapus!'],
-    'wa_sent'         => ['success', 'Pesan WhatsApp berhasil dikirim!'],
-    'wa_failed'       => ['danger', 'Gagal mengirim pesan WhatsApp. Cek token/nomor tujuan.'],
+    'wa_sent'         => ['success', 'Pesan pengingat berhasil dikirim!'],
+    'wa_failed'       => ['danger', 'Gagal mengirim pesan. Cek token & penerima WhatsApp/Telegram.'],
     'invalid'         => ['danger', 'Data tidak valid. Pastikan semua kolom terisi dengan benar.'],
     'invalid_tanggal' => ['danger', 'Tanggal akhir tidak boleh lebih awal dari tanggal awal.'],
     'not_found'       => ['danger', 'Data tidak ditemukan.'],
@@ -597,7 +661,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=9">
+    <link rel="stylesheet" href="tema.css?v=10">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -879,11 +943,10 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     </div>
                     <div class="card-body">
                         <?php // Info saluran notifikasi (NOTIF_VIA): WhatsApp, Telegram, atau keduanya ?>
-                        <?php if (in_array('telegram', $saluran_notif, true)): ?>
+                        <?php if (!in_array('wa', $saluran_notif, true)): ?>
                             <div class="alert alert-light border small py-2 mb-3">
                                 <i class="fa-brands fa-telegram me-1" style="color:#229ed9"></i>
-                                Notifikasi juga dikirim ke <strong><?= count(daftarChatTelegram()); ?> chat Telegram</strong> (diatur di <code>TELEGRAM_CHAT_ID</code>).
-                                <?php if (!in_array('wa', $saluran_notif, true)): ?><br><strong>WhatsApp sedang tidak dipakai</strong> (<code>NOTIF_VIA=telegram</code>), daftar nomor di bawah diabaikan.<?php endif; ?>
+                                <strong>WhatsApp sedang tidak dipakai</strong> (<code>NOTIF_VIA=telegram</code>). Pengingat hanya dikirim ke Telegram, daftar nomor di bawah diabaikan.
                             </div>
                         <?php endif; ?>
                         <?php if (!$penerima_list): ?>
@@ -942,13 +1005,113 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         </form>
                     </div>
                 </div>
+
+                <!-- Penerima Telegram: chat pribadi / grup yang menerima pengingat (NOTIF_VIA=telegram atau wa,telegram) -->
+                <?php $telegram_dipakai = in_array('telegram', $saluran_notif, true); ?>
+                <div class="card kartu kartu-tg mt-4" id="telegram">
+                    <div class="card-header">
+                        <span class="ikon-judul"><i class="fa-brands fa-telegram"></i></span>
+                        <div class="flex-grow-1"><h2 class="kartu-judul">Penerima Telegram</h2><div class="kartu-sub">Chat / grup yang menerima pengingat</div></div>
+                        <span class="lencana <?= $telegram_dipakai ? 'lencana-biru' : 'lencana-abu'; ?>"><?= $telegram_dipakai ? $telegram_aktif . ' aktif' : 'Tidak aktif'; ?></span>
+                    </div>
+                    <div class="card-body">
+                        <?php if (!$telegram_dipakai): ?>
+                            <div class="alert alert-light border small py-2 mb-3">
+                                Telegram belum dipakai. Isi <code>NOTIF_VIA=wa,telegram</code> (atau <code>telegram</code>) dan <code>TELEGRAM_BOT_TOKEN</code> di pengaturan server agar pengingat juga dikirim ke chat di bawah.
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if (!$telegram_list): ?>
+                            <p class="small text-redup mb-3">
+                                Belum ada chat di sini.
+                                <?php if ($telegram_env): ?>
+                                    Saat ini notifikasi dikirim ke Chat ID dari pengaturan server (<strong><?= e(implode(', ', $telegram_env)); ?></strong>).
+                                <?php endif; ?>
+                            </p>
+                        <?php else: ?>
+                            <ul class="list-group list-group-flush mb-3">
+                                <?php foreach ($telegram_list as $t): $aktif = (int) $t['aktif'] === 1; ?>
+                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-2">
+                                    <div class="d-flex align-items-center gap-2 min-w-0 <?= $aktif ? '' : 'opacity-50'; ?>">
+                                        <span class="avatar avatar-tg"><?= e(inisial($t['nama'])); ?></span>
+                                        <div class="min-w-0">
+                                            <div class="fw-semibold small text-truncate"><?= e($t['nama']); ?><?php if (!$aktif): ?> <span class="lencana lencana-abu ms-1">Nonaktif</span><?php endif; ?></div>
+                                            <div class="small text-redup">ID <?= e($t['chat_id']); ?><?= strncmp($t['chat_id'], '-', 1) === 0 ? ' · grup' : ''; ?></div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-1">
+                                        <form method="POST" action="dashboard.php">
+                                            <?= csrf_field(); ?>
+                                            <input type="hidden" name="aksi" value="toggle_telegram">
+                                            <input type="hidden" name="id" value="<?= (int) $t['id']; ?>">
+                                            <button type="submit" class="btn-ikon <?= $aktif ? 'btn-ikon-abu' : 'btn-ikon-biru'; ?>" title="<?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?>">
+                                                <i class="fa-solid <?= $aktif ? 'fa-pause' : 'fa-play'; ?>"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus chat ini dari penerima Telegram?')">
+                                            <?= csrf_field(); ?>
+                                            <input type="hidden" name="aksi" value="hapus_telegram">
+                                            <input type="hidden" name="id" value="<?= (int) $t['id']; ?>">
+                                            <button type="submit" class="btn-ikon btn-ikon-merah" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+                                        </form>
+                                    </div>
+                                </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+
+                        <?php // Hasil tombol "Cari chat": klik Tambah untuk langsung menyimpan ?>
+                        <?php if ($tg_ditemukan): ?>
+                            <div class="subjudul mt-2">Chat ditemukan</div>
+                            <ul class="list-group list-group-flush mb-3 tg-ditemukan">
+                                <?php foreach ($tg_ditemukan as $cid => $c): ?>
+                                <li class="list-group-item px-2 d-flex justify-content-between align-items-center gap-2">
+                                    <div class="min-w-0">
+                                        <div class="fw-semibold small text-truncate"><?= e($c['nama']); ?> <span class="lencana lencana-abu ms-1"><?= e($c['jenis']); ?></span></div>
+                                        <div class="small text-redup">ID <?= e((string) $cid); ?></div>
+                                    </div>
+                                    <form method="POST" action="dashboard.php">
+                                        <?= csrf_field(); ?>
+                                        <input type="hidden" name="aksi" value="tambah_telegram">
+                                        <input type="hidden" name="nama" value="<?= e($c['nama']); ?>">
+                                        <input type="hidden" name="chat_id" value="<?= e((string) $cid); ?>">
+                                        <button type="submit" class="btn btn-sm btn-primary text-nowrap"><i class="fa-solid fa-plus"></i> Tambah</button>
+                                    </form>
+                                </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+
+                        <div class="subjudul mt-2">Tambah penerima</div>
+                        <form method="POST" action="dashboard.php" class="mb-2">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="cari_telegram">
+                            <button type="submit" class="btn btn-sm btn-outline-primary w-100" <?= env('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN dulu"'; ?>>
+                                <i class="fa-solid fa-magnifying-glass"></i> Cari chat yang sudah klik Start di bot
+                            </button>
+                        </form>
+                        <form method="POST" action="dashboard.php" class="row g-2">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="tambah_telegram">
+                            <div class="col-12">
+                                <input type="text" name="nama" class="form-control form-control-sm" placeholder="Nama (contoh: Grup Admin Unit)" maxlength="100" required>
+                            </div>
+                            <div class="col-8">
+                                <input type="text" name="chat_id" class="form-control form-control-sm" placeholder="Chat ID, contoh -1001234567890" inputmode="numeric" pattern="-?[0-9]{3,20}" title="Angka; grup diawali tanda minus" required>
+                            </div>
+                            <div class="col-4">
+                                <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fa-solid fa-plus"></i> Tambah</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
 
             <div class="col-lg-8">
                 <div class="card kartu kartu-wa h-100" id="riwayat">
                     <div class="card-header">
                         <span class="ikon-judul"><i class="fa-solid fa-clock-rotate-left"></i></span>
-                        <div><h2 class="kartu-judul">Riwayat Pengiriman WA</h2><div class="kartu-sub"><?= $total_wa; ?> pengiriman<?= $menyaring_riwayat ? ' sesuai pencarian' : ''; ?></div></div>
+                        <div><h2 class="kartu-judul">Riwayat Pengiriman</h2><div class="kartu-sub"><?= $total_wa; ?> pengiriman<?= $menyaring_riwayat ? ' sesuai pencarian' : ''; ?></div></div>
                     </div>
                     <!-- Pencarian riwayat: kata kunci (unit / penerima / keterangan), status, tanggal kirim -->
                     <div class="card-body pb-0 flex-grow-0">
@@ -998,7 +1161,8 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                 <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
                                     <div class="text-nowrap">
                                         <?php if (strncmp($no, 'tg:', 3) === 0): ?>
-                                            <span class="fw-semibold" style="color:#229ed9"><i class="fa-brands fa-telegram"></i> Telegram</span> <span class="text-secondary"><?= e(substr($no, 3)); ?></span>
+                                            <?php $cid = substr($no, 3); ?>
+                                            <span class="fw-semibold" style="color:#229ed9"><i class="fa-brands fa-telegram"></i> <?= e($nama_telegram[$cid] ?? 'Telegram'); ?></span> <span class="text-secondary"><?= e($cid); ?></span>
                                         <?php elseif (isset($nama_penerima[$no])): ?>
                                             <span class="fw-semibold"><?= e($nama_penerima[$no]); ?></span> <span class="text-secondary">+<?= e($no); ?></span>
                                         <?php else: ?>

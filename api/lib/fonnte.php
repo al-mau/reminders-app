@@ -69,11 +69,80 @@ function saluranNotifikasi(): array
     return $saluran ?: ['wa'];
 }
 
-/** Daftar chat id Telegram dari TELEGRAM_CHAT_ID (angka; grup diawali tanda minus) */
+/** Validasi chat id Telegram: angka; grup/channel diawali tanda minus (contoh -1001234567890) */
+function chatIdTelegramValid(string $id): bool
+{
+    return (bool) preg_match('/^-?\d{3,20}$/', $id);
+}
+
+/**
+ * Daftar chat id Telegram penerima aktif: dari dashboard (tabel telegram_penerima),
+ * atau TELEGRAM_CHAT_ID jika belum ada chat aktif (sama seperti nomor WA & WA_TARGET).
+ */
 function daftarChatTelegram(): array
 {
-    $ids = preg_split('/[\s,;]+/', (string) env('TELEGRAM_CHAT_ID', ''));
-    return array_values(array_unique(array_filter($ids, static fn($id) => (bool) preg_match('/^-?\d{3,20}$/', $id))));
+    global $pdo;
+
+    $ids = [];
+    try {
+        pastikanTabelTambahan($pdo);
+        $ids = $pdo->query("SELECT chat_id FROM telegram_penerima WHERE aktif = 1 ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
+    } catch (PDOException $e) {
+        error_log('Gagal membaca telegram_penerima: ' . $e->getMessage());
+    }
+
+    if (!$ids) {
+        $ids = preg_split('/[\s,;]+/', (string) env('TELEGRAM_CHAT_ID', ''));
+    }
+    return array_values(array_unique(array_filter($ids, static fn($id) => chatIdTelegramValid((string) $id))));
+}
+
+/**
+ * Cari chat yang baru mengirim pesan ke bot (Telegram getUpdates), untuk membantu mengisi chat id.
+ * Orang/grup harus mengirim pesan ke bot dulu (klik Start, atau /start@nama_bot di grup).
+ * @return array{ok: bool, pesan: string, chat: array<string, array{nama: string, jenis: string}>}
+ */
+function cariChatTelegram(): array
+{
+    $token = env('TELEGRAM_BOT_TOKEN');
+    if (!$token) {
+        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur.', 'chat' => []];
+    }
+
+    $url  = rtrim((string) env('TELEGRAM_API', 'https://api.telegram.org'), '/') . '/bot' . $token . '/getUpdates';
+    $curl = curl_init();
+    curl_setopt_array($curl, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT        => 20,
+    ]);
+    pasangSertifikatXampp($curl);
+    $response = curl_exec($curl);
+    curl_close($curl);
+
+    $res = $response === false ? null : json_decode($response, true);
+    if (empty($res['ok'])) {
+        $alasan = $response === false ? 'Gagal menghubungi server Telegram.' : (string) ($res['description'] ?? 'Respon tidak valid');
+        return ['ok' => false, 'pesan' => $alasan, 'chat' => []];
+    }
+
+    $chat = [];
+    foreach ($res['result'] ?? [] as $update) {
+        // Pesan biasa, pesan di channel, atau bot ditambahkan ke grup
+        $c = $update['message']['chat'] ?? $update['channel_post']['chat'] ?? $update['my_chat_member']['chat'] ?? null;
+        if (!$c || !isset($c['id'])) {
+            continue;
+        }
+        $nama = trim((string) ($c['title'] ?? (($c['first_name'] ?? '') . ' ' . ($c['last_name'] ?? ''))));
+        if ($nama === '' && !empty($c['username'])) {
+            $nama = '@' . $c['username'];
+        }
+        $jenis = ['private' => 'Pribadi', 'group' => 'Grup', 'supergroup' => 'Grup', 'channel' => 'Channel'][$c['type'] ?? ''] ?? 'Chat';
+        $chat[(string) $c['id']] = ['nama' => $nama !== '' ? $nama : 'Tanpa nama', 'jenis' => $jenis];
+    }
+
+    return ['ok' => true, 'pesan' => '', 'chat' => $chat];
 }
 
 /**
@@ -165,7 +234,7 @@ function kirimKeTelegram(string $pesan, array $chatIds): array
         return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur.'];
     }
     if (!$chatIds) {
-        return ['ok' => false, 'pesan' => 'TELEGRAM_CHAT_ID belum diatur / tidak valid.'];
+        return ['ok' => false, 'pesan' => 'Belum ada chat Telegram penerima (tambahkan di dashboard atau isi TELEGRAM_CHAT_ID).'];
     }
 
     $url      = rtrim((string) env('TELEGRAM_API', 'https://api.telegram.org'), '/') . '/bot' . $token . '/sendMessage';

@@ -38,7 +38,9 @@ Buka file .env dengan Notepad. Yang perlu diisi:
 Opsional, kirim lewat Telegram (gratis):
   NOTIF_VIA=telegram   (atau wa,telegram untuk keduanya)
   TELEGRAM_BOT_TOKEN=  token dari @BotFather
-  TELEGRAM_CHAT_ID=    chat id orang / grup penerima
+  Penerima Telegram diatur di dashboard (kartu "Penerima Telegram"):
+  minta penerima klik Start di bot (di grup: /start@nama_bot), lalu
+  klik "Cari chat" -> Tambah. TELEGRAM_CHAT_ID= boleh dikosongkan.
 Yang lain sudah terisi untuk XAMPP standar (user root tanpa password).
 Jika MySQL XAMPP memakai password, isi DB_PASSWORD=.
 File .env tidak bisa dibuka dari browser (diblokir .htaccess).

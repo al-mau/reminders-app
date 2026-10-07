@@ -59,6 +59,6 @@ Selain WhatsApp (Fonnte), pengingat bisa dikirim lewat Telegram Bot:
 |---|---|
 | `NOTIF_VIA` | `wa` (default), `telegram`, atau `wa,telegram` |
 | `TELEGRAM_BOT_TOKEN` | Token bot dari @BotFather |
-| `TELEGRAM_CHAT_ID` | Chat id orang/grup (grup diawali `-`), bisa lebih dari 1 dipisah koma |
+| `TELEGRAM_CHAT_ID` | Opsional. Chat id cadangan jika belum ada penerima Telegram di dashboard (kartu **Penerima Telegram**); grup diawali `-`, bisa lebih dari 1 dipisah koma |
 
 Riwayat pengiriman Telegram tampil di kartu Riwayat Pengiriman WA dengan ikon Telegram.
