@@ -371,6 +371,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Edit nama penerima WA / Telegram (nomor & chat id tidak berubah)
+    if ($aksi === 'ubah_nama_penerima' || $aksi === 'ubah_nama_telegram') {
+        $tabel = $aksi === 'ubah_nama_penerima' ? 'wa_penerima' : 'telegram_penerima';
+        $jangkar = $aksi === 'ubah_nama_penerima' ? 'penerima' : 'telegram';
+        $nama  = trim((string) ($_POST['nama'] ?? ''));
+        if ($nama === '') {
+            flash('danger', 'Nama penerima tidak boleh kosong.');
+        } else {
+            $nama = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
+            $pdo->prepare("UPDATE $tabel SET nama = ? WHERE id = ?")->execute([$nama, (int) ($_POST['id'] ?? 0)]);
+            flash('success', "Nama penerima diubah menjadi \"$nama\".");
+        }
+        header("Location: dashboard.php#$jangkar");
+        exit;
+    }
+
     if ($aksi === 'toggle_penerima') {
         $pid = (int) ($_POST['id'] ?? 0);
         $pdo->prepare("UPDATE wa_penerima SET aktif = 1 - aktif WHERE id = ?")->execute([$pid]);
@@ -999,6 +1015,12 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         </div>
                                     </div>
                                     <div class="d-flex gap-1">
+                                        <button type="button" class="btn-ikon btn-ikon-kuning" title="Edit nama"
+                                                data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
+                                                data-aksi="ubah_nama_penerima" data-id="<?= (int) $p['id']; ?>"
+                                                data-nama="<?= e($p['nama']); ?>" data-info="WhatsApp +<?= e($p['nomor']); ?>">
+                                            <i class="fa-solid fa-pen"></i>
+                                        </button>
                                         <form method="POST" action="dashboard.php">
                                             <?= csrf_field(); ?>
                                             <input type="hidden" name="aksi" value="toggle_penerima">
@@ -1070,6 +1092,12 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         </div>
                                     </div>
                                     <div class="d-flex gap-1">
+                                        <button type="button" class="btn-ikon btn-ikon-kuning" title="Edit nama"
+                                                data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
+                                                data-aksi="ubah_nama_telegram" data-id="<?= (int) $t['id']; ?>"
+                                                data-nama="<?= e($t['nama']); ?>" data-info="Telegram ID <?= e($t['chat_id']); ?>">
+                                            <i class="fa-solid fa-pen"></i>
+                                        </button>
                                         <form method="POST" action="dashboard.php">
                                             <?= csrf_field(); ?>
                                             <input type="hidden" name="aksi" value="toggle_telegram">
@@ -1237,6 +1265,51 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
 
         <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
     </div>
+
+    <!-- Modal Edit Nama Penerima (WA & Telegram). Isinya diisi dari tombol pensil yang diklik. -->
+    <div class="modal fade" id="modalNamaPenerima" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST" action="dashboard.php">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold"><i class="fa-solid fa-pen text-warning me-2"></i> Edit Nama Penerima</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="ubah_nama_penerima">
+                        <input type="hidden" name="id" value="">
+                        <div class="small text-redup mb-2" data-info></div>
+                        <label class="form-label text-secondary small fw-bold">Nama</label>
+                        <input type="text" name="nama" class="form-control" maxlength="100" required>
+                        <div class="form-text">Nama ini tampil di daftar penerima dan di Riwayat Pengiriman.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+    // Isi modal Edit Nama sesuai penerima (WA / Telegram) yang tombolnya diklik
+    document.getElementById('modalNamaPenerima').addEventListener('show.bs.modal', (ev) => {
+        const tombol = ev.relatedTarget;
+        const form = ev.target.querySelector('form');
+        if (!tombol) return;
+        // form.elements[...] dipakai karena form.id berarti atribut id milik form, bukan input bernama "id"
+        form.elements['aksi'].value = tombol.dataset.aksi;
+        form.elements['id'].value = tombol.dataset.id;
+        form.elements['nama'].value = tombol.dataset.nama;
+        ev.target.querySelector('[data-info]').textContent = tombol.dataset.info;
+    });
+    document.getElementById('modalNamaPenerima').addEventListener('shown.bs.modal', (ev) => {
+        const input = ev.target.querySelector('input[name=nama]');
+        input.focus();
+        input.select();
+    });
+    </script>
 
     <!-- Modal Edit (diletakkan di luar tabel agar HTML valid) -->
     <?php foreach ($data_tampil as $row): ?>
