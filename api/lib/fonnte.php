@@ -150,14 +150,16 @@ function cariChatTelegram(): array
  * Nama fungsi tetap "kirimWhatsApp" agar pemanggil lama (cron & dashboard) tidak perlu diubah.
  * @param string $jenis     'otomatis' (cron) atau 'manual' (tombol di dashboard)
  * @param string $ringkasan Daftar unit yang diingatkan, untuk riwayat
+ * @param array|null $saluran ['wa'], ['telegram'], atau keduanya; null = ikut NOTIF_VIA
+ *                            (dipakai tombol kirim manual yang memilih saluran sendiri)
  * @return array{ok: bool, pesan: string}  ok = minimal satu saluran berhasil
  */
-function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasan = ''): array
+function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasan = '', ?array $saluran = null): array
 {
     global $pdo;
 
     $ringkasan = $ringkasan !== '' ? $ringkasan : '-';
-    $saluran   = saluranNotifikasi();
+    $saluran   = $saluran ?: saluranNotifikasi();
     $semua     = [];
 
     if (in_array('wa', $saluran, true)) {
