@@ -572,7 +572,7 @@ unset($_SESSION['tg_ditemukan']);
 
 // --- RIWAYAT PENGIRIMAN WA: pencarian + 5 per halaman (?hal_wa=2, ...), terbaru di atas ---
 $cari_wa   = trim((string) ($_GET['cari_wa'] ?? ''));
-$status_wa = in_array($_GET['status_wa'] ?? '', ['berhasil', 'gagal'], true) ? $_GET['status_wa'] : '';
+$status_wa = in_array($_GET['status_wa'] ?? '', ['berhasil', 'sebagian', 'gagal'], true) ? $_GET['status_wa'] : '';
 $tgl_wa    = tanggal_valid((string) ($_GET['tgl_wa'] ?? '')) ? (string) $_GET['tgl_wa'] : '';
 
 $where_wa  = [];
@@ -1157,6 +1157,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                 <select name="status_wa" class="form-select" aria-label="Status pengiriman">
                                     <option value="">Semua status</option>
                                     <option value="berhasil" <?= $status_wa === 'berhasil' ? 'selected' : ''; ?>>Berhasil</option>
+                                    <option value="sebagian" <?= $status_wa === 'sebagian' ? 'selected' : ''; ?>>Sebagian gagal</option>
                                     <option value="gagal" <?= $status_wa === 'gagal' ? 'selected' : ''; ?>>Gagal</option>
                                 </select>
                             </div>
@@ -1178,7 +1179,11 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     <?php if (!$riwayat_wa): ?>
                         <tr><td colspan="5"><div class="kosong"><i class="fa-regular fa-comment-dots"></i><?= $menyaring_riwayat ? 'Tidak ada riwayat yang cocok dengan pencarian.' : 'Belum ada riwayat pengiriman.'; ?></div></td></tr>
                     <?php endif; ?>
-                    <?php foreach ($riwayat_wa as $w): $ok = $w['status'] === 'berhasil'; ?>
+                    <?php foreach ($riwayat_wa as $w):
+                        $ok = $w['status'] === 'berhasil';
+                        // Hasil per saluran ['wa' => [...], 'telegram' => [...]] jika dikirim lewat WA & Telegram sekaligus
+                        $per_saluran = array_column(!empty($w['detail']) ? (json_decode($w['detail'], true) ?: []) : [], null, 'saluran');
+                    ?>
                         <tr>
                             <td class="text-nowrap"><?= date('d M Y H:i', strtotime($w['waktu'])); ?></td>
                             <td><span class="lencana <?= $w['jenis'] === 'otomatis' ? 'lencana-biru' : 'lencana-abu'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
@@ -1190,6 +1195,10 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             <td style="min-width: 160px;">
                                 <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
                                     <div class="text-nowrap">
+                                        <?php $sal = strncmp($no, 'tg:', 3) === 0 ? 'telegram' : 'wa'; ?>
+                                        <?php if (isset($per_saluran[$sal])): $ok_sal = !empty($per_saluran[$sal]['ok']); ?>
+                                            <i class="fa-solid <?= $ok_sal ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger'; ?>" title="<?= $ok_sal ? 'Terkirim' : 'Gagal'; ?>"></i>
+                                        <?php endif; ?>
                                         <?php if (strncmp($no, 'tg:', 3) === 0): ?>
                                             <?php $cid = substr($no, 3); ?>
                                             <span class="fw-semibold" style="color:#229ed9"><i class="fa-brands fa-telegram"></i> <?= e($nama_telegram[$cid] ?? 'Telegram'); ?></span> <span class="text-secondary"><?= e($cid); ?></span>
@@ -1203,8 +1212,18 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                 <?php if (trim($w['penerima']) === '-'): ?><span class="text-muted">-</span><?php endif; ?>
                             </td>
                             <td>
-                                <span class="lencana <?= $ok ? 'lencana-hijau' : 'lencana-merah'; ?>"><i class="fa-solid <?= $ok ? 'fa-check' : 'fa-xmark'; ?>"></i> <?= $ok ? 'Berhasil' : 'Gagal'; ?></span>
-                                <?php if (!$ok && $w['keterangan']): ?><div class="text-danger" style="font-size:.75rem"><?= e($w['keterangan']); ?></div><?php endif; ?>
+                                <?php if ($w['status'] === 'berhasil'): ?>
+                                    <span class="lencana lencana-hijau"><i class="fa-solid fa-check"></i> Berhasil</span>
+                                <?php elseif ($w['status'] === 'sebagian'): ?>
+                                    <span class="lencana lencana-kuning"><i class="fa-solid fa-triangle-exclamation"></i> Sebagian</span>
+                                <?php else: ?>
+                                    <span class="lencana lencana-merah"><i class="fa-solid fa-xmark"></i> Gagal</span>
+                                <?php endif; ?>
+                                <?php // Alasan gagal: per saluran (pengiriman WA & Telegram sekaligus) atau keterangan biasa ?>
+                                <?php foreach ($per_saluran as $sal => $h): if (!empty($h['ok']) || empty($h['pesan'])) continue; ?>
+                                    <div class="text-danger" style="font-size:.75rem"><?= e(namaSaluran($sal) . ': ' . $h['pesan']); ?></div>
+                                <?php endforeach; ?>
+                                <?php if (!$per_saluran && !$ok && $w['keterangan']): ?><div class="text-danger" style="font-size:.75rem"><?= e($w['keterangan']); ?></div><?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS wa_log (
     penerima   VARCHAR(500) NOT NULL,
     status     VARCHAR(10)  NOT NULL,
     keterangan VARCHAR(255) NULL,
+    detail     VARCHAR(1000) NULL,  -- hasil per saluran (JSON), jika dikirim lewat WA & Telegram sekaligus
     INDEX idx_waktu (waktu)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
