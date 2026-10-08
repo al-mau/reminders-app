@@ -853,7 +853,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         <th>Nama Unit</th>
                                         <th>Tgl Awal</th>
                                         <th>Tgl Akhir</th>
-                                        <th class="text-center">Status</th>
+                                        <th class="text-center">Deadline</th>
                                         <th class="text-center">Aksi</th>
                                     </tr>
                                 </thead>
