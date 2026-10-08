@@ -687,7 +687,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=11">
+    <link rel="stylesheet" href="tema.css?v=12">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -845,7 +845,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     <div class="card-body p-0">
                         <!-- Daftar unit: 5 per halaman, tombol pindah halaman di bawah -->
                         <div class="table-responsive">
-                            <table class="table table-hover align-middle tabel">
+                            <table class="table table-hover align-middle tabel tabel-unit">
                                 <thead>
                                     <tr>
                                         <th class="text-center" width="5%">No</th>
@@ -854,6 +854,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         <th>Tgl Awal</th>
                                         <th>Tgl Akhir</th>
                                         <th class="text-center">Deadline</th>
+                                        <th class="text-center">Terkirim Tgl</th>
                                         <th class="text-center">Aksi</th>
                                     </tr>
                                 </thead>
@@ -879,10 +880,13 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                             <td class="fw-semibold text-dark"><?= e($row['nama_unit']); ?></td>
                                             <td class="text-redup small text-nowrap"><?= date('d M Y', strtotime($row['tanggal_awal'])); ?></td>
                                             <td class="small text-nowrap fw-semibold"><?= date('d M Y', strtotime($row['tanggal_akhir'])); ?></td>
-                                            <td class="text-center">
-                                                <?= $badge_deadline; ?>
-                                                <?php if (!empty($row['terakhir_dikirim'])): ?>
-                                                    <div class="info-terkirim" title="Pengingat otomatis terakhir terkirim">
+                                            <td class="text-center"><?= $badge_deadline; ?></td>
+                                            <?php // Tanggal pengingat otomatis terakhir terkirim (+ tombol Kirim ulang) ?>
+                                            <td class="text-center small text-nowrap">
+                                                <?php if (empty($row['terakhir_dikirim'])): ?>
+                                                    <span class="text-redup">-</span>
+                                                <?php else: ?>
+                                                    <div class="info-terkirim mt-0" title="Pengingat otomatis terakhir terkirim">
                                                         <i class="fa-solid fa-paper-plane"></i> <?= date('d M Y', strtotime($row['terakhir_dikirim'])); ?>
                                                     </div>
                                                     <?php // Tombol "Kirim ulang" disembunyikan untuk unit expired: cron hanya mengirim unit yang deadline-nya hari ini/besok ?>
@@ -900,7 +904,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                 <?php endif; ?>
                                             </td>
                                             <td class="text-center">
-                                                <div class="d-flex justify-content-center gap-1">
+                                                <div class="aksi-grid">
                                                     <button type="button" class="btn-ikon btn-ikon-kuning"
                                                             data-bs-toggle="modal"
                                                             data-bs-target="#modalEdit<?= (int) $row['id']; ?>"
@@ -919,7 +923,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                         <?php endif; ?>
                                                     </button>
 
-                                                    <form method="POST" action="dashboard.php" class="d-inline"
+                                                    <form method="POST" action="dashboard.php"
                                                           onsubmit="return confirm('Apakah Anda yakin ingin menghapus data unit ini beserta lampirannya?')">
                                                         <?= csrf_field(); ?>
                                                         <input type="hidden" name="aksi" value="hapus">
@@ -930,7 +934,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                     </form>
 
                                                     <?php // Tombol kirim manual: pilih saluran WhatsApp, Telegram, atau keduanya ?>
-                                                    <form method="POST" action="dashboard.php" class="dropdown d-inline"
+                                                    <form method="POST" action="dashboard.php" class="dropdown"
                                                           onsubmit="return confirm('Kirim notifikasi lewat ' + (event.submitter ? event.submitter.dataset.label : 'saluran pilihan') + ' sekarang untuk unit ' + this.dataset.unit + '?')"
                                                           data-unit="<?= e($row['nama_unit']); ?>">
                                                         <?= csrf_field(); ?>
@@ -965,7 +969,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="7"><div class="kosong"><i class="fa-regular fa-folder-open"></i>Belum ada unit yang cocok. Tambahkan unit lewat form di samping atau ubah pencarian.</div></td>
+                                            <td colspan="8"><div class="kosong"><i class="fa-regular fa-folder-open"></i>Belum ada unit yang cocok. Tambahkan unit lewat form di samping atau ubah pencarian.</div></td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
