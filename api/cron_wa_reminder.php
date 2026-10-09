@@ -9,7 +9,8 @@
  *  2. Ambil unit yang tanggal_akhir-nya HARI INI atau BESOK dan belum dikirim hari ini
  *  3. Gabungkan semuanya menjadi 1 pesan WA -> kirim ke semua nomor penerima aktif
  *  4. Jika berhasil: tandai pengingat = 'sent' & terakhir_dikirim = hari ini
- *  5. Tampilkan laporan JSON (terlihat di riwayat cron-job.org)
+ *  5. Bersihkan sisa lampiran tidak terpakai (lihat bersihkanLampiranGantung)
+ *  6. Tampilkan laporan JSON (terlihat di riwayat cron-job.org)
  */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/fonnte.php';
@@ -86,6 +87,14 @@ if ($rows) {
         // Gagal kirim: status tidak diubah, sehingga cron berikutnya akan mencoba lagi
         $laporan['gagal'] = ['alasan' => $hasil['pesan'], 'unit' => $ringkasan];
     }
+}
+
+// Sekalian bersihkan sisa lampiran tidak terpakai (upload terputus, potongan tanpa induk) sekali sehari
+try {
+    pastikanTabelTambahan($pdo);
+    $laporan['potongan_lampiran_dibersihkan'] = bersihkanLampiranGantung($pdo);
+} catch (PDOException $e) {
+    error_log('Pembersihan lampiran gagal: ' . $e->getMessage());
 }
 
 echo json_encode($laporan);
