@@ -349,13 +349,24 @@ function hapusLampiranUnit(PDO $pdo, int $deadlineId): void
     $pdo->prepare("DELETE FROM lampiran WHERE deadline_id = ?")->execute([$deadlineId]);
 }
 
-/** Hapus upload yang terputus / tidak selesai lebih dari 1 hari (agar database tidak penuh sampah) */
-function bersihkanLampiranGantung(PDO $pdo): void
+/**
+ * Bersihkan sisa lampiran yang tidak terpakai agar database (1 GB) tidak penuh sampah:
+ *  1. upload yang terputus / tidak selesai lebih dari 1 hari
+ *  2. lampiran milik unit yang sudah tidak ada
+ *  3. potongan file (lampiran_bagian) yang induknya di tabel lampiran sudah tidak ada
+ * Dijalankan otomatis setiap hari oleh cron pengingat, dan oleh setup.php?bersihkan=1.
+ * @return int jumlah potongan file yang dihapus
+ */
+function bersihkanLampiranGantung(PDO $pdo): int
 {
     $batas = date('Y-m-d H:i:s', time() - 86400);
-    $pdo->prepare("DELETE FROM lampiran_bagian WHERE lampiran_id IN (SELECT id FROM lampiran WHERE selesai = 0 AND dibuat_tanggal < ?)")
-        ->execute([$batas]);
     $pdo->prepare("DELETE FROM lampiran WHERE selesai = 0 AND dibuat_tanggal < ?")->execute([$batas]);
+    $pdo->exec("DELETE FROM lampiran WHERE deadline_id NOT IN (SELECT id FROM deadline)");
+
+    // Potongan tanpa induk (termasuk milik baris lampiran yang baru saja dihapus di atas)
+    return (int) $pdo->exec(
+        "DELETE b FROM lampiran_bagian b LEFT JOIN lampiran l ON l.id = b.lampiran_id WHERE l.id IS NULL"
+    );
 }
 
 // ===================================================================

@@ -101,8 +101,8 @@ try {
         // Data sementara (biasanya sudah dibersihkan otomatis)
         $n = $pdo->exec("DELETE FROM login_gagal WHERE waktu < '" . date('Y-m-d H:i:s', time() - 86400) . "'");
         echo "- $n catatan login gagal lama dihapus\n";
-        bersihkanLampiranGantung($pdo);
-        echo "- Upload lampiran yang tidak selesai dibersihkan\n";
+        $n = bersihkanLampiranGantung($pdo);
+        echo "- Sisa lampiran tidak terpakai dibersihkan ($n potongan file dihapus)\n";
 
         // Tabel lain hanya dihapus jika namanya disebut: &hapus=nama1,nama2
         $minta = array_filter(array_map('trim', explode(',', (string) ($_GET['hapus'] ?? ''))));
