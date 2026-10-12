@@ -76,7 +76,7 @@ try {
     // Pembersihan data yang tidak dipakai aplikasi: tambahkan &bersihkan=1
     // ---------------------------------------------------------------
     // Daftar tabel yang DIPAKAI aplikasi -> tidak akan pernah dihapus oleh mode pembersihan
-    $tabelAplikasi = ['users', 'deadline', 'sessions', 'wa_penerima', 'telegram_penerima', 'lampiran', 'lampiran_bagian', 'wa_log', 'login_gagal'];
+    $tabelAplikasi = ['users', 'deadline', 'sessions', 'wa_penerima', 'telegram_penerima', 'telegram_chat_masuk', 'lampiran', 'lampiran_bagian', 'wa_log', 'login_gagal'];
 
     if (!empty($_GET['bersihkan'])) {
         echo "\n=== PEMBERSIHAN ===\n";

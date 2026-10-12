@@ -62,3 +62,18 @@ Selain WhatsApp (Fonnte), pengingat bisa dikirim lewat Telegram Bot:
 | `TELEGRAM_CHAT_ID` | Opsional. Chat id cadangan jika belum ada penerima Telegram di dashboard (kartu **Penerima Telegram**); grup diawali `-`, bisa lebih dari 1 dipisah koma |
 
 Riwayat pengiriman Telegram tampil di kartu Riwayat Pengiriman WA dengan ikon Telegram.
+
+### Tombol "✅ Selesai" di pesan Telegram
+
+Penerima bisa menandai unit selesai langsung dari chat; pengingat otomatis untuk unit itu berhenti.
+
+1. Buka dashboard **versi online** (alamat `https://...vercel.app`), kartu **Penerima Telegram** → **Tombol Selesai di Telegram** → **Aktifkan**. Dashboard mendaftarkan webhook `https://<domain>/telegram_webhook.php` ke bot (tidak perlu Environment Variable baru).
+2. Pesan pengingat berikutnya (otomatis & manual) memiliki tombol **✅ Selesai: (kode) nama** per unit.
+3. Saat tombol ditekan: unit ditandai selesai, tombolnya hilang dari pesan, dan bot membalas "ditandai selesai oleh ...". Di dashboard kolom **Deadline** menampilkan **Selesai** + nama penanda, dengan link **Batalkan**.
+
+Keamanan & aturan:
+- Hanya chat yang terdaftar **aktif** di kartu Penerima Telegram yang boleh menekan tombol (di grup terdaftar, semua anggota grup boleh). Orang lain mendapat pesan penolakan.
+- Setiap panggilan webhook wajib membawa kunci rahasia (header `X-Telegram-Bot-Api-Secret-Token`, diturunkan dari `TELEGRAM_BOT_TOKEN`), jadi tombol tidak bisa dipalsukan.
+- Status selesai otomatis dihapus bila **tanggal akhir diubah** (deadline diperpanjang) atau tombol **Kirim ulang** diklik. Unit juga bisa ditandai / dibatalkan dari dashboard.
+- Selama webhook aktif, Telegram menolak `getUpdates`; tombol **Cari chat** memakai daftar chat yang dicatat webhook (tabel `telegram_chat_masuk`). Bot juga membalas `/start` atau `/id` dengan Chat ID pengirim.
+- XAMPP / Herd di laptop tidak bisa menerima webhook (tidak bisa diakses dari internet). Tombol yang diklik selalu diproses versi online (database Aiven).

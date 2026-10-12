@@ -46,6 +46,10 @@ Opsional, kirim lewat Telegram (gratis):
   Penerima Telegram diatur di dashboard (kartu "Penerima Telegram"):
   minta penerima klik Start di bot (di grup: /start@nama_bot), lalu
   klik "Cari chat" -> Tambah. TELEGRAM_CHAT_ID= boleh dikosongkan.
+  Tombol "Selesai" di pesan Telegram hanya bisa diaktifkan dari versi online
+  (Vercel), karena server Telegram tidak bisa menghubungi laptop. Unit yang
+  ditandai selesai lewat Telegram tersimpan di Aiven -> ikut tersalin ke
+  laptop saat sync_dari_aiven.bat dijalankan.
 DB_* sudah terisi untuk MySQL XAMPP standar (user root tanpa password).
 Jika MySQL memakai password, isi DB_PASSWORD=.
 File .env, lib\ dan database\ berada di luar folder public, jadi tidak

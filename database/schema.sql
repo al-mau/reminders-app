@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS deadline (
     tanggal_akhir    DATE         NOT NULL,
     pengingat        VARCHAR(20)  NOT NULL DEFAULT 'pending',
     terakhir_dikirim DATE         NULL,
+    selesai_tanggal  DATETIME     NULL,  -- diisi saat unit ditandai selesai (Telegram / dashboard)
+    selesai_oleh     VARCHAR(100) NULL,
     INDEX idx_tanggal_akhir (tanggal_akhir)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -45,6 +47,14 @@ CREATE TABLE IF NOT EXISTS telegram_penerima (
     chat_id        VARCHAR(25)  NOT NULL UNIQUE,
     aktif          TINYINT(1)   NOT NULL DEFAULT 1,
     dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Chat yang terakhir menghubungi bot (dicatat webhook Telegram, untuk tombol "Cari chat")
+CREATE TABLE IF NOT EXISTS telegram_chat_masuk (
+    chat_id VARCHAR(25)  NOT NULL PRIMARY KEY,
+    nama    VARCHAR(100) NOT NULL,
+    jenis   VARCHAR(20)  NOT NULL,
+    waktu   DATETIME     NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Lampiran dokumen per unit (file disimpan di database, maks 5 MB per file)
