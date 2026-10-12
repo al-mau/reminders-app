@@ -4,9 +4,8 @@
  * Tabel dibuat otomatis saat pertama kali dibutuhkan, tidak perlu setup manual.
  *
  * Isi file ini:
- *  - pastikanTabelTambahan() -> membuat tabel wa_penerima, telegram_penerima, lampiran,
- *                               lampiran_bagian, wa_log, telegram_chat_masuk, login_gagal
- *                               (jika belum ada) + kolom selesai di tabel deadline
+ *  - pastikanTabelTambahan() -> membuat tabel wa_penerima, lampiran, lampiran_bagian,
+ *                               wa_log, login_gagal (jika belum ada)
  *  - LAMPIRAN ...            -> simpan / hapus dokumen per unit (upload per potongan)
  *  - RIWAYAT PENGIRIMAN      -> catatPengiriman() mencatat setiap pengiriman WhatsApp/Telegram
  *  - PEMBATASAN LOGIN        -> kunci login 15 menit setelah salah password berkali-kali
@@ -46,7 +45,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v7'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v6'])) {
         return;
     }
 
@@ -125,22 +124,6 @@ function pastikanTabelTambahan(PDO $pdo): void
         gabungRiwayatLama($pdo);
     }
 
-    // Status selesai per unit (tombol "Selesai" di pesan Telegram / dashboard).
-    // Selama terisi, cron tidak mengirim pengingat untuk unit ini.
-    $kolomDeadline = $pdo->query("SHOW COLUMNS FROM deadline")->fetchAll(PDO::FETCH_COLUMN);
-    if (!in_array('selesai_tanggal', $kolomDeadline, true)) {
-        $pdo->exec("ALTER TABLE deadline ADD COLUMN selesai_tanggal DATETIME NULL, ADD COLUMN selesai_oleh VARCHAR(100) NULL");
-    }
-
-    // Chat yang terakhir menghubungi bot, dicatat oleh telegram_webhook.php.
-    // Dipakai tombol "Cari chat" karena getUpdates tidak bisa dipakai saat webhook aktif.
-    $pdo->exec("CREATE TABLE IF NOT EXISTS telegram_chat_masuk (
-        chat_id VARCHAR(25)  NOT NULL PRIMARY KEY,
-        nama    VARCHAR(100) NOT NULL,
-        jenis   VARCHAR(20)  NOT NULL,
-        waktu   DATETIME     NOT NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
     // Percobaan login gagal (pembatasan brute force)
     $pdo->exec("CREATE TABLE IF NOT EXISTS login_gagal (
         id       INT AUTO_INCREMENT PRIMARY KEY,
@@ -153,7 +136,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v7'] = true;
+        $_SESSION['skema_tambahan_v6'] = true;
     }
 }
 

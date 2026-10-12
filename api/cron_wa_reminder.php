@@ -6,10 +6,8 @@
  *
  * Alur:
  *  1. Cek key == CRON_SECRET (agar orang lain tidak bisa memicu kirim WA)
- *  2. Ambil unit yang tanggal_akhir-nya HARI INI atau BESOK, belum dikirim hari ini,
- *     dan belum ditandai selesai
+ *  2. Ambil unit yang tanggal_akhir-nya HARI INI atau BESOK dan belum dikirim hari ini
  *  3. Gabungkan semuanya menjadi 1 pesan WA -> kirim ke semua nomor penerima aktif
- *     (di Telegram, tiap unit diberi tombol "Selesai" jika webhook aktif)
  *  4. Jika berhasil: tandai pengingat = 'sent' & terakhir_dikirim = hari ini
  *  5. Bersihkan sisa lampiran tidak terpakai (lihat bersihkanLampiranGantung)
  *  6. Tampilkan laporan JSON (terlihat di riwayat cron-job.org)
@@ -28,19 +26,15 @@ if (!$cronSecret || !is_string($keyDikirim) || !hash_equals($cronSecret, $keyDik
     exit;
 }
 
-// Pastikan kolom/tabel tambahan sudah ada (kolom selesai_tanggal dipakai di query berikut)
-pastikanTabelTambahan($pdo);
-
 // Tanggal dihitung menurut APP_TIMEZONE (Asia/Jakarta), lihat lib/koneksi.php
 $hari_ini = date('Y-m-d');
 $besok    = date('Y-m-d', strtotime('+1 day'));
 
-// CARI DATA: Tanggal akhir BESOK atau HARI INI, DAN belum dikirim HARI INI, DAN belum selesai
+// CARI DATA: Tanggal akhir BESOK atau HARI INI, DAN belum dikirim HARI INI
 $stmt = $pdo->prepare(
     "SELECT * FROM deadline
      WHERE tanggal_akhir IN (:besok, :hari_ini)
-       AND (terakhir_dikirim IS NULL OR terakhir_dikirim <> :hari_ini2)
-       AND selesai_tanggal IS NULL"
+       AND (terakhir_dikirim IS NULL OR terakhir_dikirim <> :hari_ini2)"
 );
 $stmt->execute([':besok' => $besok, ':hari_ini' => $hari_ini, ':hari_ini2' => $hari_ini]);
 $rows = $stmt->fetchAll();
@@ -81,7 +75,7 @@ if ($rows) {
     // Ringkasan nama unit untuk dicatat di Riwayat Pengiriman WA
     // Format "(kode) nama", satu unit per baris -> tampil bernomor di Riwayat WA
     $ringkasan = implode("\n", array_map(static fn($r) => '(' . $r['kode_unit'] . ') ' . $r['nama_unit'], $rows));
-    $hasil     = kirimWhatsApp($pesan, 'otomatis', $ringkasan, null, $rows);
+    $hasil     = kirimWhatsApp($pesan, 'otomatis', $ringkasan);
 
     // Tandai sudah dikirim agar tidak terkirim ganda hari ini
     if ($hasil['ok']) {
@@ -97,6 +91,7 @@ if ($rows) {
 
 // Sekalian bersihkan sisa lampiran tidak terpakai (upload terputus, potongan tanpa induk) sekali sehari
 try {
+    pastikanTabelTambahan($pdo);
     $laporan['potongan_lampiran_dibersihkan'] = bersihkanLampiranGantung($pdo);
 } catch (PDOException $e) {
     error_log('Pembersihan lampiran gagal: ' . $e->getMessage());

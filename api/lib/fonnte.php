@@ -4,7 +4,6 @@
  *  - NOTIF_VIA          : saluran yang dipakai: "wa" (default), "telegram", atau "wa,telegram"
  *  - TELEGRAM_BOT_TOKEN : token bot dari @BotFather
  *  - TELEGRAM_CHAT_ID   : chat id penerima (orang atau grup), bisa lebih dari 1 dipisah koma
- *  - Tombol "Selesai" di pesan Telegram diproses oleh telegram_webhook.php (aktifkan dari dashboard)
  *  - FONNTE_TOKEN (Environment Variable) : token device dari dashboard fonnte.com
  *  - Nomor penerima diatur dari dashboard (tabel wa_penerima, bisa lebih dari 1 nomor).
  *    Jika belum ada nomor aktif di dashboard, dipakai WA_TARGET dari Environment Variables.
@@ -125,10 +124,6 @@ function cariChatTelegram(): array
     $res = $response === false ? null : json_decode($response, true);
     if (empty($res['ok'])) {
         $alasan = $response === false ? 'Gagal menghubungi server Telegram.' : (string) ($res['description'] ?? 'Respon tidak valid');
-        // Saat webhook aktif, getUpdates ditolak Telegram -> pakai chat yang dicatat telegram_webhook.php
-        if (stripos($alasan, 'webhook') !== false) {
-            return chatMasukTelegram();
-        }
         return ['ok' => false, 'pesan' => $alasan, 'chat' => []];
     }
 
@@ -139,113 +134,15 @@ function cariChatTelegram(): array
         if (!$c || !isset($c['id'])) {
             continue;
         }
-        $chat[(string) $c['id']] = infoChatTelegram($c);
+        $nama = trim((string) ($c['title'] ?? (($c['first_name'] ?? '') . ' ' . ($c['last_name'] ?? ''))));
+        if ($nama === '' && !empty($c['username'])) {
+            $nama = '@' . $c['username'];
+        }
+        $jenis = ['private' => 'Pribadi', 'group' => 'Grup', 'supergroup' => 'Grup', 'channel' => 'Channel'][$c['type'] ?? ''] ?? 'Chat';
+        $chat[(string) $c['id']] = ['nama' => $nama !== '' ? $nama : 'Tanpa nama', 'jenis' => $jenis];
     }
 
     return ['ok' => true, 'pesan' => '', 'chat' => $chat];
-}
-
-/** Nama & jenis chat Telegram (dari objek "chat" milik Telegram) untuk ditampilkan di dashboard */
-function infoChatTelegram(array $c): array
-{
-    $nama = trim((string) ($c['title'] ?? (($c['first_name'] ?? '') . ' ' . ($c['last_name'] ?? ''))));
-    if ($nama === '' && !empty($c['username'])) {
-        $nama = '@' . $c['username'];
-    }
-    $jenis = ['private' => 'Pribadi', 'group' => 'Grup', 'supergroup' => 'Grup', 'channel' => 'Channel'][$c['type'] ?? ''] ?? 'Chat';
-    return ['nama' => $nama !== '' ? potong($nama, 100) : 'Tanpa nama', 'jenis' => $jenis];
-}
-
-/** Chat yang menghubungi bot dalam 30 hari terakhir (dicatat webhook), terbaru di atas */
-function chatMasukTelegram(): array
-{
-    global $pdo;
-
-    pastikanTabelTambahan($pdo);
-    $stmt = $pdo->prepare("SELECT chat_id, nama, jenis FROM telegram_chat_masuk WHERE waktu >= ? ORDER BY waktu DESC LIMIT 20");
-    $stmt->execute([date('Y-m-d H:i:s', strtotime('-30 days'))]);
-    $chat = [];
-    foreach ($stmt->fetchAll() as $c) {
-        $chat[$c['chat_id']] = ['nama' => $c['nama'], 'jenis' => $c['jenis']];
-    }
-    return ['ok' => true, 'pesan' => '', 'chat' => $chat];
-}
-
-/**
- * Panggil satu metode Telegram Bot API (dikirim sebagai JSON).
- * @return array|null balasan Telegram ({"ok": true, "result": ...}), null jika token kosong / gagal terhubung
- */
-function panggilTelegram(string $metode, array $data = []): ?array
-{
-    $token = env('TELEGRAM_BOT_TOKEN');
-    if (!$token) {
-        return null;
-    }
-
-    $curl = curl_init();
-    curl_setopt_array($curl, [
-        CURLOPT_URL            => rtrim((string) env('TELEGRAM_API', 'https://api.telegram.org'), '/') . '/bot' . $token . '/' . $metode,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-        CURLOPT_POSTFIELDS     => json_encode($data ?: new stdClass()),
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT        => 20,
-    ]);
-    pasangSertifikatXampp($curl);
-    $response = curl_exec($curl);
-    curl_close($curl);
-
-    $res = $response === false ? null : json_decode($response, true);
-    if ($res === null) {
-        error_log("Telegram $metode gagal: " . ($response === false ? 'tidak terhubung' : $response));
-    }
-    return is_array($res) ? $res : null;
-}
-
-/**
- * Kunci rahasia webhook: dikirim Telegram di header X-Telegram-Bot-Api-Secret-Token
- * pada setiap update, agar orang lain tidak bisa memalsukan tombol "Selesai".
- * Diturunkan dari TELEGRAM_BOT_TOKEN, jadi tidak perlu Environment Variable baru.
- */
-function rahasiaWebhookTelegram(): string
-{
-    return hash_hmac('sha256', 'telegram-webhook', (string) env('TELEGRAM_BOT_TOKEN', ''));
-}
-
-/**
- * Apakah webhook bot sudah diarahkan ke telegram_webhook.php aplikasi ini?
- * Tombol "Selesai" hanya dipasang di pesan bila webhook aktif (tanpa webhook tombolnya tidak berfungsi).
- */
-function webhookTelegramAktif(): bool
-{
-    static $aktif = null;
-    if ($aktif === null) {
-        $res   = panggilTelegram('getWebhookInfo');
-        $aktif = strpos((string) ($res['result']['url'] ?? ''), 'telegram_webhook.php') !== false;
-    }
-    return $aktif;
-}
-
-/**
- * Tombol "Selesai" (inline keyboard) di bawah pesan Telegram: satu tombol per unit.
- * Saat diklik, Telegram memanggil telegram_webhook.php dengan data "selesai:<id unit>".
- * @param array $units baris tabel deadline (id, kode_unit, nama_unit)
- * @return array reply_markup Telegram, atau [] jika webhook belum aktif
- */
-function tombolSelesaiTelegram(array $units): array
-{
-    if (!$units || !webhookTelegramAktif()) {
-        return [];
-    }
-    $baris = [];
-    foreach ($units as $u) {
-        $baris[] = [[
-            'text'          => '✅ Selesai: ' . potong('(' . $u['kode_unit'] . ') ' . $u['nama_unit'], 45),
-            'callback_data' => 'selesai:' . (int) $u['id'],
-        ]];
-    }
-    return ['inline_keyboard' => $baris];
 }
 
 /**
@@ -255,10 +152,9 @@ function tombolSelesaiTelegram(array $units): array
  * @param string $ringkasan Daftar unit yang diingatkan, untuk riwayat
  * @param array|null $saluran ['wa'], ['telegram'], atau keduanya; null = ikut NOTIF_VIA
  *                            (dipakai tombol kirim manual yang memilih saluran sendiri)
- * @param array $unitTombol unit (baris tabel deadline) yang diberi tombol "Selesai" di pesan Telegram
  * @return array{ok: bool, pesan: string}  ok = minimal satu saluran berhasil
  */
-function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasan = '', ?array $saluran = null, array $unitTombol = []): array
+function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasan = '', ?array $saluran = null): array
 {
     global $pdo;
 
@@ -277,7 +173,7 @@ function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasa
 
     if (in_array('telegram', $saluran, true)) {
         $chat  = daftarChatTelegram();
-        $hasil = kirimKeTelegram($pesan, $chat, tombolSelesaiTelegram($unitTombol));
+        $hasil = kirimKeTelegram($pesan, $chat);
         // Penerima Telegram dicatat dengan awalan "tg:" agar riwayat bisa membedakannya dari nomor WA
         $catatan[] = ['saluran' => 'telegram', 'penerima' => $chat ? 'tg:' . implode(',tg:', $chat) : '-'] + $hasil;
         $semua['Telegram'] = $hasil;
@@ -338,7 +234,7 @@ function pesanKeHtmlTelegram(string $pesan): string
  * Satu permintaan per chat id; berhasil jika minimal satu chat menerima.
  * @return array{ok: bool, pesan: string}
  */
-function kirimKeTelegram(string $pesan, array $chatIds, array $tombol = []): array
+function kirimKeTelegram(string $pesan, array $chatIds): array
 {
     $token = env('TELEGRAM_BOT_TOKEN');
     if (!$token) {
@@ -366,7 +262,7 @@ function kirimKeTelegram(string $pesan, array $chatIds, array $tombol = []): arr
                 'text'                     => $html,
                 'parse_mode'               => 'HTML',
                 'disable_web_page_preview' => 'true',
-            ] + ($tombol ? ['reply_markup' => json_encode($tombol)] : []),
+            ],
         ]);
         pasangSertifikatXampp($curl);
         $response = curl_exec($curl);

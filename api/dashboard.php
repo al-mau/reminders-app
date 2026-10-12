@@ -4,8 +4,7 @@
  *
  * Susunan file ini:
  *  1. AKSI             -> proses tombol/form (tambah, edit, hapus unit, kirim WA manual,
- *                         reset pengingat, tandai selesai, lampiran, penerima WA/Telegram,
- *                         webhook tombol Selesai Telegram). Semua lewat POST + CSRF.
+ *                         reset pengingat, lampiran, penerima WA). Semua lewat POST + CSRF.
  *  2. DATA TAMPILAN    -> statistik, pencarian/filter/halaman tabel, lampiran, penerima, riwayat WA
  *  3. HTML             -> kartu statistik, form input, daftar penerima, tabel unit,
  *                         riwayat WA, popup edit & popup lampiran
@@ -214,21 +213,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             header("Location: dashboard.php?status=success_add");
         } else {
-            // Jika tanggal akhir diubah (deadline diperpanjang), reset status pengingat & status selesai
-            // agar cron kembali mengingatkan menjelang deadline yang baru.
-            // tanggal_akhir diisi paling akhir: MySQL memproses SET berurutan, jadi IF() di atasnya
-            // masih membandingkan dengan tanggal akhir yang lama.
+            // Jika tanggal akhir diubah, reset status pengingat agar cron mengirim ulang
             $stmt = $pdo->prepare(
                 "UPDATE deadline
                  SET kode_unit = ?, nama_unit = ?, tanggal_awal = ?,
                      pengingat = IF(tanggal_akhir <> ?, 'pending', pengingat),
                      terakhir_dikirim = IF(tanggal_akhir <> ?, NULL, terakhir_dikirim),
-                     selesai_oleh = IF(tanggal_akhir <> ?, NULL, selesai_oleh),
-                     selesai_tanggal = IF(tanggal_akhir <> ?, NULL, selesai_tanggal),
                      tanggal_akhir = ?
                  WHERE id = ?"
             );
-            $stmt->execute([$kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
+            $stmt->execute([$kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
             header("Location: dashboard.php?status=success_update");
         }
         exit;
@@ -276,8 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ][(string) ($_POST['via'] ?? '')] ?? null;
 
         // Kirim manual tidak mengubah status pengingat unit (pengingat otomatis tetap berjalan sesuai jadwal)
-        // Di Telegram diberi tombol "Selesai" (kecuali unit sudah ditandai selesai)
-        $hasil = kirimWhatsApp($pesan, 'manual', $label, $via, $data_wa['selesai_tanggal'] === null ? [$data_wa] : []);
+        $hasil = kirimWhatsApp($pesan, 'manual', $label, $via);
         if (!$hasil['ok']) {
             $_SESSION['flash_wa_error'] = $hasil['pesan'];
         } else {
@@ -300,29 +293,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: dashboard.php");
             exit;
         }
-        // Status selesai ikut dihapus: cron tidak mengirim pengingat untuk unit yang sudah selesai
-        $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL, selesai_tanggal = NULL, selesai_oleh = NULL WHERE id = ?")->execute([$id]);
+        $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL WHERE id = ?")->execute([$id]);
         $label = labelUnit($pdo, $id);
         flash('success', "Pengingat $label di-reset. Akan dikirim ulang otomatis pada jadwal cron berikutnya jika deadline-nya hari ini atau besok.");
         header("Location: dashboard.php");
-        exit;
-    }
-
-    // --- 4c. TANDAI SELESAI / BATALKAN: cron berhenti mengingatkan unit yang sudah selesai ---
-    // (bisa juga lewat tombol "Selesai" di pesan Telegram, lihat telegram_webhook.php)
-    if ($aksi === 'tandai_selesai' || $aksi === 'batal_selesai') {
-        $id    = (int) ($_POST['id'] ?? 0);
-        $label = labelUnit($pdo, $id);
-        if ($aksi === 'tandai_selesai') {
-            $oleh = potong((string) ($_SESSION['username'] ?? 'admin'), 88) . ' (dashboard)';
-            $pdo->prepare("UPDATE deadline SET selesai_tanggal = ?, selesai_oleh = ? WHERE id = ? AND selesai_tanggal IS NULL")
-                ->execute([date('Y-m-d H:i:s'), $oleh, $id]);
-            flash('success', "Unit $label ditandai selesai. Pengingat otomatis untuk unit ini dihentikan.");
-        } else {
-            $pdo->prepare("UPDATE deadline SET selesai_tanggal = NULL, selesai_oleh = NULL WHERE id = ?")->execute([$id]);
-            flash('info', "Status selesai unit $label dibatalkan. Pengingat otomatis berjalan lagi sesuai jadwal.");
-        }
-        header("Location: dashboard.php#daftar");
         exit;
     }
 
@@ -467,42 +441,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($aksi === 'hapus_telegram') {
         $pdo->prepare("DELETE FROM telegram_penerima WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
         flash('warning', 'Chat Telegram penerima dihapus.');
-        header("Location: dashboard.php#telegram");
-        exit;
-    }
-
-    // Aktifkan / matikan tombol "Selesai" di pesan Telegram (daftarkan webhook ke bot).
-    // Telegram hanya mau memanggil alamat HTTPS publik -> hanya bisa dari versi online (Vercel).
-    if ($aksi === 'aktifkan_webhook' || $aksi === 'matikan_webhook') {
-        unset($_SESSION['tg_webhook']);
-        if ($aksi === 'matikan_webhook') {
-            $res = panggilTelegram('deleteWebhook');
-            !empty($res['ok'])
-                ? flash('warning', 'Tombol Selesai di Telegram dimatikan. Pesan berikutnya dikirim tanpa tombol.')
-                : flash('danger', 'Gagal mematikan webhook: ' . ($res['description'] ?? 'tidak bisa menghubungi Telegram'));
-            header("Location: dashboard.php#telegram");
-            exit;
-        }
-
-        $https = ($_SERVER['HTTPS'] ?? '') === 'on' || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
-        $host  = (string) ($_SERVER['HTTP_HOST'] ?? '');
-        $folder = rtrim(str_replace('\\', '/', dirname((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH))), '/');
-        if (!$https || !preg_match('/^[a-z0-9.-]+(:\d+)?$/i', $host) || preg_match('/^(localhost|127\.|.*\.test$)/i', $host)) {
-            flash('danger', 'Tombol Selesai hanya bisa diaktifkan dari aplikasi versi online (alamat https:// di Vercel). '
-                . 'Server Telegram tidak bisa menghubungi XAMPP / Herd di laptop.');
-            header("Location: dashboard.php#telegram");
-            exit;
-        }
-
-        $url = "https://$host$folder/telegram_webhook.php";
-        $res = panggilTelegram('setWebhook', [
-            'url'             => $url,
-            'secret_token'    => rahasiaWebhookTelegram(),
-            'allowed_updates' => ['message', 'callback_query', 'my_chat_member', 'channel_post'],
-        ]);
-        !empty($res['ok'])
-            ? flash('success', "Tombol Selesai di Telegram aktif (webhook: $url). Pesan pengingat berikutnya memiliki tombol ✅ Selesai per unit.")
-            : flash('danger', 'Gagal mengaktifkan webhook: ' . ($res['description'] ?? 'tidak bisa menghubungi Telegram'));
         header("Location: dashboard.php#telegram");
         exit;
     }
@@ -695,14 +633,6 @@ $saluran_notif = saluranNotifikasi(); // ['wa'], ['telegram'], atau keduanya (NO
 // Saluran yang bisa dipilih di tombol kirim manual (token sudah diisi)
 $bisa_wa = (string) env('FONNTE_TOKEN', '') !== '';
 $bisa_tg = (string) env('TELEGRAM_BOT_TOKEN', '') !== '';
-// Status tombol "Selesai" di Telegram (webhook). Dicek ke Telegram paling sering 5 menit sekali.
-$tg_webhook = false;
-if ($bisa_tg) {
-    if (($_SESSION['tg_webhook'][0] ?? 0) < time() - 300) {
-        $_SESSION['tg_webhook'] = [time(), webhookTelegramAktif()];
-    }
-    $tg_webhook = (bool) $_SESSION['tg_webhook'][1];
-}
 
 // --- PESAN NOTIFIKASI ---
 $alerts = [
@@ -950,27 +880,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                             <td class="fw-semibold text-dark"><?= e($row['nama_unit']); ?></td>
                                             <td class="text-redup small text-nowrap"><?= date('d M Y', strtotime($row['tanggal_awal'])); ?></td>
                                             <td class="small text-nowrap fw-semibold"><?= date('d M Y', strtotime($row['tanggal_akhir'])); ?></td>
-                                            <?php // Kolom Deadline: status sisa hari, atau "Selesai" bila sudah ditandai (dari Telegram / dashboard) ?>
-                                            <td class="text-center">
-                                                <?php $selesai = $row['selesai_tanggal'] !== null; ?>
-                                                <?php if ($selesai): ?>
-                                                    <span class="lencana lencana-hijau" title="Ditandai selesai oleh <?= e((string) $row['selesai_oleh']); ?> pada <?= date('d M Y H:i', strtotime($row['selesai_tanggal'])); ?>">
-                                                        <i class="fa-solid fa-circle-check"></i> Selesai
-                                                    </span>
-                                                    <div class="text-redup mt-1" style="font-size:.72rem"><?= e((string) $row['selesai_oleh']); ?></div>
-                                                <?php else: ?>
-                                                    <?= $badge_deadline; ?>
-                                                <?php endif; ?>
-                                                <form method="POST" action="dashboard.php"
-                                                      onsubmit="return confirm('<?= $selesai ? 'Batalkan status selesai? Pengingat otomatis untuk unit ini akan berjalan lagi.' : 'Tandai unit ini selesai? Pengingat otomatis untuk unit ini dihentikan.'; ?>')">
-                                                    <?= csrf_field(); ?>
-                                                    <input type="hidden" name="aksi" value="<?= $selesai ? 'batal_selesai' : 'tandai_selesai'; ?>">
-                                                    <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
-                                                    <button type="submit" class="btn btn-link btn-sm p-0 text-decoration-none text-nowrap <?= $selesai ? 'text-secondary' : 'text-success'; ?>" style="font-size:.75rem">
-                                                        <?= $selesai ? '<i class="fa-solid fa-rotate-left"></i> Batalkan' : '<i class="fa-solid fa-check"></i> Tandai selesai'; ?>
-                                                    </button>
-                                                </form>
-                                            </td>
+                                            <td class="text-center"><?= $badge_deadline; ?></td>
                                             <?php // Tanggal pengingat otomatis terakhir terkirim (+ tombol Kirim ulang) ?>
                                             <td class="text-center small text-nowrap">
                                                 <?php if (empty($row['terakhir_dikirim'])): ?>
@@ -1232,28 +1142,6 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                 </li>
                                 <?php endforeach; ?>
                             </ul>
-                        <?php endif; ?>
-
-                        <?php // Tombol "✅ Selesai" di pesan Telegram (webhook) ?>
-                        <?php if ($bisa_tg): ?>
-                            <div class="subjudul mt-2">Tombol Selesai di Telegram</div>
-                            <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
-                                <div class="small text-redup">
-                                    <?php if ($tg_webhook): ?>
-                                        <span class="lencana lencana-hijau me-1">Aktif</span> Penerima terdaftar bisa menandai unit selesai dari chat.
-                                    <?php else: ?>
-                                        <span class="lencana lencana-abu me-1">Mati</span> Pesan dikirim tanpa tombol Selesai.
-                                    <?php endif; ?>
-                                </div>
-                                <form method="POST" action="dashboard.php"
-                                      <?= $tg_webhook ? 'onsubmit="return confirm(\'Matikan tombol Selesai di Telegram?\')"' : ''; ?>>
-                                    <?= csrf_field(); ?>
-                                    <input type="hidden" name="aksi" value="<?= $tg_webhook ? 'matikan_webhook' : 'aktifkan_webhook'; ?>">
-                                    <button type="submit" class="btn btn-sm text-nowrap <?= $tg_webhook ? 'btn-outline-secondary' : 'btn-outline-success'; ?>">
-                                        <?= $tg_webhook ? '<i class="fa-solid fa-power-off"></i> Matikan' : '<i class="fa-solid fa-circle-check"></i> Aktifkan'; ?>
-                                    </button>
-                                </form>
-                            </div>
                         <?php endif; ?>
 
                         <div class="subjudul mt-2">Tambah penerima</div>
