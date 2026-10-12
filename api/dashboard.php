@@ -804,8 +804,8 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                 </div>
             </div>
 
-            <!-- Di HP urutannya: form input, daftar unit, penerima WA, penerima Telegram, riwayat -->
-            <div class="col-lg-8">
+            <!-- Di HP daftar unit tampil lebih dulu, form input di bawahnya -->
+            <div class="col-lg-8 order-first order-lg-0">
                 <div class="card kartu kartu-daftar h-100" id="daftar">
                     <div class="card-header">
                         <span class="ikon-judul"><i class="fa-solid fa-list-check"></i></span>
