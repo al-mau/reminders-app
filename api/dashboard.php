@@ -816,26 +816,27 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             <?php // Filter status dari kartu statistik tetap ikut saat mencari ?>
                             <?php if ($filter !== 'semua'): ?><input type="hidden" name="filter" value="<?= e($filter); ?>"><?php endif; ?>
                             <?= inputTersembunyi(['cari_wa', 'status_wa', 'tgl_wa', 'hal_wa']); ?>
-                            <div class="col-12">
+                            <?php // Satu baris di laptop (sama seperti pencarian Riwayat): kata kunci, Tgl Awal, Tgl Akhir, tombol ?>
+                            <div class="col-12 col-md-4 col-lg-12 col-xl-3">
                                 <div class="input-group">
                                     <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-secondary"></i></span>
                                     <input type="text" name="search" class="form-control" placeholder="Cari kode / nama unit..." value="<?= e($search); ?>">
                                 </div>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-5">
-                                <div class="input-group" title="Tampilkan unit dengan tanggal awal mulai tanggal ini">
-                                    <span class="input-group-text bg-white small">Tgl Awal</span>
-                                    <input type="date" name="dari" class="form-control" value="<?= e($tgl_dari); ?>" aria-label="Tanggal awal">
+                            <div class="col-12 col-sm-6 col-md">
+                                <div class="input-group" title="Tgl Awal: tampilkan unit dengan tanggal awal mulai tanggal ini">
+                                    <span class="input-group-text bg-white small px-2">Awal</span>
+                                    <input type="date" name="dari" class="form-control px-2" value="<?= e($tgl_dari); ?>" aria-label="Tanggal awal">
                                 </div>
                             </div>
-                            <div class="col-12 col-sm-6 col-md-5">
-                                <div class="input-group" title="Tampilkan unit dengan tanggal akhir sampai tanggal ini">
-                                    <span class="input-group-text bg-white small">Tgl Akhir</span>
-                                    <input type="date" name="sampai" class="form-control" value="<?= e($tgl_sampai); ?>" aria-label="Tanggal akhir">
+                            <div class="col-12 col-sm-6 col-md">
+                                <div class="input-group" title="Tgl Akhir: tampilkan unit dengan tanggal akhir sampai tanggal ini">
+                                    <span class="input-group-text bg-white small px-2">Akhir</span>
+                                    <input type="date" name="sampai" class="form-control px-2" value="<?= e($tgl_sampai); ?>" aria-label="Tanggal akhir">
                                 </div>
                             </div>
-                            <div class="col-md-2 d-flex gap-2">
-                                <button type="submit" class="btn btn-primary w-100" title="Cari"><i class="fa-solid fa-magnifying-glass"></i><span class="d-md-none ms-1">Cari</span></button>
+                            <div class="col-12 col-md-auto d-flex gap-2">
+                                <button type="submit" class="btn btn-primary w-100 px-md-4" title="Cari"><i class="fa-solid fa-magnifying-glass"></i><span class="d-md-none ms-1">Cari</span></button>
                                 <?php if ($sedang_menyaring): ?>
                                     <a href="<?= urlTanpa(['search', 'dari', 'sampai', 'filter', 'hal'], 'daftar'); ?>" class="btn btn-light border" title="Hapus pencarian & filter"><i class="fa-solid fa-xmark"></i></a>
                                 <?php endif; ?>
