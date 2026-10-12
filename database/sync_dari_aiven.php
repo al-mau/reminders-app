@@ -89,13 +89,14 @@ function opsiPdo(bool $pakaiSsl, ?string $caFile = null): array
         return $options;
     }
 
-    // Sertifikat CA bawaan XAMPP / sistem (hanya untuk mengaktifkan TLS)
+    // Sertifikat CA bawaan XAMPP / Laragon / sistem (hanya untuk mengaktifkan TLS)
     $xampp = dirname(PHP_BINARY, 2);
     $candidates = [
         ini_get('curl.cainfo') ?: '',
         ini_get('openssl.cafile') ?: '',
         $xampp . '/apache/bin/curl-ca-bundle.crt',
         $xampp . '/php/extras/ssl/cacert.pem',
+        dirname(PHP_BINARY, 4) . '/etc/ssl/cacert.pem', // Laragon: laragon\bin\php\php-8.x\php.exe -> laragon\etc\ssl
         '/etc/ssl/certs/ca-certificates.crt',
         '/etc/pki/tls/certs/ca-bundle.crt',
         '/etc/ssl/cert.pem',

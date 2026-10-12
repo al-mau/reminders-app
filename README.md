@@ -23,6 +23,7 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 | `sw.js`, `manifest.json` | PWA: aplikasi bisa di-"Install" di HP/laptop |
 | `xampp/` | Bahan versi XAMPP: `bash xampp/build.sh` membuat `reminders-app-xampp.zip` (lihat `xampp/CARA_PAKAI_XAMPP.txt`) |
 | `herd/` | Bahan versi Laravel Herd: `bash herd/build.sh` membuat `reminders-app-herd.zip` (halaman di `public/`, database tetap MySQL XAMPP; lihat `herd/CARA_PAKAI_HERD.txt`) |
+| `laragon/` | Bahan versi Laragon: `bash laragon/build.sh` membuat `reminders-app-laragon.zip` (susunan sama dengan XAMPP, file `.bat` mencari PHP & MySQL di `laragon\bin`; lihat `laragon/CARA_PAKAI_LARAGON.txt`) |
 | `vendor/` | Pratinjau lampiran tanpa unduh: `pratinjau.html` + library Word (mammoth) & Excel (SheetJS) |
 
 ### Penjelasan `vercel.json`

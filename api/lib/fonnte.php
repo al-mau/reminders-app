@@ -191,7 +191,7 @@ function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasa
 }
 
 /**
- * XAMPP / Laravel Herd (Windows) kadang belum mengatur sertifikat HTTPS untuk cURL
+ * XAMPP / Laragon / Laravel Herd (Windows) kadang belum mengatur sertifikat HTTPS untuk cURL
  * -> pakai file sertifikat bawaan PHP/XAMPP yang ditemukan.
  */
 function pasangSertifikatXampp($curl): void
@@ -204,6 +204,8 @@ function pasangSertifikatXampp($curl): void
         dirname(PHP_BINARY, 2) . '/apache/bin/curl-ca-bundle.crt',
         dirname(PHP_BINARY, 2) . '/php/extras/ssl/cacert.pem',
         dirname(PHP_BINARY) . '/extras/ssl/cacert.pem',
+        // Laragon: laragon\bin\php\php-8.x\php.exe -> laragon\etc\ssl\cacert.pem
+        dirname(PHP_BINARY, 4) . '/etc/ssl/cacert.pem',
         // Herd memakai PHP sendiri; jika XAMPP juga terpasang, pinjam sertifikatnya
         'C:/xampp/apache/bin/curl-ca-bundle.crt',
         'D:/xampp/apache/bin/curl-ca-bundle.crt',

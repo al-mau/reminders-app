@@ -1,0 +1,97 @@
+=====================================================================
+  APLIKASI PENGINGAT JADWAL - VERSI LARAGON (berjalan di laptop / komputer kantor)
+=====================================================================
+
+Versi ini memakai database MySQL Laragon di laptop (bukan Aiven) dan
+dibuka lewat http://reminders-app.test (atau http://localhost/reminders-app/).
+Fiturnya sama dengan versi online (Vercel).
+
+PENTING
+- Data versi Laragon TERPISAH dari versi online dan dari XAMPP.
+  Input di salah satu tidak otomatis muncul di yang lain.
+- Aplikasi hanya bisa dibuka selama laptop menyala dan Laragon sudah
+  di-START (tombol Start All).
+- JANGAN nyalakan XAMPP dan Laragon bersamaan: keduanya memakai port
+  80 (Apache) dan 3306 (MySQL), salah satunya akan gagal START.
+- Pengingat otomatis hanya terkirim jika laptop menyala pada jamnya.
+- JANGAN jalankan pengingat otomatis Laragon bersamaan dengan versi online
+  (cron-job.org) untuk data yang sama, nanti pesan terkirim dobel.
+
+---------------------------------------------------------------------
+1. PASANG
+---------------------------------------------------------------------
+1) Extract zip ini, lalu pindahkan folder "reminders-app" ke:
+      C:\laragon\www\      (sesuai lokasi Laragon)
+   Hasilnya: C:\laragon\www\reminders-app\login.php
+2) Buka Laragon -> klik Start All.
+   Laragon otomatis membuat alamat http://reminders-app.test
+   (jika belum muncul: klik kanan Laragon -> Reload, atau Stop lalu Start All).
+3) Buat database: klik 2x  reminders-app\database\import_database.bat
+   (membuat database "reminders_db" + semua tabel + contoh data).
+   Atau isi dengan data asli dari Aiven: lihat bagian 4.
+4) Buka browser: http://reminders-app.test
+   - Belum ada akun? Halaman Daftar terbuka otomatis selama tabel
+     users masih kosong. Buat akun admin pertama di sana.
+   - Sesudah itu tambah akun lain lewat menu Kelola User.
+Melihat isi database: tombol "Database" di Laragon (membuka HeidiSQL),
+host 127.0.0.1, user root, password kosong.
+
+---------------------------------------------------------------------
+2. PENGATURAN (file .env di folder reminders-app)
+---------------------------------------------------------------------
+Buka file .env dengan Notepad. Yang perlu diisi:
+  FONNTE_TOKEN=   token device dari dashboard fonnte.com (untuk kirim WA)
+Opsional, kirim lewat Telegram (gratis):
+  NOTIF_VIA=telegram   (atau wa,telegram untuk keduanya)
+  TELEGRAM_BOT_TOKEN=  token dari @BotFather
+  Penerima Telegram diatur di dashboard (kartu "Penerima Telegram"):
+  minta penerima klik Start di bot (di grup: /start@nama_bot), lalu
+  klik "Cari chat" -> Tambah. TELEGRAM_CHAT_ID= boleh dikosongkan.
+Yang lain sudah terisi untuk Laragon standar (user root tanpa password).
+Jika MySQL Laragon memakai password, isi DB_PASSWORD=.
+File .env tidak bisa dibuka dari browser (diblokir .htaccess).
+Mengganti versi aplikasi dengan zip baru: SALIN DULU file .env lama,
+atau cukup timpa file .php saja, agar token & password tidak hilang.
+
+---------------------------------------------------------------------
+3. PENGINGAT OTOMATIS (pengganti cron-job.org)
+---------------------------------------------------------------------
+Coba manual: klik 2x  reminders-app\kirim_pengingat.bat
+Agar otomatis setiap hari jam 20.00:
+ 1) Tekan tombol Windows, ketik "Task Scheduler", buka.
+ 2) Klik "Create Basic Task..." -> Nama: Aplikasi Pengingat Jadwal -> Next
+ 3) Trigger: Daily -> Next -> jam 20:00:00 -> Next
+ 4) Action: Start a program -> Next
+ 5) Program/script: Browse -> pilih ...\laragon\www\reminders-app\kirim_pengingat.bat
+    Add arguments: auto
+ 6) Next -> Finish.
+Hasil setiap pengiriman tersimpan di file reminders-app\pengingat_log.txt
+Catatan: Laragon (MySQL) harus sudah START saat jam 20.00.
+
+---------------------------------------------------------------------
+4. AMBIL DATA DARI VERSI ONLINE (Aiven) -> LARAGON  (opsional)
+---------------------------------------------------------------------
+1) Buka .env, isi AIVEN_DB_HOST, AIVEN_DB_PORT, AIVEN_DB_USER dan
+   AIVEN_DB_PASSWORD (sama dengan DB_* di Vercel, atau lihat
+   console.aiven.io -> service MySQL -> Overview -> Connection information).
+2) Klik 2x  reminders-app\database\sync_dari_aiven.bat
+   Data di Laragon akan DIGANTI dengan data Aiven (akun, unit, lampiran,
+   penerima, riwayat). Pastikan muncul baris
+   "OK `lampiran_bagian`: ... baris disalin" agar dokumen bisa dibuka.
+
+---------------------------------------------------------------------
+5. JIKA ADA MASALAH
+---------------------------------------------------------------------
+- "Folder Laragon tidak ditemukan" -> buka file .bat dengan Notepad, isi
+                               set "LARAGON_MANUAL=C:\laragon" (sesuai lokasi).
+- "Koneksi database gagal"  -> Laragon belum Start All / DB_* di .env salah.
+- Apache / MySQL gagal START -> XAMPP masih menyala (port bentrok). Matikan XAMPP.
+- reminders-app.test tidak terbuka -> pakai http://localhost/reminders-app/
+                               atau Reload Laragon.
+- Pesan tidak terkirim      -> cek FONNTE_TOKEN / TELEGRAM_BOT_TOKEN, internet,
+                               dan status device di fonnte.com. Keterangan error
+                               ada di Riwayat Pengiriman (dashboard).
+- Gagal memuat file lampiran -> potongan file belum tersalin; jalankan lagi
+                               sync_dari_aiven.bat (bagian 4).
+- Tabel kurang / error tabel -> buka http://reminders-app.test/setup.php?key=<CRON_SECRET>
+                               (CRON_SECRET ada di file .env)
