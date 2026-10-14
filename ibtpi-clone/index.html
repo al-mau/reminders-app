@@ -37,7 +37,8 @@
   .topbar .right a { color: var(--yellow-text); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
   .topbar .right a:hover { color: #fff; }
   .topbar .right .sep { margin: 0 26px; }
-  .topbar .right a.lang { color: var(--yellow-text); gap: 6px; }
+  .topbar .right a.lang { gap: 6px; }
+  .topbar .right a.lang.active { font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
   .flag { width: 25px; height: 15px; display: inline-block; vertical-align: middle; }
   .flag-id { background: linear-gradient(#e70011 50%, #fff 50%); }
 
@@ -332,8 +333,8 @@
       <a><i class="fa-solid fa-camera"></i>Galeri</a><span class="sep"></span>
       <a><i class="fa-regular fa-message"></i>Kontak</a><span class="sep"></span>
       <a><i class="fa-solid fa-house"></i> Portal</a><span class="sep"></span>
-      <a class="lang">ID <span class="flag flag-id"></span></a><span class="sep"></span>
-      <a class="lang">EN
+      <a class="lang" data-lang="id" title="Bahasa Indonesia">ID <span class="flag flag-id"></span></a><span class="sep"></span>
+      <a class="lang" data-lang="en" title="English">EN
         <svg class="flag" viewBox="0 0 60 30"><clipPath id="t"><path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z"/></clipPath><path d="M0,0 v30 h60 v-30 z" fill="#012169"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/><path d="M0,0 L60,30 M60,0 L0,30" clip-path="url(#t)" stroke="#C8102E" stroke-width="4"/><path d="M30,0 v30 M0,15 h60" stroke="#fff" stroke-width="10"/><path d="M30,0 v30 M0,15 h60" stroke="#C8102E" stroke-width="6"/></svg>
       </a>
     </div>
@@ -693,6 +694,154 @@
         if (mobile()) menu.classList.remove('open');
       });
     });
+
+    // ===== Tombol bahasa ID / EN =====
+    // Kamus terjemahan: teks Indonesia (persis seperti di halaman) -> teks Inggris
+    var KAMUS_EN = {
+      "Afiliasi": "Affiliation",
+      "Galeri": "Gallery",
+      "Kontak": "Contact",
+      "Profil": "Profile",
+      "Sambutan Rektor": "Rector's Welcome",
+      "Sejarah Singkat": "Brief History",
+      "Visi, Misi, Sasaran, dan Tujuan": "Vision, Mission, Targets, and Goals",
+      "Mars Pelita Indonesia": "Pelita Indonesia Anthem",
+      "Fakultas": "Faculties",
+      "Fakultas Bisnis": "Faculty of Business",
+      "S1 Akuntansi": "Bachelor of Accounting",
+      "S1 Manajemen": "Bachelor of Management",
+      "S2 Manajemen": "Master of Management",
+      "S3 Manajemen": "Doctor of Management",
+      "Fakultas Ilmu Komputer": "Faculty of Computer Science",
+      "S1 Sistem Informasi": "Bachelor of Information Systems",
+      "S1 Teknik Informatika": "Bachelor of Informatics Engineering",
+      "Kelembagaan": "Institutions",
+      "Kemahasiswaan": "Student Affairs",
+      "Berita": "News",
+      "Pendaftaran": "Admission",
+      "Menuju Kampus Unggul": "Towards an Excellent Campus",
+      "Menjadi Kampus Unggul terdepan di tingkat nasional.": "Becoming a leading excellent campus at the national level.",
+      "Pendaftaran Mahasiswa Baru": "New Student Admission",
+      "Menciptakan Lulusan Berkualitas": "Creating Quality Graduates",
+      "Menciptakan lulusan yang mampu bersaing di tingkat regional, nasional maupun global.": "Creating graduates who can compete at regional, national and global levels.",
+      "Berbasiskan Bisnis dan Teknologi": "Based on Business and Technology",
+      "Menciptakan lulusan yang mempunyai kompetensi di bidang Bisnis dan Teknologi.": "Creating graduates with strong competence in Business and Technology.",
+      "Assalamu'alaikum warahmatullahi wabarakatuh Salam sejahtera untuk kita semuanya, Puji syukur kita panjatkan kepada Allah SWT untuk rahmat dan hidayahnya atas terbentuknya website terbaru Institut Bisnis dan Teknologi (IBT) Pelita Indonesia. Website ini diperbaharui untuk memberikan tampilan yang baru dan lebih segar dalam rangka mempermudah mahasiswa untuk mendapatkan informasi dari IBT Pelita Indonesia. Selain itu, website baru ini juga diharapkan dapat memperlihatkan prestasi dosen dan mahasiswa IBT Pelita...": "Assalamu'alaikum warahmatullahi wabarakatuh. Greetings to all of us. We give thanks to Allah SWT for His grace and guidance in the launch of the new website of the Institute of Business and Technology (IBT) Pelita Indonesia. This website has been renewed to offer a fresh new look and to make it easier for students to get information about IBT Pelita Indonesia. In addition, the new website is expected to showcase the achievements of IBT Pelita lecturers and students...",
+      "Selengkapnya": "Read More",
+      "Rektor Institut Bisnis dan Teknologi Pelita Indonesia": "Rector of the Institute of Business and Technology Pelita Indonesia",
+      "Profil Institut Bisnis dan Teknologi Pelita Indonesia": "Profile of the Institute of Business and Technology Pelita Indonesia",
+      "Berita Terbaru": "Latest News",
+      "Informasi mengenai Institut Bisnis dan Teknologi Pelita Indonesia": "Information about the Institute of Business and Technology Pelita Indonesia",
+      "Terbaru": "Latest",
+      "Lihat": "View",
+      "Senin, 20 April 2026": "Monday, 20 April 2026",
+      "Sabtu, 18 April 2026": "Saturday, 18 April 2026",
+      "Jumat, 27 Februari 2026": "Friday, 27 February 2026",
+      "Selasa, 27 Januari 2026": "Tuesday, 27 January 2026",
+      "Jumat, 23 Januari 2026": "Friday, 23 January 2026",
+      "Senin, 19 Januari 2026": "Monday, 19 January 2026",
+      "IBT Pelita Indonesia dan Pemkab Kepulauan Meranti Jalin Kerja Sama Strategis melalui Penandatanganan MoU": "IBT Pelita Indonesia and the Kepulauan Meranti Regency Government Forge a Strategic Partnership through an MoU Signing",
+      "IBT Pelita Indonesia kembali menunjukkan komitmennya dalam memperluas kerja sama ...": "IBT Pelita Indonesia once again shows its commitment to expanding cooperation ...",
+      "Webinar Internasional BP 2026 IBT Pelita Indonesia Bahas Peran AI untuk Inovasi Bisnis Generasi Z": "IBT Pelita Indonesia's BP 2026 International Webinar Discusses the Role of AI in Gen Z Business Innovation",
+      "IBT Pelita Indonesia kembali menyelenggarakan Webinar II Business Project (BP) 2026 yang ...": "IBT Pelita Indonesia once again held Webinar II of the 2026 Business Project (BP), which ...",
+      "Webinar I Business Project IBT Pelita Indonesia Tahun 2026": "IBT Pelita Indonesia 2026 Business Project Webinar I",
+      "IBT Pelita Indonesia resmi menggelar Pembukaan Business Project (BP) 2026 yang dirangkaikan dengan Webinar I pada Rabu, 25 ...": "IBT Pelita Indonesia officially opened the 2026 Business Project (BP), together with Webinar I on Wednesday, 25 ...",
+      "SMK Metta Maitreya Gelar Outdoor Study di IBT Pelita Indonesia Perkuat Wawan Akuntansi Hingga AI": "SMK Metta Maitreya Holds an Outdoor Study at IBT Pelita Indonesia to Broaden Insight from Accounting to AI",
+      "SMK Metta Maitreya melaksanakan kegiatan Outdoor Study ke IBT Pelita Indonesia selama dua hari, Rabu–Kamis, 22–23 Januari 2026, dengan mengusung ...": "SMK Metta Maitreya held a two-day Outdoor Study at IBT Pelita Indonesia, Wednesday–Thursday, 22–23 January 2026, with the theme ...",
+      "Sosialisasi Aktivasi CORETAX di Kampus IBT Pelita Indonesia Dorong Literasi Pajak Digital": "CORETAX Activation Briefing at IBT Pelita Indonesia Encourages Digital Tax Literacy",
+      "IBT Pelita Indonesia menggelar kegiatan Sosialisasi Aktivasi Coretax pada Selasa, 20 Januari 2026, bertempat di Aula Lantai 5 Kampus 2 ...": "IBT Pelita Indonesia held a Coretax Activation Briefing on Tuesday, 20 January 2026, in the 5th Floor Hall of Campus 2 ...",
+      "IBT Pelita Indonesia Sukses Gelar BIMTEK SPMI dan Kurikulum OBE Menuju Akreditasi Unggul LAM": "IBT Pelita Indonesia Successfully Holds SPMI and OBE Curriculum Technical Guidance Towards Excellent LAM Accreditation",
+      "Fakultas Ilmu Komputer IBT Pelita Indonesia menyelenggarakan kegiatan Bimbingan Teknis (BIMTEK) Penyusunan Dokumen Sistem Penjaminan Mutu Internal (SPMI) untuk Akreditasi ...": "The Faculty of Computer Science of IBT Pelita Indonesia held Technical Guidance (BIMTEK) on preparing Internal Quality Assurance System (SPMI) documents for accreditation ...",
+      "Kegiatan Kampus": "Campus Activities",
+      "Lebih dekat mengenal Institut Bisnis dan Teknologi Pelita Indonesia.": "Get to know the Institute of Business and Technology Pelita Indonesia better.",
+      "Agu, 2023": "Aug, 2023",
+      "Des, 2022": "Dec, 2022",
+      "Okt, 2022": "Oct, 2022",
+      "Perayaan HUT RI Ke-78": "78th Indonesian Independence Day",
+      "Kemeriahan Hari Ulang Tahun Republik Indonesia.": "Celebrating the anniversary of the Republic of Indonesia.",
+      "Kegiatan Donor Darah": "Blood Donation Drive",
+      "Aksi Sosial Oleh BEM Pelita Indonesia.": "A social action by the Pelita Indonesia Student Executive Board.",
+      "Seminar RAT": "Year-End Reflection Seminar",
+      "Refleksi Akhir Tahun Mahasiswa IBT-PI.": "Year-end reflection for IBT-PI students.",
+      "Olimpiade Pelita Indonesia": "Pelita Indonesia Olympiad",
+      "Penerapan Akuntansi Di Era 5.0.": "Applying Accounting in the 5.0 Era.",
+      "Lihat Semua Kegiatan": "View All Activities",
+      "Lokasi Kampus": "Campus Location",
+      "Peta lokasi Institut Bisnis dan Teknologi Pelita Indonesia.": "Location map of the Institute of Business and Technology Pelita Indonesia.",
+      "Registrasi Mahasiswa Baru T.A 2026/2027": "New Student Registration A.Y. 2026/2027",
+      "Form Pendaftaran": "Registration Form",
+      "SK Menristekdikti nomor 1007/KPT/I/2019 tentang izin penggabungan STIE dan STIKOM Pelita Indonesia di Pekanbaru yang bergabung menjadi Institut Bisnis dan Teknologi Pelita Indonesia.": "Decree of the Minister of Research, Technology and Higher Education No. 1007/KPT/I/2019 approving the merger of STIE and STIKOM Pelita Indonesia in Pekanbaru into the Institute of Business and Technology Pelita Indonesia.",
+      "Alternatif Links": "Alternative Links",
+      "Kemendikbud": "Ministry of Education",
+      "Berita Populer": "Popular News",
+      "Ratusan Mahasiswa Ikuti Lomba 17 Agustus Di Kampus IBT Pelita Indonesia": "Hundreds of Students Join Independence Day Competitions at IBT Pelita Indonesia",
+      "Sabtu, 19 Agustus 2023": "Saturday, 19 August 2023",
+      "Pincast-17 Untuk Memperingati HUT Kemerdekaan RI Ke-78": "Pincast-17 Commemorates Indonesia's 78th Independence Day",
+      "Kamis, 24 Agustus 2023": "Thursday, 24 August 2023",
+      "Pengukuhan Gelar Sarjana Kepada 100 Lulusan Fakultas Bisnis IBT Pelita Indonesia": "Bachelor's Degree Conferment for 100 Graduates of the Faculty of Business, IBT Pelita Indonesia",
+      "Senin, 21 Agustus 2023": "Monday, 21 August 2023",
+      "Jam Operasional": "Opening Hours",
+      "Senin - Sabtu : 08:00 - 21:00 WIB": "Monday - Saturday : 08:00 - 21:00 WIB",
+      "TEMUKAN DI": "GET IT ON",
+      "Berkas Syarat Pengisian Formulir Pendaftaran Mahasiswa Baru :": "Required Documents for the New Student Registration Form :",
+      "Scan Kartu Keluarga (PDF/JPG) Dengan Max Ukuran Utk 1 File 1MB": "Scanned Family Card (PDF/JPG), maximum 1MB per file",
+      "Formulir Pendaftaran Mahasiswa Baru": "New Student Registration Form",
+      "Mohon Menunggu...": "Please Wait...",
+      "Buka menu": "Open menu",
+      "Sebelumnya": "Previous",
+      "Berikutnya": "Next",
+      "Rektor IBT Pelita Indonesia": "Rector of IBT Pelita Indonesia",
+      "Putar video profil": "Play profile video",
+      "Peta lokasi kampus": "Campus location map",
+      "Tutup": "Close",
+      "Daftar Program S1, S2, S3 IBT Pelita Indonesia": "Enroll in S1, S2, S3 programs at IBT Pelita Indonesia",
+      "Video profil": "Profile video",
+      "Tutup video": "Close video",
+      "Kembali ke atas": "Back to top",
+      "Home | Institut Bisnis dan Teknologi Pelita Indonesia (Tiruan)": "Home | Institute of Business and Technology Pelita Indonesia (Clone)"
+    };
+    var ATRIBUT = ['alt', 'aria-label', 'title'];
+    var teksAsli = [];   // [{node, asli}] teks yang punya terjemahan
+    var atributAsli = []; // [{el, nama, asli}]
+    (function kumpulkan() {
+      var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+      var n;
+      while ((n = w.nextNode())) {
+        var key = n.nodeValue.replace(/\s+/g, ' ').trim();
+        if (key && KAMUS_EN[key]) teksAsli.push({ node: n, asli: n.nodeValue, key: key });
+      }
+      document.querySelectorAll('[alt],[aria-label],[title]').forEach(function (el) {
+        if (el.matches('.lang')) return; // judul tombol bahasa tetap
+        ATRIBUT.forEach(function (a) {
+          var v = el.getAttribute(a);
+          if (v && KAMUS_EN[v]) atributAsli.push({ el: el, nama: a, asli: v });
+        });
+      });
+    })();
+    var judulAsli = document.title;
+
+    function setBahasa(lang) {
+      var en = lang === 'en';
+      teksAsli.forEach(function (t) {
+        // pertahankan spasi di awal/akhir node agar tata letak tidak berubah
+        var depan = t.asli.match(/^\s*/)[0], belakang = t.asli.match(/\s*$/)[0];
+        t.node.nodeValue = en ? depan + KAMUS_EN[t.key] + belakang : t.asli;
+      });
+      atributAsli.forEach(function (a) { a.el.setAttribute(a.nama, en ? KAMUS_EN[a.asli] : a.asli); });
+      document.title = en ? (KAMUS_EN[judulAsli] || judulAsli) : judulAsli;
+      document.documentElement.lang = en ? 'en' : 'id';
+      document.querySelectorAll('.topbar .lang').forEach(function (a) {
+        a.classList.toggle('active', a.getAttribute('data-lang') === lang);
+      });
+      try { localStorage.setItem('ibtpi-bahasa', lang); } catch (e) {}
+    }
+
+    document.querySelectorAll('.topbar .lang').forEach(function (a) {
+      a.addEventListener('click', function () { setBahasa(a.getAttribute('data-lang')); });
+    });
+    var bahasaAwal = 'id';
+    try { bahasaAwal = localStorage.getItem('ibtpi-bahasa') || 'id'; } catch (e) {}
+    setBahasa(bahasaAwal);
 
     // Link topbar & logo juga tidak berpindah ke mana pun
     document.querySelectorAll('.top-links a, .brand, main a, section a, footer a, .cta-box a').forEach(function (a) {
