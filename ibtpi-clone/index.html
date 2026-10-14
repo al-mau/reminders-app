@@ -176,10 +176,6 @@
   .post .img::before { content: ""; position: absolute; inset: 10px 12px; border: 1px solid rgba(255,255,255,.8); pointer-events: none; }
   .post .img.photo { background-size: cover; background-position: center; padding: 0; height: auto !important; aspect-ratio: 4 / 5; }
   .post .img.photo::before { display: none; } /* poster asli sudah punya bingkai */
-  .post .img .brandline { text-align: center; font-size: 15px; font-weight: 700; line-height: 1.1; }
-  .post .img .brandline small { display: block; font-size: 8px; letter-spacing: 1px; }
-  .post .img .caption { font-size: 22px; font-weight: 700; line-height: 1.05; }
-  .post .img .caption span { font-weight: 400; display: block; }
   .post .badge { position: absolute; top: 24px; right: -22px; background: var(--yellow); color: #111; font-weight: 700; font-size: 15px; text-transform: uppercase; padding: 10px 18px; border-radius: 4px; z-index: 1; }
   .post .body { padding: 34px 38px 30px; display: flex; flex-direction: column; flex: 1; }
   .post .date { color: var(--link-blue); font-family: 'Roboto', sans-serif; font-weight: 700; font-size: 15px; text-transform: uppercase; }
@@ -191,7 +187,6 @@
   .post .meta span { display: inline-flex; align-items: center; gap: 12px; }
   .post .meta .sep { width: 1px; height: 22px; background: #ddd; margin: 0 26px; }
   .post .meta a { margin-left: auto; color: var(--link-blue); font-weight: 600; cursor: pointer; }
-  .g6 { background: linear-gradient(180deg, #7d8692 0%, #556074 50%, #222c44 100%); }
 
   /* ===== Kegiatan Kampus ===== */
   .kegiatan { background-color: var(--navy-dark); background-image:
@@ -509,10 +504,7 @@
         </div>
       </article>
       <article class="post">
-        <div class="img g6">
-          <div class="brandline"><small>Institut Bisnis dan Teknologi</small>Pelita Indonesia</div>
-          <div class="caption">IBT Pelita Indonesia<span>Sukses Gelar</span><span>Bimtek SPMI dan</span>Kurikulum OBE Menuju<br>Akreditasi Unggul LAM</div>
-        </div>
+        <div class="img photo" style="background-image:url(img/berita/bimtek-spmi-obe.jpg)"></div>
         <div class="body">
           <span class="date">Senin, 19 Januari 2026</span>
           <h3>IBT Pelita Indonesia Sukses Gelar BIMTEK SPMI dan Kurikulum OBE Menuju Akreditasi Unggul LAM</h3>
