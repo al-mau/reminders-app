@@ -222,3 +222,47 @@ function tanggal_valid(string $tanggal): bool
     $d = DateTime::createFromFormat('Y-m-d', $tanggal);
     return $d && $d->format('Y-m-d') === $tanggal;
 }
+
+/**
+ * Tombol mata di samping kolom password (taruh di dalam .input-group setelah <input type="password">).
+ * Klik untuk menampilkan isi password agar bisa dicek sebelum dikirim. Butuh skrip_mata() di halaman.
+ * $kelas = kelas Bootstrap tombol, disesuaikan dengan warna kolom input di halaman tersebut.
+ */
+function tombol_mata(string $kelas = 'btn-outline-secondary'): string
+{
+    return '<button type="button" class="btn ' . e($kelas) . '" data-mata aria-label="Tampilkan password" aria-pressed="false" title="Tampilkan password">'
+        . '<i class="fa-solid fa-eye"></i></button>';
+}
+
+/**
+ * Skrip tombol mata (sekali per halaman, sebelum </body>).
+ * Password kembali disembunyikan saat form dikirim (agar tidak tersimpan di riwayat isian browser)
+ * dan saat popup (modal) ditutup.
+ */
+function skrip_mata(): string
+{
+    return <<<'HTML'
+<script>
+(() => {
+    const atur = (tombol, lihat) => {
+        const input = tombol.parentElement.querySelector('input');
+        input.type = lihat ? 'text' : 'password';
+        tombol.querySelector('i').className = 'fa-solid ' + (lihat ? 'fa-eye-slash' : 'fa-eye');
+        tombol.title = lihat ? 'Sembunyikan password' : 'Tampilkan password';
+        tombol.setAttribute('aria-label', tombol.title);
+        tombol.setAttribute('aria-pressed', lihat ? 'true' : 'false');
+    };
+    const sembunyikan = (wadah) => wadah.querySelectorAll('[data-mata]').forEach((t) => atur(t, false));
+    document.addEventListener('click', (ev) => {
+        const tombol = ev.target.closest('[data-mata]');
+        if (!tombol) return;
+        const input = tombol.parentElement.querySelector('input');
+        atur(tombol, input.type === 'password');
+        input.focus();
+    });
+    document.addEventListener('submit', (ev) => sembunyikan(ev.target), true);
+    document.addEventListener('hidden.bs.modal', (ev) => sembunyikan(ev.target));
+})();
+</script>
+HTML;
+}

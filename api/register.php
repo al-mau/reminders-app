@@ -181,6 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="input-group">
                         <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-lock"></i></span>
                         <input type="password" name="password" class="form-control" placeholder="Minimal 6 karakter" minlength="6" autocomplete="new-password" required>
+                        <?= tombol_mata('btn-light border text-secondary'); ?>
                     </div>
                 </div>
 
@@ -189,6 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="input-group">
                         <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-key"></i></span>
                         <input type="password" name="confirm_password" class="form-control" placeholder="Ulangi password" minlength="6" autocomplete="new-password" required>
+                        <?= tombol_mata('btn-light border text-secondary'); ?>
                     </div>
                 </div>
 
@@ -206,5 +208,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?= skrip_mata(); ?>
 </body>
 </html>
