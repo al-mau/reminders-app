@@ -220,11 +220,17 @@ unset($_SESSION['flash_user']);
                         </div>
                         <div class="mb-3">
                             <label class="form-label text-secondary small fw-bold">Password</label>
-                            <input type="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
+                            <div class="input-group">
+                                <input type="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
+                                <?= tombol_mata(); ?>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label text-secondary small fw-bold">Konfirmasi Password</label>
-                            <input type="password" name="konfirmasi" class="form-control" minlength="6" autocomplete="new-password" required>
+                            <div class="input-group">
+                                <input type="password" name="konfirmasi" class="form-control" minlength="6" autocomplete="new-password" required>
+                                <?= tombol_mata(); ?>
+                            </div>
                         </div>
                         <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-floppy-disk me-1"></i> Simpan User</button>
                     </form>
@@ -316,11 +322,17 @@ unset($_SESSION['flash_user']);
                     <input type="hidden" name="username" value="<?= e($u['username']); ?>">
                     <div class="mb-3">
                         <label class="form-label text-secondary small fw-bold">Password Baru</label>
-                        <input type="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
+                        <div class="input-group">
+                            <input type="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
+                            <?= tombol_mata(); ?>
+                        </div>
                     </div>
                     <div class="mb-1">
                         <label class="form-label text-secondary small fw-bold">Konfirmasi Password Baru</label>
-                        <input type="password" name="konfirmasi" class="form-control" minlength="6" autocomplete="new-password" required>
+                        <div class="input-group">
+                            <input type="password" name="konfirmasi" class="form-control" minlength="6" autocomplete="new-password" required>
+                            <?= tombol_mata(); ?>
+                        </div>
                     </div>
                     <div class="form-text">User ini akan otomatis keluar dari perangkat lain dan harus login ulang dengan password baru.</div>
                 </div>
@@ -335,5 +347,6 @@ unset($_SESSION['flash_user']);
 <?php endforeach; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<?= skrip_mata(); ?>
 </body>
 </html>

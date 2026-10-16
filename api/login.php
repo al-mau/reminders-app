@@ -147,6 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="input-group">
                 <span class="input-group-text bg-dark border-0 text-secondary"><i class="fa-solid fa-lock"></i></span>
                 <input type="password" name="password" class="form-control bg-dark text-white border-0" placeholder="••••••••" autocomplete="current-password" required>
+                <?= tombol_mata('bg-dark border-0 text-secondary'); ?>
             </div>
         </div>
 
@@ -166,5 +167,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<?= skrip_mata(); ?>
 </body>
 </html>
