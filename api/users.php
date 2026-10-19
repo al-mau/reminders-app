@@ -1,6 +1,6 @@
 <?php
 /**
- * Kelola User: tambah admin, reset password, hapus akun.
+ * Kelola User: tambah admin, ubah username/nama, reset password, hapus akun.
  * Hanya bisa diakses oleh user yang sudah login.
  * Username dipakai sebagai kunci karena kolom ID tabel users bisa berbeda (id / id_user).
  */
@@ -109,6 +109,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // --- UBAH USERNAME / NAMA LENGKAP ---
+    if ($aksi === 'ubah_akun') {
+        $baru  = trim((string) ($_POST['username_baru'] ?? ''));
+        $nama  = trim((string) ($_POST['nama_lengkap'] ?? ''));
+        $error = null;
+
+        if (!preg_match('/^[A-Za-z0-9_.]{3,50}$/', $baru)) {
+            $error = 'Username 3-50 karakter, hanya huruf, angka, titik, dan underscore.';
+        } elseif ($adaNama && $nama === '') {
+            $error = 'Nama lengkap wajib diisi.';
+        } else {
+            // Username lain yang sudah dipakai (selain milik user ini sendiri)
+            $cek = $pdo->prepare("SELECT 1 FROM users WHERE username = ? AND username <> ?");
+            $cek->execute([$baru, $username]);
+            if ($cek->fetchColumn()) {
+                $error = "Username \"$baru\" sudah dipakai.";
+            }
+        }
+
+        if ($error) {
+            flashUser('danger', $error);
+            header("Location: users.php");
+            exit;
+        }
+
+        $set   = ['username = ?'];
+        $nilai = [$baru];
+        if ($adaNama) {
+            $set[]   = 'nama_lengkap = ?';
+            $nilai[] = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
+        }
+        $nilai[] = $username;
+        $pdo->prepare('UPDATE users SET ' . implode(', ', $set) . ' WHERE username = ?')->execute($nilai);
+
+        $cek = $pdo->prepare("SELECT 1 FROM users WHERE username = ?");
+        $cek->execute([$baru]);
+        if (!$cek->fetchColumn()) {
+            flashUser('danger', 'User tidak ditemukan.');
+        } elseif ($baru === $username) {
+            flashUser('success', "Data \"$username\" berhasil disimpan.");
+        } else {
+            // Sesi lama masih menyimpan username lama: keluarkan, lalu perbarui sesi sendiri bila yang diubah akun ini
+            keluarkanSesiUser($pdo, $username);
+            if ($username === $saya) {
+                $_SESSION['username'] = $baru;
+                flashUser('success', "Username Anda diganti menjadi \"$baru\". Pakai username ini untuk login berikutnya.");
+            } else {
+                flashUser('success', "Username \"$username\" diganti menjadi \"$baru\". User ini harus login ulang dengan username baru.");
+            }
+        }
+        header("Location: users.php");
+        exit;
+    }
+
     // --- RESET / GANTI PASSWORD ---
     if ($aksi === 'reset_password') {
         $error = validasiPassword((string) ($_POST['password'] ?? ''), (string) ($_POST['konfirmasi'] ?? ''));
@@ -175,7 +229,7 @@ unset($_SESSION['flash_user']);
     <div class="kepala">
         <div>
             <h1>Pengguna</h1>
-            <div class="kepala-sub">Akun yang bisa login ke aplikasi · tambah akun, ganti password, atau hapus akun</div>
+            <div class="kepala-sub">Akun yang bisa login ke aplikasi · tambah akun, ubah username, ganti password, atau hapus akun</div>
         </div>
     </div>
     <?php foreach ($flash as [$tipe, $pesan]): ?>
@@ -208,6 +262,7 @@ unset($_SESSION['flash_user']);
                             <?php endif; ?>
                             <td>
                                 <div class="aksi">
+                                    <button type="button" class="btn btn-garis btn-kecil" data-bs-toggle="modal" data-bs-target="#modalAkun<?= $i; ?>">Ubah</button>
                                     <button type="button" class="btn btn-garis btn-kecil" data-bs-toggle="modal" data-bs-target="#modalPassword<?= $i; ?>">Ganti password</button>
                                     <?php if (!$isSaya && count($users) > 1): ?>
                                     <form method="POST" action="users.php" onsubmit="return confirm(this.dataset.konfirmasi)"
@@ -271,6 +326,47 @@ unset($_SESSION['flash_user']);
 
     <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
 </main>
+
+<!-- Popup "Ubah" username & nama lengkap (satu popup untuk setiap user) -->
+<?php foreach ($users as $i => $u): ?>
+<div class="modal fade" id="modalAkun<?= $i; ?>" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="users.php" autocomplete="off">
+                <div class="modal-header">
+                    <h5 class="modal-title">Ubah akun · <?= e($u['username']); ?></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="ubah_akun">
+                    <input type="hidden" name="username" value="<?= e($u['username']); ?>">
+                    <div class="mb-3">
+                        <label class="form-label" for="usernameBaru<?= $i; ?>">Username</label>
+                        <input type="text" id="usernameBaru<?= $i; ?>" name="username_baru" class="form-control" value="<?= e($u['username']); ?>"
+                               maxlength="50" pattern="[A-Za-z0-9_.]{3,50}" title="3-50 karakter: huruf, angka, titik, underscore" required>
+                    </div>
+                    <?php if ($adaNama): ?>
+                    <div class="mb-1">
+                        <label class="form-label" for="namaLengkap<?= $i; ?>">Nama lengkap</label>
+                        <input type="text" id="namaLengkap<?= $i; ?>" name="nama_lengkap" class="form-control" value="<?= e($u['nama_lengkap'] ?? ''); ?>" maxlength="100" required>
+                    </div>
+                    <?php endif; ?>
+                    <div class="form-text">
+                        <?= $u['username'] === $saya
+                            ? 'Ini akun Anda. Setelah username diganti, login berikutnya memakai username baru. Password tidak berubah.'
+                            : 'Jika username diganti, user ini otomatis keluar dari semua perangkat dan login ulang dengan username baru. Password tidak berubah.'; ?>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-gelap">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endforeach; ?>
 
 <!-- Popup "Ganti Password" (satu popup untuk setiap user) -->
 <?php foreach ($users as $i => $u): ?>
