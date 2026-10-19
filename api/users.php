@@ -6,6 +6,7 @@
  */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
+require_once __DIR__ . '/lib/tampilan.php';
 
 if (empty($_SESSION['login'])) {
     header("Location: login.php");
@@ -164,147 +165,112 @@ unset($_SESSION['flash_user']);
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kelola User - Aplikasi Pengingat Jadwal</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="tema.css?v=14">
+    <?= kepalaHalaman('Pengguna'); ?>
 </head>
-<body>
+<body class="app">
 
-<nav class="navbar navbar-dark mb-4 py-3 shadow-sm">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="dashboard.php"><i class="fa-solid fa-bell me-2 text-warning"></i> Aplikasi Pengingat Jadwal</a>
-        <div class="d-flex align-items-center gap-2">
-            <a href="dashboard.php" class="btn btn-outline-light btn-sm rounded-pill px-3"><i class="fa-solid fa-arrow-left me-1"></i> Dashboard</a>
-            <a href="logout.php" class="btn btn-outline-light btn-sm rounded-pill px-3"><i class="fa-solid fa-right-from-bracket me-1"></i> Logout</a>
+<?= sidebarAplikasi('pengguna'); ?>
+
+<main class="isi">
+    <div class="kepala">
+        <div>
+            <h1>Pengguna</h1>
+            <div class="kepala-sub">Akun yang bisa login ke aplikasi · tambah akun, ganti password, atau hapus akun</div>
         </div>
     </div>
-</nav>
-
-<div class="container">
-    <div class="mb-4">
-        <h1 class="judul-halaman">Kelola User</h1>
-        <div class="text-redup small">Tambah akun admin, ganti password, atau hapus akun</div>
-    </div>
     <?php foreach ($flash as [$tipe, $pesan]): ?>
-        <div class="alert alert-<?= e($tipe); ?> alert-dismissible fade show py-2" role="alert">
+        <div class="alert alert-<?= e($tipe); ?> alert-dismissible fade show" role="alert">
             <?= e($pesan); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endforeach; ?>
 
-    <div class="row g-4">
-        <!-- Kolom kiri: form tambah user -->
-        <div class="col-lg-4">
-            <div class="card kartu kartu-input">
-                <div class="card-header">
-                    <span class="ikon-judul"><i class="fa-solid fa-user-plus"></i></span>
-                    <div><h2 class="kartu-judul">Tambah User</h2><div class="kartu-sub">Buat akun untuk admin baru</div></div>
-                </div>
-                <div class="card-body">
-                    <form method="POST" action="users.php" autocomplete="off">
-                        <?= csrf_field(); ?>
-                        <input type="hidden" name="aksi" value="tambah">
-                        <?php if ($adaNama): ?>
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small fw-bold">Nama Lengkap</label>
-                            <input type="text" name="nama_lengkap" class="form-control" maxlength="100" required>
-                        </div>
-                        <?php endif; ?>
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small fw-bold">Username</label>
-                            <input type="text" name="username" class="form-control" maxlength="50" pattern="[A-Za-z0-9_.]{3,50}" title="3-50 karakter: huruf, angka, titik, underscore" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small fw-bold">Password</label>
-                            <div class="input-group">
-                                <input type="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
-                                <?= tombol_mata(); ?>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small fw-bold">Konfirmasi Password</label>
-                            <div class="input-group">
-                                <input type="password" name="konfirmasi" class="form-control" minlength="6" autocomplete="new-password" required>
-                                <?= tombol_mata(); ?>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-floppy-disk me-1"></i> Simpan User</button>
-                    </form>
-                </div>
+    <div class="dua-kolom kolom-pengguna">
+        <section class="panel">
+            <div class="panel-judul"><h2>Daftar pengguna</h2><span><?= count($users); ?> akun</span></div>
+            <div class="table-responsive">
+                <table class="tabel-a">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <?php if ($adaNama): ?><th>Nama lengkap</th><?php endif; ?>
+                            <?php if ($adaTanggal): ?><th>Dibuat</th><?php endif; ?>
+                            <th><span class="visually-hidden">Aksi</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($users as $i => $u): $isSaya = $u['username'] === $saya; ?>
+                        <tr>
+                            <td data-label="Username"><span class="nama"><?= e($u['username']); ?></span><?php if ($isSaya): ?> <span class="tanda">Anda</span><?php endif; ?></td>
+                            <?php if ($adaNama): ?><td data-label="Nama lengkap"><?= e($u['nama_lengkap'] ?? ''); ?></td><?php endif; ?>
+                            <?php if ($adaTanggal): ?>
+                                <td data-label="Dibuat" class="mono"><?= !empty($u['dibuat_tanggal']) ? date('d.m.Y', strtotime($u['dibuat_tanggal'])) : '&mdash;'; ?></td>
+                            <?php endif; ?>
+                            <td>
+                                <div class="aksi">
+                                    <button type="button" class="btn btn-garis btn-kecil" data-bs-toggle="modal" data-bs-target="#modalPassword<?= $i; ?>">Ganti password</button>
+                                    <?php if (!$isSaya && count($users) > 1): ?>
+                                    <form method="POST" action="users.php" onsubmit="return confirm(this.dataset.konfirmasi)"
+                                          data-konfirmasi="Hapus user <?= e($u['username']); ?>? User ini tidak akan bisa login lagi.">
+                                        <?= csrf_field(); ?>
+                                        <input type="hidden" name="aksi" value="hapus">
+                                        <input type="hidden" name="username" value="<?= e($u['username']); ?>">
+                                        <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
+                                    </form>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
+        </section>
 
-            <div class="card kartu mt-4 p-3">
-                <div class="small text-redup">
-                    <i class="fa-solid fa-lock me-1"></i>
-                    Halaman Daftar publik: <strong class="<?= pendaftaranDibuka() ? 'text-warning' : 'text-success'; ?>"><?= pendaftaranDibuka() ? 'TERBUKA' : 'DITUTUP'; ?></strong>.
-                    <?php if (pendaftaranDibuka()): ?>
-                        Siapa pun yang tahu link bisa membuat akun. Tutup dengan menghapus <code>ALLOW_REGISTER</code> atau mengisinya <code>false</code> di Vercel.
-                    <?php else: ?>
-                        Akun baru hanya bisa dibuat dari halaman ini.
-                    <?php endif; ?>
+        <section class="panel">
+            <div class="panel-judul"><h2>Tambah pengguna</h2></div>
+            <form method="POST" action="users.php" autocomplete="off" class="form-tambah">
+                <?= csrf_field(); ?>
+                <input type="hidden" name="aksi" value="tambah">
+                <?php if ($adaNama): ?>
+                <div class="mb-3">
+                    <label class="form-label">Nama lengkap</label>
+                    <input type="text" name="nama_lengkap" class="form-control" maxlength="100" required>
                 </div>
-            </div>
-        </div>
-
-        <div class="col-lg-8">
-            <div class="card kartu kartu-daftar">
-                <div class="card-header">
-                    <span class="ikon-judul"><i class="fa-solid fa-users"></i></span>
-                    <div class="flex-grow-1"><h2 class="kartu-judul">Daftar User</h2><div class="kartu-sub">Akun yang bisa login ke aplikasi</div></div>
-                    <span class="lencana lencana-biru"><?= count($users); ?> user</span>
+                <?php endif; ?>
+                <div class="mb-3">
+                    <label class="form-label">Username</label>
+                    <input type="text" name="username" class="form-control" maxlength="50" pattern="[A-Za-z0-9_.]{3,50}" title="3-50 karakter: huruf, angka, titik, underscore" required>
                 </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle tabel">
-                        <thead>
-                            <tr>
-                                <th>Username</th>
-                                <?php if ($adaNama): ?><th>Nama Lengkap</th><?php endif; ?>
-                                <?php if ($adaTanggal): ?><th>Dibuat</th><?php endif; ?>
-                                <th class="text-center">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($users as $i => $u): $isSaya = $u['username'] === $saya; ?>
-                            <tr>
-                                <td class="fw-semibold">
-                                    <?= e($u['username']); ?>
-                                    <?php if ($isSaya): ?><span class="lencana lencana-hijau ms-1">Anda</span><?php endif; ?>
-                                </td>
-                                <?php if ($adaNama): ?><td><?= e($u['nama_lengkap'] ?? ''); ?></td><?php endif; ?>
-                                <?php if ($adaTanggal): ?>
-                                    <td class="small text-secondary"><?= !empty($u['dibuat_tanggal']) ? date('d M Y', strtotime($u['dibuat_tanggal'])) : '-'; ?></td>
-                                <?php endif; ?>
-                                <td class="text-center">
-                                    <div class="d-flex justify-content-center gap-1">
-                                        <button type="button" class="btn-ikon btn-ikon-kuning" data-bs-toggle="modal" data-bs-target="#modalPassword<?= $i; ?>" title="Ganti Password">
-                                            <i class="fa-solid fa-key"></i>
-                                        </button>
-                                        <?php if (!$isSaya && count($users) > 1): ?>
-                                        <form method="POST" action="users.php" onsubmit="return confirm(this.dataset.konfirmasi)"
-                                              data-konfirmasi="Hapus user <?= e($u['username']); ?>? User ini tidak akan bisa login lagi.">
-                                            <?= csrf_field(); ?>
-                                            <input type="hidden" name="aksi" value="hapus">
-                                            <input type="hidden" name="username" value="<?= e($u['username']); ?>">
-                                            <button type="submit" class="btn-ikon btn-ikon-merah" title="Hapus User"><i class="fa-solid fa-trash"></i></button>
-                                        </form>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <div class="input-group">
+                        <input type="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
+                        <?= tombol_mata(); ?>
+                    </div>
                 </div>
-            </div>
-        </div>
+                <div class="mb-3">
+                    <label class="form-label">Konfirmasi password</label>
+                    <div class="input-group">
+                        <input type="password" name="konfirmasi" class="form-control" minlength="6" autocomplete="new-password" required>
+                        <?= tombol_mata(); ?>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-gelap w-100">Simpan pengguna</button>
+            </form>
+            <p class="catatan mb-3">
+                Halaman Daftar publik: <b class="<?= pendaftaranDibuka() ? 'teks-merah' : 'teks-hijau'; ?>"><?= pendaftaranDibuka() ? 'terbuka' : 'ditutup'; ?></b>.
+                <?php if (pendaftaranDibuka()): ?>
+                    Siapa pun yang tahu link bisa membuat akun. Tutup dengan menghapus <code>ALLOW_REGISTER</code> atau mengisinya <code>false</code> di Vercel.
+                <?php else: ?>
+                    Akun baru hanya bisa dibuat dari halaman ini.
+                <?php endif; ?>
+            </p>
+        </section>
     </div>
-</div>
 
-<div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
+    <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
+</main>
 
 <!-- Popup "Ganti Password" (satu popup untuk setiap user) -->
 <?php foreach ($users as $i => $u): ?>
@@ -313,7 +279,7 @@ unset($_SESSION['flash_user']);
         <div class="modal-content">
             <form method="POST" action="users.php" autocomplete="off">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-key text-warning me-2"></i> Ganti Password: <?= e($u['username']); ?></h5>
+                    <h5 class="modal-title">Ganti password · <?= e($u['username']); ?></h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -321,14 +287,14 @@ unset($_SESSION['flash_user']);
                     <input type="hidden" name="aksi" value="reset_password">
                     <input type="hidden" name="username" value="<?= e($u['username']); ?>">
                     <div class="mb-3">
-                        <label class="form-label text-secondary small fw-bold">Password Baru</label>
+                        <label class="form-label">Password baru</label>
                         <div class="input-group">
                             <input type="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
                             <?= tombol_mata(); ?>
                         </div>
                     </div>
                     <div class="mb-1">
-                        <label class="form-label text-secondary small fw-bold">Konfirmasi Password Baru</label>
+                        <label class="form-label">Konfirmasi password baru</label>
                         <div class="input-group">
                             <input type="password" name="konfirmasi" class="form-control" minlength="6" autocomplete="new-password" required>
                             <?= tombol_mata(); ?>
@@ -337,8 +303,8 @@ unset($_SESSION['flash_user']);
                     <div class="form-text">User ini akan otomatis keluar dari perangkat lain dan harus login ulang dengan password baru.</div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan Password</button>
+                    <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-gelap">Simpan password</button>
                 </div>
             </form>
         </div>
