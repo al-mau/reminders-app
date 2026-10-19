@@ -6,7 +6,8 @@
  *
  * Alur:
  *  1. Cek key == CRON_SECRET (agar orang lain tidak bisa memicu kirim WA)
- *  2. Ambil unit yang tanggal_akhir-nya HARI INI atau BESOK dan belum dikirim hari ini
+ *  2. Ambil unit yang tanggal_akhir-nya HARI INI atau BESOK, belum dikirim hari ini,
+ *     dan belum ditandai selesai
  *  3. Gabungkan semuanya menjadi 1 pesan WA -> kirim ke semua nomor penerima aktif
  *  4. Jika berhasil: tandai pengingat = 'sent' & terakhir_dikirim = hari ini
  *  5. Bersihkan sisa lampiran tidak terpakai (lihat bersihkanLampiranGantung)
@@ -26,15 +27,19 @@ if (!$cronSecret || !is_string($keyDikirim) || !hash_equals($cronSecret, $keyDik
     exit;
 }
 
+// Pastikan kolom tambahan sudah ada (selesai_tanggal dipakai di query berikut)
+pastikanTabelTambahan($pdo);
+
 // Tanggal dihitung menurut APP_TIMEZONE (Asia/Jakarta), lihat lib/koneksi.php
 $hari_ini = date('Y-m-d');
 $besok    = date('Y-m-d', strtotime('+1 day'));
 
-// CARI DATA: Tanggal akhir BESOK atau HARI INI, DAN belum dikirim HARI INI
+// CARI DATA: Tanggal akhir BESOK atau HARI INI, DAN belum dikirim HARI INI, DAN belum selesai
 $stmt = $pdo->prepare(
     "SELECT * FROM deadline
      WHERE tanggal_akhir IN (:besok, :hari_ini)
-       AND (terakhir_dikirim IS NULL OR terakhir_dikirim <> :hari_ini2)"
+       AND (terakhir_dikirim IS NULL OR terakhir_dikirim <> :hari_ini2)
+       AND selesai_tanggal IS NULL"
 );
 $stmt->execute([':besok' => $besok, ':hari_ini' => $hari_ini, ':hari_ini2' => $hari_ini]);
 $rows = $stmt->fetchAll();
@@ -91,7 +96,6 @@ if ($rows) {
 
 // Sekalian bersihkan sisa lampiran tidak terpakai (upload terputus, potongan tanpa induk) sekali sehari
 try {
-    pastikanTabelTambahan($pdo);
     $laporan['potongan_lampiran_dibersihkan'] = bersihkanLampiranGantung($pdo);
 } catch (PDOException $e) {
     error_log('Pembersihan lampiran gagal: ' . $e->getMessage());

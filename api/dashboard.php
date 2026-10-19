@@ -4,7 +4,7 @@
  *
  * Susunan file ini:
  *  1. AKSI             -> proses tombol/form (tambah, edit, hapus unit, kirim WA manual,
- *                         reset pengingat, lampiran, penerima WA). Semua lewat POST + CSRF.
+ *                         reset pengingat, tandai selesai, lampiran, penerima WA). Semua lewat POST + CSRF.
  *  2. DATA TAMPILAN    -> statistik, pencarian/filter/halaman tabel, lampiran, penerima, riwayat WA
  *  3. HTML             -> kartu statistik, form input, daftar penerima, tabel unit,
  *                         riwayat WA, popup edit & popup lampiran
@@ -213,16 +213,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             header("Location: dashboard.php?status=success_add");
         } else {
-            // Jika tanggal akhir diubah, reset status pengingat agar cron mengirim ulang
+            // Jika tanggal akhir diubah (deadline diperpanjang), reset status pengingat & status selesai
+            // agar cron kembali mengingatkan menjelang deadline yang baru.
+            // tanggal_akhir diisi paling akhir: MySQL memproses SET berurutan, jadi IF() di atasnya
+            // masih membandingkan dengan tanggal akhir yang lama.
             $stmt = $pdo->prepare(
                 "UPDATE deadline
                  SET kode_unit = ?, nama_unit = ?, tanggal_awal = ?,
                      pengingat = IF(tanggal_akhir <> ?, 'pending', pengingat),
                      terakhir_dikirim = IF(tanggal_akhir <> ?, NULL, terakhir_dikirim),
+                     selesai_oleh = IF(tanggal_akhir <> ?, NULL, selesai_oleh),
+                     selesai_tanggal = IF(tanggal_akhir <> ?, NULL, selesai_tanggal),
                      tanggal_akhir = ?
                  WHERE id = ?"
             );
-            $stmt->execute([$kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
+            $stmt->execute([$kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
             header("Location: dashboard.php?status=success_update");
         }
         exit;
@@ -293,10 +298,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: dashboard.php");
             exit;
         }
-        $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL WHERE id = ?")->execute([$id]);
+        // Status selesai ikut dihapus: cron tidak mengirim pengingat untuk unit yang sudah selesai
+        $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL, selesai_tanggal = NULL, selesai_oleh = NULL WHERE id = ?")->execute([$id]);
         $label = labelUnit($pdo, $id);
         flash('success', "Pengingat $label di-reset. Akan dikirim ulang otomatis pada jadwal cron berikutnya jika deadline-nya hari ini atau besok.");
         header("Location: dashboard.php");
+        exit;
+    }
+
+    // --- 4c. TANDAI SELESAI / BATALKAN ---
+    // Unit selesai = user unit sudah di-update. Pengingat otomatis berhenti dan unit tidak
+    // dihitung sebagai Terlewat. Dicatat siapa yang menandai dan kapan.
+    if ($aksi === 'tandai_selesai' || $aksi === 'batal_selesai') {
+        $id    = (int) ($_POST['id'] ?? 0);
+        $label = labelUnit($pdo, $id);
+        if ($aksi === 'tandai_selesai') {
+            $oleh = potong((string) ($_SESSION['username'] ?? 'admin'), 100);
+            $pdo->prepare("UPDATE deadline SET selesai_tanggal = ?, selesai_oleh = ? WHERE id = ? AND selesai_tanggal IS NULL")
+                ->execute([date('Y-m-d H:i:s'), $oleh, $id]);
+            flash('success', "Unit $label ditandai selesai. Pengingat otomatis untuk unit ini dihentikan.");
+        } else {
+            $pdo->prepare("UPDATE deadline SET selesai_tanggal = NULL, selesai_oleh = NULL WHERE id = ?")->execute([$id]);
+            flash('info', "Status selesai unit $label dibatalkan.");
+        }
+        header("Location: dashboard.php#daftar");
         exit;
     }
 
@@ -470,13 +495,15 @@ $today    = date('Y-m-d');
 $tomorrow = date('Y-m-d', strtotime('+1 day'));
 
 // --- STATISTIK RINGKAS (dihitung langsung di database) ---
+// Hari Ini / H-1 / Mendatang / Terlewat hanya menghitung unit yang BELUM selesai
 $stmtStat = $pdo->prepare(
     "SELECT
-        COUNT(*)                                        AS total,
-        COALESCE(SUM(tanggal_akhir = :t1), 0)           AS hari_ini,
-        COALESCE(SUM(tanggal_akhir = :b1), 0)           AS h1,
-        COALESCE(SUM(tanggal_akhir > :b2), 0)           AS mendatang,
-        COALESCE(SUM(tanggal_akhir < :t2), 0)           AS expired
+        COUNT(*)                                                         AS total,
+        COALESCE(SUM(selesai_tanggal IS NULL AND tanggal_akhir = :t1), 0) AS hari_ini,
+        COALESCE(SUM(selesai_tanggal IS NULL AND tanggal_akhir = :b1), 0) AS h1,
+        COALESCE(SUM(selesai_tanggal IS NULL AND tanggal_akhir > :b2), 0) AS mendatang,
+        COALESCE(SUM(selesai_tanggal IS NULL AND tanggal_akhir < :t2), 0) AS terlewat,
+        COALESCE(SUM(selesai_tanggal IS NOT NULL), 0)                    AS selesai
      FROM deadline"
 );
 $stmtStat->execute([':t1' => $today, ':b1' => $tomorrow, ':b2' => $tomorrow, ':t2' => $today]);
@@ -486,7 +513,8 @@ $stat_total     = (int) $stat['total'];
 $stat_hari_ini  = (int) $stat['hari_ini'];
 $stat_h1        = (int) $stat['h1'];
 $stat_mendatang = (int) $stat['mendatang'];
-$stat_expired   = (int) $stat['expired'];
+$stat_terlewat  = (int) $stat['terlewat'];
+$stat_selesai   = (int) $stat['selesai'];
 
 // --- SEARCH, FILTER, DAN PAGINATION ---
 $search = trim((string) ($_GET['search'] ?? ''));
@@ -496,7 +524,8 @@ $tgl_sampai = (string) ($_GET['sampai'] ?? '');
 $tgl_dari   = tanggal_valid($tgl_dari) ? $tgl_dari : '';
 $tgl_sampai = tanggal_valid($tgl_sampai) ? $tgl_sampai : '';
 $filter = (string) ($_GET['filter'] ?? 'semua');
-$filter_valid = ['semua', 'hari_ini', 'h1', 'mendatang', 'expired'];
+$filter = $filter === 'expired' ? 'terlewat' : $filter; // tautan lama ?filter=expired
+$filter_valid = ['semua', 'hari_ini', 'h1', 'mendatang', 'terlewat', 'selesai'];
 if (!in_array($filter, $filter_valid, true)) {
     $filter = 'semua';
 }
@@ -519,23 +548,26 @@ if ($tgl_sampai !== '') {
     $params[':sampai'] = $tgl_sampai;
 }
 
-// Filter status dari kartu statistik (Hari Ini, H-1, Mendatang, Expired)
+// Filter status dari kartu statistik (Hari Ini, H-1, Mendatang, Terlewat = belum selesai; Selesai)
 switch ($filter) {
     case 'hari_ini':
-        $where[] = "tanggal_akhir = :f";
+        $where[] = "selesai_tanggal IS NULL AND tanggal_akhir = :f";
         $params[':f'] = $today;
         break;
     case 'h1':
-        $where[] = "tanggal_akhir = :f";
+        $where[] = "selesai_tanggal IS NULL AND tanggal_akhir = :f";
         $params[':f'] = $tomorrow;
         break;
     case 'mendatang':
-        $where[] = "tanggal_akhir > :f";
+        $where[] = "selesai_tanggal IS NULL AND tanggal_akhir > :f";
         $params[':f'] = $tomorrow;
         break;
-    case 'expired':
-        $where[] = "tanggal_akhir < :f";
+    case 'terlewat':
+        $where[] = "selesai_tanggal IS NULL AND tanggal_akhir < :f";
         $params[':f'] = $today;
+        break;
+    case 'selesai':
+        $where[] = "selesai_tanggal IS NOT NULL";
         break;
 }
 
@@ -574,6 +606,17 @@ if ($data_tampil) {
     }
 }
 $buka_lampiran = (int) ($_GET['lampiran'] ?? 0);
+
+// --- BUKTI PENGINGAT untuk unit yang sudah selesai: pengiriman terakhir di riwayat ---
+// Riwayat mencatat unit sebagai "(kode) nama" (lihat cron_wa_reminder.php & kirim manual)
+$bukti_pengingat = [];
+$cariBukti = $pdo->prepare("SELECT waktu, status FROM wa_log WHERE ringkasan LIKE ? ORDER BY id DESC LIMIT 1");
+foreach ($data_tampil as $row) {
+    if ($row['selesai_tanggal'] !== null) {
+        $cariBukti->execute(['%' . addcslashes('(' . $row['kode_unit'] . ') ' . $row['nama_unit'], '%_\\') . '%']);
+        $bukti_pengingat[(int) $row['id']] = $cariBukti->fetch() ?: null;
+    }
+}
 
 // --- PENERIMA WA ---
 $penerima_list   = $pdo->query("SELECT * FROM wa_penerima ORDER BY id")->fetchAll();
@@ -659,7 +702,8 @@ $kartu_statistik = [
     ['hari_ini', 'Hari Ini', $stat_hari_ini, 'fa-circle-exclamation', 'merah'],
     ['h1', 'H-1 (Besok)', $stat_h1, 'fa-clock', 'kuning'],
     ['mendatang', 'Mendatang', $stat_mendatang, 'fa-calendar-days', 'abu'],
-    ['expired', 'Expired', $stat_expired, 'fa-calendar-xmark', 'gelap'],
+    ['terlewat', 'Terlewat', $stat_terlewat, 'fa-calendar-xmark', 'gelap'],
+    ['selesai', 'Selesai', $stat_selesai, 'fa-circle-check', 'hijau'],
 ];
 
 // --- TANGGAL HARI INI dalam bahasa Indonesia, contoh: Kamis, 02 Oktober 2026 ---
@@ -687,7 +731,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=12">
+    <link rel="stylesheet" href="tema.css?v=13">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -750,7 +794,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         <?php endforeach; ?>
 
         <!-- Kartu statistik: klik untuk menampilkan unit dengan status tersebut -->
-        <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-3 mb-4">
+        <div class="row row-cols-2 row-cols-md-3 row-cols-xl-6 g-3 mb-4">
             <?php foreach ($kartu_statistik as [$kunci, $label, $nilai, $ikon, $warna]): ?>
                 <div class="col">
                     <a href="dashboard.php?filter=<?= $kunci; ?>#daftar" class="stat stat-<?= $warna; ?> <?= $filter === $kunci ? 'aktif' : ''; ?>" title="Tampilkan: <?= e($label); ?>">
@@ -872,7 +916,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                             } elseif ($sisa_hari > 1) {
                                                 $badge_deadline = '<span class="lencana lencana-abu">' . $sisa_hari . ' hari lagi</span>';
                                             } else {
-                                                $badge_deadline = '<span class="lencana lencana-gelap"><i class="fa-solid fa-calendar-xmark"></i> Expired</span>';
+                                                $badge_deadline = '<span class="lencana lencana-gelap"><i class="fa-solid fa-calendar-xmark"></i> Terlewat</span>';
                                             }
                                         ?>
                                         <tr>
@@ -881,7 +925,36 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                             <td class="fw-semibold text-dark"><?= e($row['nama_unit']); ?></td>
                                             <td class="text-redup small text-nowrap"><?= date('d M Y', strtotime($row['tanggal_awal'])); ?></td>
                                             <td class="small text-nowrap fw-semibold"><?= date('d M Y', strtotime($row['tanggal_akhir'])); ?></td>
-                                            <td class="text-center"><?= $badge_deadline; ?></td>
+                                            <?php // Kolom Deadline: status sisa hari, atau "Selesai" + siapa/kapan + bukti pengingat terakhir ?>
+                                            <td class="text-center">
+                                                <?php $selesai = $row['selesai_tanggal'] !== null; ?>
+                                                <?php if ($selesai): ?>
+                                                    <span class="lencana lencana-hijau"><i class="fa-solid fa-circle-check"></i> Selesai</span>
+                                                    <div class="info-selesai" title="Ditandai selesai oleh <?= e((string) $row['selesai_oleh']); ?>">
+                                                        <?= e((string) $row['selesai_oleh']); ?> · <?= date('d M Y', strtotime($row['selesai_tanggal'])); ?>
+                                                    </div>
+                                                    <?php $bukti = $bukti_pengingat[(int) $row['id']] ?? null; ?>
+                                                    <div class="info-selesai">
+                                                        <?php if ($bukti): ?>
+                                                            <i class="fa-solid fa-paper-plane"></i> Pengingat <?= date('d M', strtotime($bukti['waktu'])); ?>:
+                                                            <span class="<?= $bukti['status'] === 'gagal' ? 'text-danger' : 'text-success'; ?>"><?= e($bukti['status']); ?></span>
+                                                        <?php else: ?>
+                                                            Belum ada pengingat terkirim
+                                                        <?php endif; ?>
+                                                    </div>
+                                                <?php else: ?>
+                                                    <?= $badge_deadline; ?>
+                                                <?php endif; ?>
+                                                <form method="POST" action="dashboard.php"
+                                                      onsubmit="return confirm('<?= $selesai ? 'Batalkan status selesai unit ini?' : 'Tandai unit ini selesai (user sudah di-update)? Pengingat otomatis untuk unit ini dihentikan.'; ?>')">
+                                                    <?= csrf_field(); ?>
+                                                    <input type="hidden" name="aksi" value="<?= $selesai ? 'batal_selesai' : 'tandai_selesai'; ?>">
+                                                    <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
+                                                    <button type="submit" class="btn btn-link btn-sm p-0 text-decoration-none tombol-selesai <?= $selesai ? 'text-secondary' : 'text-success'; ?>">
+                                                        <?= $selesai ? '<i class="fa-solid fa-rotate-left"></i> Batalkan' : '<i class="fa-solid fa-check"></i> Tandai selesai'; ?>
+                                                    </button>
+                                                </form>
+                                            </td>
                                             <?php // Tanggal pengingat otomatis terakhir terkirim (+ tombol Kirim ulang) ?>
                                             <td class="text-center small text-nowrap">
                                                 <?php if (empty($row['terakhir_dikirim'])): ?>

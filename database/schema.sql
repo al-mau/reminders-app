@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS deadline (
     tanggal_akhir    DATE         NOT NULL,
     pengingat        VARCHAR(20)  NOT NULL DEFAULT 'pending',
     terakhir_dikirim DATE         NULL,
+    selesai_tanggal  DATETIME     NULL,  -- diisi saat unit ditandai selesai di dashboard
+    selesai_oleh     VARCHAR(100) NULL,
     INDEX idx_tanggal_akhir (tanggal_akhir)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
