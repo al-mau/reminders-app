@@ -726,7 +726,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
             <div>
                 <h1 class="judul-halaman">Dashboard</h1>
-                <div class="text-redup small">Pantau deadline unit dan pengingat WhatsApp otomatis</div>
+                <div class="text-redup small">Pantau deadline unit dan pengingat otomatis</div>
             </div>
             <!-- Tanggal hari ini -->
             <div class="tanggal-hari-ini"><i class="fa-regular fa-calendar me-2"></i><?= e($tanggal_hari_ini); ?></div>
