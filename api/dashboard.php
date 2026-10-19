@@ -5,14 +5,16 @@
  * Susunan file ini:
  *  1. AKSI             -> proses tombol/form (tambah, edit, hapus unit, kirim WA manual,
  *                         reset pengingat, tandai selesai, lampiran, penerima WA). Semua lewat POST + CSRF.
- *  2. DATA TAMPILAN    -> statistik, pencarian/filter/halaman tabel, lampiran, penerima, riwayat WA
- *  3. HTML             -> kartu statistik, form input, daftar penerima, tabel unit,
- *                         riwayat WA, popup edit & popup lampiran
+ *  2. DATA TAMPILAN    -> statistik (tab status), pencarian/filter/halaman tabel, lampiran,
+ *                         penerima, riwayat kirim, pengingat otomatis terakhir
+ *  3. HTML             -> sidebar (lib/tampilan.php) + satu menu sesuai ?menu=:
+ *                         Daftar Unit (bawaan), Penerima, Riwayat Kirim; popup tambah/edit/lampiran
  *  4. JavaScript       -> upload lampiran per potongan + progress bar
  */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
 require_once __DIR__ . '/lib/fonnte.php';
+require_once __DIR__ . '/lib/tampilan.php';
 
 // Cek status login: belum login -> lempar ke halaman login
 if (empty($_SESSION['login'])) {
@@ -51,16 +53,6 @@ function tglPendek(string $tanggal, bool $tahun = true): string
     return date('d', $t) . ' ' . $bulan[(int) date('n', $t)] . ($tahun ? ' ' . date('Y', $t) : '');
 }
 
-/** Huruf pertama nama (untuk lingkaran avatar penerima WA), contoh: "Alif" -> "A" */
-function inisial(string $nama): string
-{
-    $nama = trim($nama);
-    if ($nama === '') {
-        return '?';
-    }
-    return function_exists('mb_substr') ? mb_strtoupper(mb_substr($nama, 0, 1)) : strtoupper(substr($nama, 0, 1));
-}
-
 /**
  * Tombol pindah halaman: [‹ Sebelumnya] [2 / 5] [Berikutnya ›].
  * Parameter lain di URL (pencarian, tanggal, halaman tabel lain) tetap dipertahankan.
@@ -77,13 +69,12 @@ function tombolHalaman(int $hal, int $jumlah, string $param, string $jangkar): s
         return 'dashboard.php?' . e(http_build_query($q)) . '#' . $jangkar;
     };
     $sebelum = $hal > 1
-        ? '<a class="btn btn-sm btn-light border" href="' . $url($hal - 1) . '"><i class="fa-solid fa-chevron-left me-1"></i>Sebelumnya</a>'
-        : '<span class="btn btn-sm btn-light border disabled"><i class="fa-solid fa-chevron-left me-1"></i>Sebelumnya</span>';
+        ? '<a class="btn btn-garis btn-kecil" href="' . $url($hal - 1) . '">&lsaquo; Sebelumnya</a>'
+        : '<span class="btn btn-garis btn-kecil disabled">&lsaquo; Sebelumnya</span>';
     $sesudah = $hal < $jumlah
-        ? '<a class="btn btn-sm btn-light border" href="' . $url($hal + 1) . '">Berikutnya<i class="fa-solid fa-chevron-right ms-1"></i></a>'
-        : '<span class="btn btn-sm btn-light border disabled">Berikutnya<i class="fa-solid fa-chevron-right ms-1"></i></span>';
-    return '<div class="d-flex justify-content-end align-items-center gap-2 px-3 py-2 border-top">'
-        . $sebelum . '<span class="small text-redup px-1">' . $hal . ' / ' . $jumlah . '</span>' . $sesudah . '</div>';
+        ? '<a class="btn btn-garis btn-kecil" href="' . $url($hal + 1) . '">Berikutnya &rsaquo;</a>'
+        : '<span class="btn btn-garis btn-kecil disabled">Berikutnya &rsaquo;</span>';
+    return '<div class="halaman">' . $sebelum . '<span class="mono">' . $hal . ' / ' . $jumlah . '</span>' . $sesudah . '</div>';
 }
 
 /**
@@ -110,25 +101,33 @@ function daftarUnitRiwayat(string $ringkasan): array
     return $hasil;
 }
 
-/** URL dashboard dengan parameter saat ini, kecuali yang disebut di $hapus (untuk tombol ✕) */
-function urlTanpa(array $hapus, string $jangkar): string
+/**
+ * Alamat kembali setelah aksi POST: halaman menu yang sama, dengan pencarian / filter / halaman
+ * tabel yang sedang dibuka (diambil dari halaman asal form). Pesan & popup lama dibuang.
+ * @param string $menu   'unit', 'penerima', atau 'riwayat'
+ * @param array  $tambah parameter tambahan, contoh ['status' => 'success_add'] atau ['lampiran' => 5]
+ */
+function kembaliKe(string $menu, array $tambah = [], string $jangkar = ''): string
 {
-    $q = array_diff_key($_GET, array_flip(array_merge($hapus, ['status'])));
-    $q = array_filter($q, static fn($v) => is_string($v) && $v !== '');
-    return 'dashboard.php' . ($q ? '?' . e(http_build_query($q)) : '') . '#' . $jangkar;
+    $q = [];
+    $asal = (string) ($_SERVER['HTTP_REFERER'] ?? '');
+    if ($asal !== '' && basename((string) parse_url($asal, PHP_URL_PATH)) === 'dashboard.php') {
+        parse_str((string) parse_url($asal, PHP_URL_QUERY), $q);
+        if (($q['menu'] ?? 'unit') !== $menu) {
+            $q = []; // dari menu lain: jangan bawa filter menu tersebut
+        }
+        $q = array_intersect_key($q, array_flip(['filter', 'search', 'dari', 'sampai', 'hal', 'cari_wa', 'status_wa', 'tgl_wa', 'hal_wa']));
+        $q = array_filter($q, static fn($v) => is_string($v) && $v !== '');
+    }
+    $q = ($menu === 'unit' ? [] : ['menu' => $menu]) + $q + $tambah;
+    return 'dashboard.php' . ($q ? '?' . http_build_query($q) : '') . ($jangkar !== '' ? '#' . $jangkar : '');
 }
 
-/** Input tersembunyi untuk mempertahankan parameter bagian lain saat form pencarian dikirim */
-function inputTersembunyi(array $nama): string
+/** Menu halaman asal form (dari alamat halaman sebelumnya), untuk aksi yang bisa datang dari menu mana saja */
+function menuAsal(): string
 {
-    $html = '';
-    foreach ($nama as $n) {
-        $v = $_GET[$n] ?? '';
-        if (is_string($v) && $v !== '') {
-            $html .= '<input type="hidden" name="' . e($n) . '" value="' . e($v) . '">';
-        }
-    }
-    return $html;
+    parse_str((string) parse_url((string) ($_SERVER['HTTP_REFERER'] ?? ''), PHP_URL_QUERY), $q);
+    return in_array($q['menu'] ?? '', ['penerima', 'riwayat'], true) ? $q['menu'] : 'unit';
 }
 
 /** Simpan pesan notifikasi (hijau/merah) untuk ditampilkan setelah halaman dimuat ulang */
@@ -144,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Upload melebihi post_max_size -> PHP mengosongkan $_POST
     if (empty($_POST) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
         flash('danger', 'Ukuran upload terlalu besar. Maksimal ' . formatUkuran(LAMPIRAN_MAKS_BYTE) . ' per file.');
-        header("Location: dashboard.php");
+        header('Location: ' . kembaliKe('unit'));
         exit;
     }
 
@@ -154,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($ajax) {
             jsonKeluar(['ok' => false, 'pesan' => 'Sesi formulir kedaluwarsa, muat ulang halaman.'], 403);
         }
-        header("Location: dashboard.php?status=csrf");
+        header('Location: ' . kembaliKe(menuAsal(), ['status' => 'csrf']));
         exit;
     }
 
@@ -191,14 +190,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($ajax) {
                 jsonKeluar(['ok' => false, 'pesan' => 'Data tidak valid. Pastikan semua kolom terisi dengan benar.'], 422);
             }
-            header("Location: dashboard.php?status=invalid");
+            header('Location: ' . kembaliKe('unit', ['status' => 'invalid']));
             exit;
         }
         if ($tanggal_akhir < $tanggal_awal) {
             if ($ajax) {
                 jsonKeluar(['ok' => false, 'pesan' => 'Tanggal akhir tidak boleh lebih awal dari tanggal awal.'], 422);
             }
-            header("Location: dashboard.php?status=invalid_tanggal");
+            header('Location: ' . kembaliKe('unit', ['status' => 'invalid_tanggal']));
             exit;
         }
 
@@ -219,7 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash('warning', 'Lampiran tidak disimpan — ' . $pesan);
                 }
             }
-            header("Location: dashboard.php?status=success_add");
+            header('Location: ' . kembaliKe('unit', ['status' => 'success_add']));
         } else {
             // Jika tanggal akhir diubah (deadline diperpanjang), reset status pengingat & status selesai
             // agar cron kembali mengingatkan menjelang deadline yang baru.
@@ -236,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  WHERE id = ?"
             );
             $stmt->execute([$kode_unit, $nama_unit, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
-            header("Location: dashboard.php?status=success_update");
+            header('Location: ' . kembaliKe('unit', ['status' => 'success_update']));
         }
         exit;
     }
@@ -246,7 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int) ($_POST['id'] ?? 0);
         hapusLampiranUnit($pdo, $id);
         $pdo->prepare("DELETE FROM deadline WHERE id = ?")->execute([$id]);
-        header("Location: dashboard.php?status=success_delete");
+        header('Location: ' . kembaliKe('unit', ['status' => 'success_delete']));
         exit;
     }
 
@@ -257,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data_wa = $stmt->fetch();
 
         if (!$data_wa) {
-            header("Location: dashboard.php?status=not_found");
+            header('Location: ' . kembaliKe('unit', ['status' => 'not_found']));
             exit;
         }
 
@@ -289,7 +288,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash('success', $hasil['pesan'] . '.');
         }
-        header("Location: dashboard.php?status=" . ($hasil['ok'] ? 'wa_sent' : 'wa_failed'));
+        header('Location: ' . kembaliKe('unit', ['status' => $hasil['ok'] ? 'wa_sent' : 'wa_failed']));
         exit;
     }
 
@@ -302,15 +301,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cek->execute([$id]);
         $tgl = $cek->fetchColumn();
         if ($tgl === false || hitungSisaHari($tgl) < 0) {
-            flash('danger', 'Unit ini sudah expired, pengingat otomatis tidak bisa dikirim ulang. Ubah tanggal akhirnya jika masih perlu diingatkan.');
-            header("Location: dashboard.php");
+            flash('danger', 'Unit ini sudah terlewat, pengingat otomatis tidak bisa dikirim ulang. Ubah tanggal akhirnya jika masih perlu diingatkan.');
+            header('Location: ' . kembaliKe('unit'));
             exit;
         }
         // Status selesai ikut dihapus: cron tidak mengirim pengingat untuk unit yang sudah selesai
         $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL, selesai_tanggal = NULL, selesai_oleh = NULL WHERE id = ?")->execute([$id]);
         $label = labelUnit($pdo, $id);
         flash('success', "Pengingat $label di-reset. Akan dikirim ulang otomatis pada jadwal cron berikutnya jika deadline-nya hari ini atau besok.");
-        header("Location: dashboard.php");
+        header('Location: ' . kembaliKe('unit'));
         exit;
     }
 
@@ -329,7 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("UPDATE deadline SET selesai_tanggal = NULL, selesai_oleh = NULL WHERE id = ?")->execute([$id]);
             flash('info', "Status selesai unit $label dibatalkan.");
         }
-        header("Location: dashboard.php#daftar");
+        header('Location: ' . kembaliKe('unit'));
         exit;
     }
 
@@ -340,7 +339,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cek->execute([$deadlineId]);
 
         if (!$cek->fetchColumn()) {
-            header("Location: dashboard.php?status=not_found");
+            header('Location: ' . kembaliKe('unit', ['status' => 'not_found']));
             exit;
         }
 
@@ -356,7 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('danger', 'Lampiran gagal — ' . $pesan);
             }
         }
-        header("Location: dashboard.php?lampiran=$deadlineId");
+        header('Location: ' . kembaliKe('unit', ['lampiran' => $deadlineId]));
         exit;
     }
 
@@ -369,7 +368,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         hapusLampiranLengkap($pdo, (int) ($_POST['id'] ?? 0));
         flash('warning', 'Lampiran dihapus.');
-        header("Location: dashboard.php" . ($deadlineId ? "?lampiran=$deadlineId" : ''));
+        header('Location: ' . kembaliKe('unit', $deadlineId ? ['lampiran' => $deadlineId] : []));
         exit;
     }
 
@@ -400,7 +399,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('danger', 'Gagal menyimpan nomor: ' . $e->getMessage());
             }
         }
-        header("Location: dashboard.php#penerima");
+        header('Location: ' . kembaliKe('penerima', [], 'penerima'));
         exit;
     }
 
@@ -416,14 +415,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("UPDATE $tabel SET nama = ? WHERE id = ?")->execute([$nama, (int) ($_POST['id'] ?? 0)]);
             flash('success', "Nama penerima diubah menjadi \"$nama\".");
         }
-        header("Location: dashboard.php#$jangkar");
+        header('Location: ' . kembaliKe('penerima', [], $jangkar));
         exit;
     }
 
     if ($aksi === 'toggle_penerima') {
         $pid = (int) ($_POST['id'] ?? 0);
         $pdo->prepare("UPDATE wa_penerima SET aktif = 1 - aktif WHERE id = ?")->execute([$pid]);
-        header("Location: dashboard.php#penerima");
+        header('Location: ' . kembaliKe('penerima', [], 'penerima'));
         exit;
     }
 
@@ -431,7 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pid = (int) ($_POST['id'] ?? 0);
         $pdo->prepare("DELETE FROM wa_penerima WHERE id = ?")->execute([$pid]);
         flash('warning', 'Nomor penerima dihapus.');
-        header("Location: dashboard.php#penerima");
+        header('Location: ' . kembaliKe('penerima', [], 'penerima'));
         exit;
     }
 
@@ -461,24 +460,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('danger', 'Gagal menyimpan Chat ID: ' . $e->getMessage());
             }
         }
-        header("Location: dashboard.php#telegram");
+        header('Location: ' . kembaliKe('penerima', [], 'telegram'));
         exit;
     }
 
     if ($aksi === 'toggle_telegram') {
         $pdo->prepare("UPDATE telegram_penerima SET aktif = 1 - aktif WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
-        header("Location: dashboard.php#telegram");
+        header('Location: ' . kembaliKe('penerima', [], 'telegram'));
         exit;
     }
 
     if ($aksi === 'hapus_telegram') {
         $pdo->prepare("DELETE FROM telegram_penerima WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
         flash('warning', 'Chat Telegram penerima dihapus.');
-        header("Location: dashboard.php#telegram");
+        header('Location: ' . kembaliKe('penerima', [], 'telegram'));
         exit;
     }
 
-    // Cari chat yang baru mengirim pesan ke bot -> ditampilkan sekali di kartu Telegram (tombol "Tambah")
+    // Cari chat yang baru mengirim pesan ke bot -> ditampilkan sekali di panel Telegram (tombol "Tambah")
     if ($aksi === 'cari_telegram') {
         $hasil = cariChatTelegram();
         if (!$hasil['ok']) {
@@ -488,11 +487,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $_SESSION['tg_ditemukan'] = $hasil['chat'];
         }
-        header("Location: dashboard.php#telegram");
+        header('Location: ' . kembaliKe('penerima', [], 'telegram'));
         exit;
     }
 
-    header("Location: dashboard.php");
+    header('Location: ' . kembaliKe('unit'));
     exit;
 }
 
@@ -556,7 +555,7 @@ if ($tgl_sampai !== '') {
     $params[':sampai'] = $tgl_sampai;
 }
 
-// Filter status dari kartu statistik (Hari Ini, H-1, Mendatang, Terlewat = belum selesai; Selesai)
+// Filter status dari tab status (Hari Ini, H-1, Mendatang, Terlewat = belum selesai; Selesai)
 switch ($filter) {
     case 'hari_ini':
         $where[] = "selesai_tanggal IS NULL AND tanggal_akhir = :f";
@@ -592,7 +591,12 @@ $hal        = min($jumlah_hal, max(1, (int) ($_GET['hal'] ?? 1)));
 $offset     = ($hal - 1) * DATA_PER_HALAMAN;
 
 // LIMIT/OFFSET berupa integer -> aman disisipkan langsung
-$stmtData = $pdo->prepare("SELECT * FROM deadline $where_sql ORDER BY id DESC LIMIT " . DATA_PER_HALAMAN . " OFFSET $offset");
+// Urutan: unit yang belum selesai dulu, deadline terdekat di atas (terlewat paling atas); unit selesai di bawah
+$stmtData = $pdo->prepare(
+    "SELECT * FROM deadline $where_sql
+     ORDER BY (selesai_tanggal IS NOT NULL), tanggal_akhir, id DESC
+     LIMIT " . DATA_PER_HALAMAN . " OFFSET $offset"
+);
 $stmtData->execute($params);
 
 $data_tampil = [];
@@ -704,15 +708,21 @@ $flash_list = $_SESSION['flash'] ?? [];
 unset($_SESSION['flash_wa_error'], $_SESSION['flash']);
 
 
-// --- KARTU STATISTIK: [filter, label, jumlah, ikon, warna] ---
-$kartu_statistik = [
-    ['semua', 'Total Unit', $stat_total, 'fa-layer-group', 'biru'],
-    ['hari_ini', 'Hari Ini', $stat_hari_ini, 'fa-circle-exclamation', 'merah'],
-    ['h1', 'H-1 (Besok)', $stat_h1, 'fa-clock', 'kuning'],
-    ['mendatang', 'Mendatang', $stat_mendatang, 'fa-calendar-days', 'abu'],
-    ['terlewat', 'Terlewat', $stat_terlewat, 'fa-calendar-xmark', 'gelap'],
-    ['selesai', 'Selesai', $stat_selesai, 'fa-circle-check', 'hijau'],
+// --- MENU YANG DIBUKA: Daftar Unit (bawaan), Penerima, Riwayat Kirim ---
+$menu = in_array($_GET['menu'] ?? '', ['penerima', 'riwayat'], true) ? $_GET['menu'] : 'unit';
+
+// --- TAB STATUS di atas tabel unit: [filter, label, jumlah, perlu perhatian?] ---
+$tab_status = [
+    ['semua', 'Semua', $stat_total, false],
+    ['hari_ini', 'Hari ini', $stat_hari_ini, $stat_hari_ini > 0],
+    ['h1', 'Besok', $stat_h1, false],
+    ['mendatang', 'Mendatang', $stat_mendatang, false],
+    ['terlewat', 'Terlewat', $stat_terlewat, $stat_terlewat > 0],
+    ['selesai', 'Selesai', $stat_selesai, false],
 ];
+
+// --- PENGINGAT OTOMATIS TERAKHIR (bilah info di bawah tabel unit) ---
+$pengingat_terakhir = $pdo->query("SELECT waktu, ringkasan, penerima, status FROM wa_log WHERE jenis = 'otomatis' ORDER BY id DESC LIMIT 1")->fetch() ?: null;
 
 // --- TANGGAL HARI INI dalam bahasa Indonesia, contoh: Kamis, 02 Oktober 2026 ---
 $nama_hari  = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -723,667 +733,475 @@ $sedang_menyaring = $search !== '' || $filter !== 'semua' || $tgl_dari !== '' ||
 
 $accept_lampiran = '.' . implode(',.', array_keys(LAMPIRAN_TIPE));
 $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LAMPIRAN_MAKS_BYTE) . ' per file.';
+
+/** Kolom Deadline: titik warna + keterangan, contoh "● Terlewat 9 hari". Unit selesai: siapa/kapan + bukti pengingat. */
+function selStatus(array $row, ?array $bukti): string
+{
+    if ($row['selesai_tanggal'] !== null) {
+        $oleh = e((string) $row['selesai_oleh']);
+        $html = '<div class="st hijau">Selesai</div>'
+            . '<div class="st-sub" title="Ditandai selesai oleh ' . $oleh . ' pada ' . tglPendek($row['selesai_tanggal']) . '">oleh ' . $oleh . ', ' . tglPendek($row['selesai_tanggal'], false) . '</div>';
+        $html .= $bukti
+            ? '<div class="st-sub" title="Bukti: pengingat terakhir unit ini di Riwayat Kirim">pengingat ' . tglPendek($bukti['waktu'], false) . ', '
+                . '<span class="' . ($bukti['status'] === 'gagal' ? 'teks-merah' : '') . '">' . e($bukti['status']) . '</span></div>'
+            : '<div class="st-sub">belum ada pengingat</div>';
+        return $html;
+    }
+    $sisa = (int) $row['sisa_hari'];
+    if ($sisa < 0) {
+        return '<div class="st merah">Terlewat ' . abs($sisa) . ' hari</div><div class="st-sub">belum ditandai selesai</div>';
+    }
+    if ($sisa === 0) {
+        return '<div class="st merah">Jatuh tempo hari ini</div>';
+    }
+    if ($sisa === 1) {
+        return '<div class="st amber">Besok</div>';
+    }
+    return '<div class="st abu">' . $sisa . ' hari lagi</div>';
+}
+
+/** Tombol aksi satu unit: "Tandai selesai" / "Batalkan" + menu ⋯ (edit, lampiran, kirim sekarang, hapus) */
+function aksiUnit(array $row, int $jmlLampiran, bool $bisaWa, bool $bisaTg): string
+{
+    $id      = (int) $row['id'];
+    $selesai = $row['selesai_tanggal'] !== null;
+    $tanya   = $selesai ? 'Batalkan status selesai unit ini?' : 'Tandai unit ini selesai (user sudah di-update)? Pengingat otomatis untuk unit ini dihentikan.';
+    $kirim   = static fn(string $via, string $label, bool $bisa) => '<button type="submit" name="via" value="' . $via . '" data-label="' . $label . '" class="dropdown-item"' . ($bisa ? '' : ' disabled') . '>'
+        . $label . ($bisa ? '' : ' <small>(token belum diatur)</small>') . '</button>';
+    ob_start(); ?>
+    <div class="aksi">
+        <form method="POST" action="dashboard.php" onsubmit="return confirm('<?= $tanya; ?>')">
+            <?= csrf_field(); ?>
+            <input type="hidden" name="aksi" value="<?= $selesai ? 'batal_selesai' : 'tandai_selesai'; ?>">
+            <input type="hidden" name="id" value="<?= $id; ?>">
+            <button type="submit" class="btn btn-garis btn-kecil"><?= $selesai ? 'Batalkan' : 'Tandai selesai'; ?></button>
+        </form>
+        <div class="dropdown">
+            <button type="button" class="btn btn-garis btn-kecil btn-titik" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="Aksi lain" title="Aksi lain">&#8943;</button>
+            <ul class="dropdown-menu dropdown-menu-end menu-aksi">
+                <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalEdit<?= $id; ?>">Edit / perpanjang deadline</button></li>
+                <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalLampiran<?= $id; ?>">Lampiran<?= $jmlLampiran ? ' <span class="angka">' . $jmlLampiran . '</span>' : ''; ?></button></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Kirim pengingat sekarang</h6></li>
+                <li>
+                    <form method="POST" action="dashboard.php" data-unit="<?= e($row['nama_unit']); ?>"
+                          onsubmit="return confirm('Kirim pengingat lewat ' + (event.submitter ? event.submitter.dataset.label : 'saluran pilihan') + ' sekarang untuk unit ' + this.dataset.unit + '?')">
+                        <?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="kirim_wa">
+                        <input type="hidden" name="id" value="<?= $id; ?>">
+                        <?= $kirim('wa', 'WhatsApp', $bisaWa) . $kirim('telegram', 'Telegram', $bisaTg) . $kirim('semua', 'WhatsApp dan Telegram', $bisaWa && $bisaTg); ?>
+                    </form>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus unit ini beserta lampirannya?')">
+                        <?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="hapus">
+                        <input type="hidden" name="id" value="<?= $id; ?>">
+                        <button type="submit" class="dropdown-item teks-merah">Hapus unit</button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <?php return (string) ob_get_clean();
+}
+
+$judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => 'Riwayat Kirim'][$menu];
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Aplikasi Pengingat Jadwal</title>
-
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1e293b">
+    <?= kepalaHalaman($judul_menu); ?>
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3602/3602145.png">
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <link rel="stylesheet" href="tema.css?v=14">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
         /* Popup pratinjau file sebelum disimpan (di atas popup Bootstrap) */
-        #pratinjauLokal { position: fixed; inset: 0; z-index: 2000; background: rgba(15, 23, 42, .75); display: none; padding: 16px; }
+        #pratinjauLokal { position: fixed; inset: 0; z-index: 2000; background: rgba(29, 37, 40, .75); display: none; padding: 16px; }
         #pratinjauLokal.tampil { display: flex; }
-        #pratinjauLokal .kotak { background: #fff; border-radius: 12px; width: 100%; max-width: 1000px; margin: auto; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-        #pratinjauLokal .bilah { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; }
-        #pratinjauLokal .wadah { flex: 1; min-height: 0; background: #f1f5f9; }
+        #pratinjauLokal .kotak { background: #fff; border-radius: 6px; width: 100%; max-width: 1000px; margin: auto; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+        #pratinjauLokal .bilah { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #dedbd3; }
+        #pratinjauLokal .wadah { flex: 1; min-height: 0; background: #f3f2ee; }
         #pratinjauLokal iframe { width: 100%; height: 100%; border: 0; background: #fff; display: block; }
         #pratinjauLokal img { max-width: 100%; max-height: 100%; display: block; margin: auto; }
     </style>
 </head>
-<body>
+<body class="app">
 
-    <nav class="navbar navbar-expand-lg navbar-dark mb-4 py-3 shadow-sm">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="dashboard.php">
-                <i class="fa-solid fa-bell me-2 text-warning"></i> Aplikasi Pengingat Jadwal
-            </a>
-            <div class="d-flex align-items-center gap-3">
-                <span class="text-white-50 d-none d-sm-inline"><i class="fa-solid fa-user me-1"></i> Halo, <strong class="text-white"><?= e($_SESSION['username'] ?? 'Admin'); ?></strong></span>
-                <a href="users.php" class="btn btn-outline-light btn-sm rounded-pill px-3" title="Kelola User">
-                    <i class="fa-solid fa-users-gear"></i><span class="d-none d-md-inline ms-1">Kelola User</span>
-                </a>
-                <a href="logout.php" class="btn btn-outline-light btn-sm rounded-pill px-3">
-                    <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
-                </a>
+<?= sidebarAplikasi($menu, ['unit' => $stat_total, 'penerima' => $penerima_aktif + $telegram_aktif]); ?>
+
+<main class="isi">
+
+    <!-- Judul halaman -->
+    <div class="kepala">
+        <div>
+            <h1><?= e($judul_menu); ?></h1>
+            <div class="kepala-sub">
+                <?= e($tanggal_hari_ini); ?>
+                <?php if ($menu === 'unit'): ?> · pengingat otomatis setiap hari pukul 20.00 WIB<?php endif; ?>
+                <?php if ($menu === 'penerima'): ?> · nomor WhatsApp dan chat Telegram yang menerima pengingat<?php endif; ?>
+                <?php if ($menu === 'riwayat'): ?> · <?= $total_wa; ?> pengiriman<?= $menyaring_riwayat ? ' sesuai pencarian' : ''; ?><?php endif; ?>
             </div>
         </div>
-    </nav>
-
-    <div class="container">
-
-        <!-- Judul halaman + tanggal hari ini -->
-        <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
-            <div>
-                <h1 class="judul-halaman">Dashboard</h1>
-                <div class="text-redup small">Pantau deadline unit dan pengingat otomatis</div>
-            </div>
-            <!-- Tanggal hari ini -->
-            <div class="tanggal-hari-ini"><i class="fa-regular fa-calendar me-2"></i><?= e($tanggal_hari_ini); ?></div>
-        </div>
-
-        <?php if ($alert): ?>
-            <div class="alert alert-<?= $alert[0]; ?> alert-dismissible fade show" role="alert">
-                <?= e($alert[1]); ?>
-                <?php if ($status_key === 'wa_failed' && $wa_error): ?>
-                    <br><small>Detail: <?= e($wa_error); ?></small>
-                <?php endif; ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
+        <?php if ($menu === 'unit'): ?>
+            <button type="button" class="btn btn-gelap" data-bs-toggle="modal" data-bs-target="#modalTambah">+ Tambah unit</button>
         <?php endif; ?>
-
-        <?php foreach ($flash_list as [$tipe, $pesan]): ?>
-            <div class="alert alert-<?= e($tipe); ?> alert-dismissible fade show py-2" role="alert">
-                <?= e($pesan); ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endforeach; ?>
-
-        <!-- Kartu statistik: klik untuk menampilkan unit dengan status tersebut -->
-        <div class="row row-cols-2 row-cols-md-3 row-cols-xl-6 g-3 mb-4">
-            <?php foreach ($kartu_statistik as [$kunci, $label, $nilai, $ikon, $warna]): ?>
-                <div class="col">
-                    <a href="dashboard.php?filter=<?= $kunci; ?>#daftar" class="stat stat-<?= $warna; ?> <?= $filter === $kunci ? 'aktif' : ''; ?>" title="Tampilkan: <?= e($label); ?>">
-                        <span class="stat-ikon"><i class="fa-solid <?= $ikon; ?>"></i></span>
-                        <span><span class="stat-label"><?= e($label); ?></span><span class="stat-angka"><?= (int) $nilai; ?></span></span>
-                    </a>
-                </div>
-            <?php endforeach; ?>
-        </div>
-
-        <!-- Baris 1: input unit baru (kiri) + daftar unit (kanan) -->
-        <div class="row g-4">
-            <div class="col-lg-4">
-                <div class="card kartu kartu-input">
-                    <div class="card-header">
-                        <span class="ikon-judul"><i class="fa-solid fa-square-plus"></i></span>
-                        <div><h2 class="kartu-judul">Input Unit & Deadline</h2><div class="kartu-sub">Tambah unit baru beserta lampirannya</div></div>
-                    </div>
-                    <div class="card-body">
-                        <form method="POST" action="dashboard.php" enctype="multipart/form-data" data-upload="unit-baru">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="simpan">
-                            <div class="mb-3">
-                                <label class="form-label text-secondary small fw-bold">Kode Unit</label>
-                                <input type="text" name="kode_unit" class="form-control" placeholder="Contoh: 01" maxlength="50" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label text-secondary small fw-bold">Nama Unit</label>
-                                <input type="text" name="nama_unit" class="form-control" placeholder="Contoh: adrian group" maxlength="150" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label text-secondary small fw-bold">Tanggal Awal</label>
-                                <input type="date" name="tanggal_awal" class="form-control" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label text-secondary small fw-bold">Tanggal Akhir</label>
-                                <input type="date" name="tanggal_akhir" class="form-control" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label text-secondary small fw-bold">Lampiran Dokumen <span class="fw-normal">(opsional)</span></label>
-                                <input type="file" name="lampiran[]" class="form-control" multiple accept="<?= e($accept_lampiran); ?>">
-                                <div class="form-text"><?= e($info_lampiran); ?></div>
-                                <div class="progress mt-2 d-none" style="height: 8px;" data-progres><div class="progress-bar" role="progressbar" style="width: 0%"></div></div>
-                                <div class="small text-muted mt-1 d-none" data-progres-teks></div>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100 mt-2">
-                                <i class="fa-solid fa-floppy-disk me-1"></i> Simpan Data
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Di HP daftar unit tampil lebih dulu, form input di bawahnya -->
-            <div class="col-lg-8 order-first order-lg-0">
-                <div class="card kartu kartu-daftar h-100" id="daftar">
-                    <div class="card-header">
-                        <span class="ikon-judul"><i class="fa-solid fa-list-check"></i></span>
-                        <div class="flex-grow-1"><h2 class="kartu-judul">Daftar Unit & Deadline</h2><div class="kartu-sub"><?= (int) $total_rows; ?> unit<?= $sedang_menyaring ? ' sesuai pencarian / filter' : ''; ?></div></div>
-                    </div>
-                    <div class="card-body pb-0 flex-grow-0">
-                        <form method="GET" action="dashboard.php#daftar" class="row g-2 mb-3">
-                            <?php // Filter status dari kartu statistik tetap ikut saat mencari ?>
-                            <?php if ($filter !== 'semua'): ?><input type="hidden" name="filter" value="<?= e($filter); ?>"><?php endif; ?>
-                            <?= inputTersembunyi(['cari_wa', 'status_wa', 'tgl_wa', 'hal_wa']); ?>
-                            <?php // Satu baris di laptop (sama seperti pencarian Riwayat): kata kunci, Tgl Awal, Tgl Akhir, tombol ?>
-                            <div class="col-12 col-md-4 col-lg-12 col-xl-3">
-                                <div class="input-group">
-                                    <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-secondary"></i></span>
-                                    <input type="text" name="search" class="form-control" placeholder="Cari kode / nama unit..." value="<?= e($search); ?>">
-                                </div>
-                            </div>
-                            <div class="col-12 col-sm-6 col-md">
-                                <div class="input-group" title="Tgl Awal: tampilkan unit dengan tanggal awal mulai tanggal ini">
-                                    <span class="input-group-text bg-white small px-2">Awal</span>
-                                    <input type="date" name="dari" class="form-control px-2" value="<?= e($tgl_dari); ?>" aria-label="Tanggal awal">
-                                </div>
-                            </div>
-                            <div class="col-12 col-sm-6 col-md">
-                                <div class="input-group" title="Tgl Akhir: tampilkan unit dengan tanggal akhir sampai tanggal ini">
-                                    <span class="input-group-text bg-white small px-2">Akhir</span>
-                                    <input type="date" name="sampai" class="form-control px-2" value="<?= e($tgl_sampai); ?>" aria-label="Tanggal akhir">
-                                </div>
-                            </div>
-                            <div class="col-12 col-md-auto d-flex gap-2">
-                                <button type="submit" class="btn btn-primary w-100 px-md-4" title="Cari"><i class="fa-solid fa-magnifying-glass"></i><span class="d-md-none ms-1">Cari</span></button>
-                                <?php if ($sedang_menyaring): ?>
-                                    <a href="<?= urlTanpa(['search', 'dari', 'sampai', 'filter', 'hal'], 'daftar'); ?>" class="btn btn-light border" title="Hapus pencarian & filter"><i class="fa-solid fa-xmark"></i></a>
-                                <?php endif; ?>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="card-body p-0">
-                        <!-- Daftar unit: 5 per halaman, tombol pindah halaman di bawah -->
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle tabel tabel-unit">
-                                <thead>
-                                    <tr>
-                                        <th class="text-center kol-no">No</th>
-                                        <th>Unit</th>
-                                        <th>Periode</th>
-                                        <th class="text-center">Deadline</th>
-                                        <th class="text-center">Terkirim Tgl</th>
-                                        <th class="text-center">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php $no = $offset + 1; ?>
-                                    <?php if (count($data_tampil) > 0): ?>
-                                        <?php foreach ($data_tampil as $row):
-                                            $sisa_hari = $row['sisa_hari'];
-
-                                            if ($sisa_hari === 0) {
-                                                $badge_deadline = '<span class="lencana lencana-merah"><i class="fa-solid fa-circle-exclamation"></i> Hari Ini</span>';
-                                            } elseif ($sisa_hari === 1) {
-                                                $badge_deadline = '<span class="lencana lencana-kuning"><i class="fa-solid fa-clock"></i> H-1 (Besok)</span>';
-                                            } elseif ($sisa_hari > 1) {
-                                                $badge_deadline = '<span class="lencana lencana-abu">' . $sisa_hari . ' hari lagi</span>';
-                                            } else {
-                                                $badge_deadline = '<span class="lencana lencana-gelap"><i class="fa-solid fa-calendar-xmark"></i> Terlewat</span>';
-                                            }
-                                        ?>
-                                        <tr>
-                                            <td class="text-center text-redup"><?= $no++; ?></td>
-                                            <?php // Unit: nama di atas, kode di bawah ?>
-                                            <td>
-                                                <div class="sel-nama"><?= e($row['nama_unit']); ?></div>
-                                                <span class="kode"><?= e($row['kode_unit']); ?></span>
-                                            </td>
-                                            <?php // Periode: tanggal awal (kecil) sampai tanggal akhir (tebal) ?>
-                                            <td class="text-nowrap" title="Tanggal awal s/d tanggal akhir">
-                                                <div class="sel-kecil"><?= tglPendek($row['tanggal_awal']); ?> &ndash;</div>
-                                                <div class="sel-akhir"><?= tglPendek($row['tanggal_akhir']); ?></div>
-                                            </td>
-                                            <?php // Kolom Deadline: status sisa hari, atau "Selesai" + siapa/kapan + bukti pengingat terakhir ?>
-                                            <td class="text-center">
-                                                <?php $selesai = $row['selesai_tanggal'] !== null; ?>
-                                                <?php if ($selesai): ?>
-                                                    <span class="lencana lencana-hijau"><i class="fa-solid fa-circle-check"></i> Selesai</span>
-                                                    <div class="info-selesai" title="Ditandai selesai oleh <?= e((string) $row['selesai_oleh']); ?> pada <?= tglPendek($row['selesai_tanggal']); ?>">
-                                                        <i class="fa-solid fa-user-check"></i> <?= e((string) $row['selesai_oleh']); ?>, <?= tglPendek($row['selesai_tanggal'], false); ?>
-                                                    </div>
-                                                    <?php $bukti = $bukti_pengingat[(int) $row['id']] ?? null; ?>
-                                                    <?php if ($bukti): ?>
-                                                        <div class="info-selesai" title="Bukti: pengingat terakhir untuk unit ini di Riwayat Pengiriman">
-                                                            <i class="fa-solid fa-paper-plane"></i> <?= tglPendek($bukti['waktu'], false); ?>,
-                                                            <span class="<?= $bukti['status'] === 'gagal' ? 'text-danger' : 'text-success'; ?>"><?= e($bukti['status']); ?></span>
-                                                        </div>
-                                                    <?php else: ?>
-                                                        <div class="info-selesai">Belum ada pengingat</div>
-                                                    <?php endif; ?>
-                                                <?php else: ?>
-                                                    <?= $badge_deadline; ?>
-                                                <?php endif; ?>
-                                                <form method="POST" action="dashboard.php"
-                                                      onsubmit="return confirm('<?= $selesai ? 'Batalkan status selesai unit ini?' : 'Tandai unit ini selesai (user sudah di-update)? Pengingat otomatis untuk unit ini dihentikan.'; ?>')">
-                                                    <?= csrf_field(); ?>
-                                                    <input type="hidden" name="aksi" value="<?= $selesai ? 'batal_selesai' : 'tandai_selesai'; ?>">
-                                                    <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
-                                                    <button type="submit" class="btn btn-link btn-sm p-0 text-decoration-none tombol-selesai <?= $selesai ? 'text-secondary' : 'text-success'; ?>">
-                                                        <?= $selesai ? '<i class="fa-solid fa-rotate-left"></i> Batalkan' : '<i class="fa-solid fa-check"></i> Tandai selesai'; ?>
-                                                    </button>
-                                                </form>
-                                            </td>
-                                            <?php // Tanggal pengingat otomatis terakhir terkirim (+ tombol Kirim ulang) ?>
-                                            <td class="text-center small text-nowrap">
-                                                <?php if (empty($row['terakhir_dikirim'])): ?>
-                                                    <span class="text-redup">-</span>
-                                                <?php else: ?>
-                                                    <div class="info-terkirim mt-0" title="Pengingat otomatis terakhir terkirim">
-                                                        <i class="fa-solid fa-paper-plane"></i> <?= tglPendek($row['terakhir_dikirim']); ?>
-                                                    </div>
-                                                    <?php // Tombol "Kirim ulang" disembunyikan untuk unit expired: cron hanya mengirim unit yang deadline-nya hari ini/besok ?>
-                                                    <?php if ($sisa_hari >= 0): ?>
-                                                    <form method="POST" action="dashboard.php" class="d-inline"
-                                                          onsubmit="return confirm('Reset status pengingat unit ini agar dikirim ulang otomatis pada jadwal berikutnya?')">
-                                                        <?= csrf_field(); ?>
-                                                        <input type="hidden" name="aksi" value="reset_pengingat">
-                                                        <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
-                                                        <button type="submit" class="btn btn-link btn-sm p-0 small text-decoration-none" style="font-size:.75rem" title="Kirim ulang otomatis">
-                                                            <i class="fa-solid fa-rotate-left"></i> Kirim ulang
-                                                        </button>
-                                                    </form>
-                                                    <?php endif; ?>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="text-center">
-                                                <div class="aksi-grid">
-                                                    <button type="button" class="btn-ikon btn-ikon-kuning"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#modalEdit<?= (int) $row['id']; ?>"
-                                                            title="Edit Data">
-                                                        <i class="fa-solid fa-pen-to-square"></i>
-                                                    </button>
-
-                                                    <?php $jml_lampiran = count($lampiran_per_unit[(int) $row['id']] ?? []); ?>
-                                                    <button type="button" class="btn-ikon btn-ikon-biru"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#modalLampiran<?= (int) $row['id']; ?>"
-                                                            title="Lampiran Dokumen">
-                                                        <i class="fa-solid fa-paperclip"></i>
-                                                        <?php if ($jml_lampiran > 0): ?>
-                                                            <span class="jumlah"><?= $jml_lampiran; ?></span>
-                                                        <?php endif; ?>
-                                                    </button>
-
-                                                    <form method="POST" action="dashboard.php"
-                                                          onsubmit="return confirm('Apakah Anda yakin ingin menghapus data unit ini beserta lampirannya?')">
-                                                        <?= csrf_field(); ?>
-                                                        <input type="hidden" name="aksi" value="hapus">
-                                                        <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
-                                                        <button type="submit" class="btn-ikon btn-ikon-merah" title="Hapus Data">
-                                                            <i class="fa-solid fa-trash"></i>
-                                                        </button>
-                                                    </form>
-
-                                                    <?php // Tombol kirim manual: pilih saluran WhatsApp, Telegram, atau keduanya ?>
-                                                    <form method="POST" action="dashboard.php" class="dropdown"
-                                                          onsubmit="return confirm('Kirim notifikasi lewat ' + (event.submitter ? event.submitter.dataset.label : 'saluran pilihan') + ' sekarang untuk unit ' + this.dataset.unit + '?')"
-                                                          data-unit="<?= e($row['nama_unit']); ?>">
-                                                        <?= csrf_field(); ?>
-                                                        <input type="hidden" name="aksi" value="kirim_wa">
-                                                        <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
-                                                        <button type="button" class="btn-ikon btn-ikon-hijau" title="Kirim notifikasi"
-                                                                data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">
-                                                            <i class="fa-solid fa-paper-plane"></i>
-                                                        </button>
-                                                        <ul class="dropdown-menu dropdown-menu-end menu-kirim">
-                                                            <li><h6 class="dropdown-header">Kirim notifikasi via</h6></li>
-                                                            <li>
-                                                                <button type="submit" name="via" value="wa" data-label="WhatsApp" class="dropdown-item" <?= $bisa_wa ? '' : 'disabled'; ?>>
-                                                                    <i class="fa-brands fa-whatsapp ikon-wa"></i> WhatsApp<?= $bisa_wa ? '' : ' <small class="text-muted">(token belum diatur)</small>'; ?>
-                                                                </button>
-                                                            </li>
-                                                            <li>
-                                                                <button type="submit" name="via" value="telegram" data-label="Telegram" class="dropdown-item" <?= $bisa_tg ? '' : 'disabled'; ?>>
-                                                                    <i class="fa-brands fa-telegram ikon-tg"></i> Telegram<?= $bisa_tg ? '' : ' <small class="text-muted">(token belum diatur)</small>'; ?>
-                                                                </button>
-                                                            </li>
-                                                            <li>
-                                                                <button type="submit" name="via" value="semua" data-label="WhatsApp dan Telegram" class="dropdown-item" <?= $bisa_wa && $bisa_tg ? '' : 'disabled'; ?>>
-                                                                    <i class="fa-solid fa-paper-plane"></i> WhatsApp + Telegram
-                                                                </button>
-                                                            </li>
-                                                        </ul>
-                                                    </form>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <tr>
-                                            <td colspan="6"><div class="kosong"><i class="fa-regular fa-folder-open"></i>Belum ada unit yang cocok. Tambahkan unit lewat form di samping atau ubah pencarian.</div></td>
-                                        </tr>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <?= tombolHalaman($hal, $jumlah_hal, 'hal', 'daftar'); ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Baris 2: bagian WhatsApp (penerima + riwayat), satu tema warna -->
-        <div class="row g-4 mt-0">
-            <div class="col-lg-4">
-                <div class="card kartu kartu-wa" id="penerima">
-                    <div class="card-header">
-                        <span class="ikon-judul"><i class="fa-brands fa-whatsapp"></i></span>
-                        <div class="flex-grow-1"><h2 class="kartu-judul">Penerima Notifikasi WA</h2><div class="kartu-sub">Nomor yang menerima pengingat</div></div>
-                        <span class="lencana lencana-hijau"><?= $penerima_aktif; ?> aktif</span>
-                    </div>
-                    <div class="card-body">
-                        <?php // Info saluran notifikasi (NOTIF_VIA): WhatsApp, Telegram, atau keduanya ?>
-                        <?php if (!in_array('wa', $saluran_notif, true)): ?>
-                            <div class="alert alert-light border small py-2 mb-3">
-                                <i class="fa-brands fa-telegram me-1" style="color:#229ed9"></i>
-                                <strong>WhatsApp sedang tidak dipakai</strong> (<code>NOTIF_VIA=telegram</code>). Pengingat hanya dikirim ke Telegram, daftar nomor di bawah diabaikan.
-                            </div>
-                        <?php endif; ?>
-                        <?php if (!$penerima_list): ?>
-                            <p class="small text-redup mb-3">
-                                Belum ada nomor di sini.
-                                <?php if ($wa_target_env !== ''): ?>
-                                    Saat ini notifikasi dikirim ke nomor dari pengaturan server (<strong><?= e($wa_target_env); ?></strong>).
-                                <?php endif; ?>
-                                Tambahkan nomor di bawah agar bisa dikirim ke lebih dari 1 penerima.
-                            </p>
-                        <?php else: ?>
-                            <ul class="list-group list-group-flush mb-3">
-                                <?php foreach ($penerima_list as $p): $aktif = (int) $p['aktif'] === 1; ?>
-                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-2">
-                                    <div class="d-flex align-items-center gap-2 min-w-0 <?= $aktif ? '' : 'opacity-50'; ?>">
-                                        <span class="avatar"><?= e(inisial($p['nama'])); ?></span>
-                                        <div class="min-w-0">
-                                            <div class="fw-semibold small text-truncate"><?= e($p['nama']); ?><?php if (!$aktif): ?> <span class="lencana lencana-abu ms-1">Nonaktif</span><?php endif; ?></div>
-                                            <div class="small text-redup">+<?= e($p['nomor']); ?></div>
-                                        </div>
-                                    </div>
-                                    <div class="d-flex gap-1">
-                                        <button type="button" class="btn-ikon btn-ikon-kuning" title="Edit nama"
-                                                data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
-                                                data-aksi="ubah_nama_penerima" data-id="<?= (int) $p['id']; ?>"
-                                                data-nama="<?= e($p['nama']); ?>" data-info="WhatsApp +<?= e($p['nomor']); ?>">
-                                            <i class="fa-solid fa-pen"></i>
-                                        </button>
-                                        <form method="POST" action="dashboard.php">
-                                            <?= csrf_field(); ?>
-                                            <input type="hidden" name="aksi" value="toggle_penerima">
-                                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
-                                            <button type="submit" class="btn-ikon <?= $aktif ? 'btn-ikon-abu' : 'btn-ikon-hijau'; ?>" title="<?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?>">
-                                                <i class="fa-solid <?= $aktif ? 'fa-pause' : 'fa-play'; ?>"></i>
-                                            </button>
-                                        </form>
-                                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus nomor ini dari penerima WA?')">
-                                            <?= csrf_field(); ?>
-                                            <input type="hidden" name="aksi" value="hapus_penerima">
-                                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
-                                            <button type="submit" class="btn-ikon btn-ikon-merah" title="Hapus"><i class="fa-solid fa-trash"></i></button>
-                                        </form>
-                                    </div>
-                                </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php endif; ?>
-
-                        <div class="subjudul mt-2">Tambah penerima</div>
-                        <form method="POST" action="dashboard.php" class="row g-2">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="tambah_penerima">
-                            <div class="col-12">
-                                <input type="text" name="nama" class="form-control form-control-sm" placeholder="Nama (contoh: Admin Kantor)" maxlength="100" required>
-                            </div>
-                            <div class="col-8">
-                                <input type="tel" name="nomor" class="form-control form-control-sm" placeholder="08xxxxxxxxxx" inputmode="numeric" required>
-                            </div>
-                            <div class="col-4">
-                                <button type="submit" class="btn btn-sm btn-success w-100"><i class="fa-solid fa-plus"></i> Tambah</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- Penerima Telegram: chat pribadi / grup yang menerima pengingat (NOTIF_VIA=telegram atau wa,telegram) -->
-                <?php $telegram_dipakai = in_array('telegram', $saluran_notif, true); ?>
-                <div class="card kartu kartu-tg mt-4" id="telegram">
-                    <div class="card-header">
-                        <span class="ikon-judul"><i class="fa-brands fa-telegram"></i></span>
-                        <div class="flex-grow-1"><h2 class="kartu-judul">Penerima Telegram</h2><div class="kartu-sub">Chat / grup yang menerima pengingat</div></div>
-                        <span class="lencana <?= $telegram_dipakai ? 'lencana-biru' : 'lencana-abu'; ?>"><?= $telegram_dipakai ? $telegram_aktif . ' aktif' : 'Tidak aktif'; ?></span>
-                    </div>
-                    <div class="card-body">
-                        <?php if (!$telegram_dipakai): ?>
-                            <div class="alert alert-light border small py-2 mb-3">
-                                Telegram belum dipakai. Isi <code>NOTIF_VIA=wa,telegram</code> (atau <code>telegram</code>) dan <code>TELEGRAM_BOT_TOKEN</code> di pengaturan server agar pengingat juga dikirim ke chat di bawah.
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if (!$telegram_list): ?>
-                            <p class="small text-redup mb-3">
-                                Belum ada chat di sini.
-                                <?php if ($telegram_env): ?>
-                                    Saat ini notifikasi dikirim ke Chat ID dari pengaturan server (<strong><?= e(implode(', ', $telegram_env)); ?></strong>).
-                                <?php endif; ?>
-                            </p>
-                        <?php else: ?>
-                            <ul class="list-group list-group-flush mb-3">
-                                <?php foreach ($telegram_list as $t): $aktif = (int) $t['aktif'] === 1; ?>
-                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-2">
-                                    <div class="d-flex align-items-center gap-2 min-w-0 <?= $aktif ? '' : 'opacity-50'; ?>">
-                                        <span class="avatar avatar-tg"><?= e(inisial($t['nama'])); ?></span>
-                                        <div class="min-w-0">
-                                            <div class="fw-semibold small text-truncate"><?= e($t['nama']); ?><?php if (!$aktif): ?> <span class="lencana lencana-abu ms-1">Nonaktif</span><?php endif; ?></div>
-                                            <div class="small text-redup">ID <?= e($t['chat_id']); ?><?= strncmp($t['chat_id'], '-', 1) === 0 ? ' · grup' : ''; ?></div>
-                                        </div>
-                                    </div>
-                                    <div class="d-flex gap-1">
-                                        <button type="button" class="btn-ikon btn-ikon-kuning" title="Edit nama"
-                                                data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
-                                                data-aksi="ubah_nama_telegram" data-id="<?= (int) $t['id']; ?>"
-                                                data-nama="<?= e($t['nama']); ?>" data-info="Telegram ID <?= e($t['chat_id']); ?>">
-                                            <i class="fa-solid fa-pen"></i>
-                                        </button>
-                                        <form method="POST" action="dashboard.php">
-                                            <?= csrf_field(); ?>
-                                            <input type="hidden" name="aksi" value="toggle_telegram">
-                                            <input type="hidden" name="id" value="<?= (int) $t['id']; ?>">
-                                            <button type="submit" class="btn-ikon <?= $aktif ? 'btn-ikon-abu' : 'btn-ikon-biru'; ?>" title="<?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?>">
-                                                <i class="fa-solid <?= $aktif ? 'fa-pause' : 'fa-play'; ?>"></i>
-                                            </button>
-                                        </form>
-                                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus chat ini dari penerima Telegram?')">
-                                            <?= csrf_field(); ?>
-                                            <input type="hidden" name="aksi" value="hapus_telegram">
-                                            <input type="hidden" name="id" value="<?= (int) $t['id']; ?>">
-                                            <button type="submit" class="btn-ikon btn-ikon-merah" title="Hapus"><i class="fa-solid fa-trash"></i></button>
-                                        </form>
-                                    </div>
-                                </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php endif; ?>
-
-                        <?php // Hasil tombol "Cari chat": klik Tambah untuk langsung menyimpan ?>
-                        <?php if ($tg_ditemukan): ?>
-                            <div class="subjudul mt-2">Chat ditemukan</div>
-                            <ul class="list-group list-group-flush mb-3 tg-ditemukan">
-                                <?php foreach ($tg_ditemukan as $cid => $c): ?>
-                                <li class="list-group-item px-2 d-flex justify-content-between align-items-center gap-2">
-                                    <div class="min-w-0">
-                                        <div class="fw-semibold small text-truncate"><?= e($c['nama']); ?> <span class="lencana lencana-abu ms-1"><?= e($c['jenis']); ?></span></div>
-                                        <div class="small text-redup">ID <?= e((string) $cid); ?></div>
-                                    </div>
-                                    <form method="POST" action="dashboard.php">
-                                        <?= csrf_field(); ?>
-                                        <input type="hidden" name="aksi" value="tambah_telegram">
-                                        <input type="hidden" name="nama" value="<?= e($c['nama']); ?>">
-                                        <input type="hidden" name="chat_id" value="<?= e((string) $cid); ?>">
-                                        <button type="submit" class="btn btn-sm btn-primary text-nowrap"><i class="fa-solid fa-plus"></i> Tambah</button>
-                                    </form>
-                                </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        <?php endif; ?>
-
-                        <div class="subjudul mt-2">Tambah penerima</div>
-                        <form method="POST" action="dashboard.php" class="mb-2">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="cari_telegram">
-                            <button type="submit" class="btn btn-sm btn-outline-primary w-100" <?= env('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN dulu"'; ?>>
-                                <i class="fa-solid fa-magnifying-glass"></i> Cari chat yang sudah klik Start di bot
-                            </button>
-                        </form>
-                        <form method="POST" action="dashboard.php" class="row g-2">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="tambah_telegram">
-                            <div class="col-12">
-                                <input type="text" name="nama" class="form-control form-control-sm" placeholder="Nama (contoh: Grup Admin Unit)" maxlength="100" required>
-                            </div>
-                            <div class="col-8">
-                                <input type="text" name="chat_id" class="form-control form-control-sm" placeholder="Chat ID, contoh -1001234567890" inputmode="numeric" pattern="-?[0-9]{3,20}" title="Angka; grup diawali tanda minus" required>
-                            </div>
-                            <div class="col-4">
-                                <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fa-solid fa-plus"></i> Tambah</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-8">
-                <div class="card kartu kartu-wa h-100" id="riwayat">
-                    <div class="card-header">
-                        <span class="ikon-judul"><i class="fa-solid fa-clock-rotate-left"></i></span>
-                        <div><h2 class="kartu-judul">Riwayat Pengiriman</h2><div class="kartu-sub"><?= $total_wa; ?> pengiriman<?= $menyaring_riwayat ? ' sesuai pencarian' : ''; ?></div></div>
-                    </div>
-                    <!-- Pencarian riwayat: kata kunci (unit / penerima / keterangan), status, tanggal kirim -->
-                    <div class="card-body pb-0 flex-grow-0">
-                        <form method="GET" action="dashboard.php#riwayat" class="row g-2 mb-3">
-                            <?= inputTersembunyi(['search', 'dari', 'sampai', 'filter', 'hal']); ?>
-                            <div class="col-12 col-md-4">
-                                <div class="input-group">
-                                    <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-secondary"></i></span>
-                                    <input type="text" name="cari_wa" class="form-control" placeholder="Cari unit / penerima..." value="<?= e($cari_wa); ?>">
-                                </div>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <select name="status_wa" class="form-select" aria-label="Status pengiriman">
-                                    <option value="">Semua status</option>
-                                    <option value="berhasil" <?= $status_wa === 'berhasil' ? 'selected' : ''; ?>>Berhasil</option>
-                                    <option value="sebagian" <?= $status_wa === 'sebagian' ? 'selected' : ''; ?>>Sebagian gagal</option>
-                                    <option value="gagal" <?= $status_wa === 'gagal' ? 'selected' : ''; ?>>Gagal</option>
-                                </select>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <input type="date" name="tgl_wa" class="form-control" value="<?= e($tgl_wa); ?>" title="Tanggal kirim" aria-label="Tanggal kirim">
-                            </div>
-                            <div class="col-12 col-md-2 d-flex gap-2">
-                                <button type="submit" class="btn btn-success w-100" title="Cari riwayat"><i class="fa-solid fa-magnifying-glass"></i><span class="d-md-none ms-1">Cari</span></button>
-                                <?php if ($menyaring_riwayat): ?>
-                                    <a href="<?= urlTanpa(['cari_wa', 'status_wa', 'tgl_wa', 'hal_wa'], 'riwayat'); ?>" class="btn btn-light border" title="Hapus pencarian riwayat"><i class="fa-solid fa-xmark"></i></a>
-                                <?php endif; ?>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle tabel small">
-                    <thead><tr><th>Waktu</th><th>Jenis</th><th>Unit</th><th>Penerima</th><th>Status</th></tr></thead>
-                    <tbody>
-                    <?php if (!$riwayat_wa): ?>
-                        <tr><td colspan="5"><div class="kosong"><i class="fa-regular fa-comment-dots"></i><?= $menyaring_riwayat ? 'Tidak ada riwayat yang cocok dengan pencarian.' : 'Belum ada riwayat pengiriman.'; ?></div></td></tr>
-                    <?php endif; ?>
-                    <?php foreach ($riwayat_wa as $w):
-                        $ok = $w['status'] === 'berhasil';
-                        // Hasil per saluran ['wa' => [...], 'telegram' => [...]] jika dikirim lewat WA & Telegram sekaligus
-                        $per_saluran = array_column(!empty($w['detail']) ? (json_decode($w['detail'], true) ?: []) : [], null, 'saluran');
-                    ?>
-                        <tr>
-                            <td class="text-nowrap"><?= tglPendek($w['waktu']) . ' ' . date('H:i', strtotime($w['waktu'])); ?></td>
-                            <td><span class="lencana <?= $w['jenis'] === 'otomatis' ? 'lencana-biru' : 'lencana-abu'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
-                            <td style="min-width: 180px;">
-                                <?php foreach (daftarUnitRiwayat($w['ringkasan']) as $i => $unit): ?>
-                                    <div><?= $i + 1; ?>. <?= e($unit); ?></div>
-                                <?php endforeach; ?>
-                            </td>
-                            <td style="min-width: 160px;">
-                                <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
-                                    <div class="text-nowrap">
-                                        <?php $sal = strncmp($no, 'tg:', 3) === 0 ? 'telegram' : 'wa'; ?>
-                                        <?php if (isset($per_saluran[$sal])): $ok_sal = !empty($per_saluran[$sal]['ok']); ?>
-                                            <i class="fa-solid <?= $ok_sal ? 'fa-circle-check text-success' : 'fa-circle-xmark text-danger'; ?>" title="<?= $ok_sal ? 'Terkirim' : 'Gagal'; ?>"></i>
-                                        <?php endif; ?>
-                                        <?php if (strncmp($no, 'tg:', 3) === 0): ?>
-                                            <?php $cid = substr($no, 3); ?>
-                                            <span class="fw-semibold" style="color:#229ed9"><i class="fa-brands fa-telegram"></i> <?= e($nama_telegram[$cid] ?? 'Telegram'); ?></span> <span class="text-secondary"><?= e($cid); ?></span>
-                                        <?php elseif (isset($nama_penerima[$no])): ?>
-                                            <span class="fw-semibold"><?= e($nama_penerima[$no]); ?></span> <span class="text-secondary">+<?= e($no); ?></span>
-                                        <?php else: ?>
-                                            <span class="text-secondary">+<?= e($no); ?></span>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php endforeach; ?>
-                                <?php if (trim($w['penerima']) === '-'): ?><span class="text-muted">-</span><?php endif; ?>
-                            </td>
-                            <td>
-                                <?php if ($w['status'] === 'berhasil'): ?>
-                                    <span class="lencana lencana-hijau"><i class="fa-solid fa-check"></i> Berhasil</span>
-                                <?php elseif ($w['status'] === 'sebagian'): ?>
-                                    <span class="lencana lencana-kuning"><i class="fa-solid fa-triangle-exclamation"></i> Sebagian</span>
-                                <?php else: ?>
-                                    <span class="lencana lencana-merah"><i class="fa-solid fa-xmark"></i> Gagal</span>
-                                <?php endif; ?>
-                                <?php // Alasan gagal: per saluran (pengiriman WA & Telegram sekaligus) atau keterangan biasa ?>
-                                <?php foreach ($per_saluran as $sal => $h): if (!empty($h['ok']) || empty($h['pesan'])) continue; ?>
-                                    <div class="text-danger" style="font-size:.75rem"><?= e(namaSaluran($sal) . ': ' . $h['pesan']); ?></div>
-                                <?php endforeach; ?>
-                                <?php if (!$per_saluran && !$ok && $w['keterangan']): ?><div class="text-danger" style="font-size:.75rem"><?= e($w['keterangan']); ?></div><?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-                    <?= tombolHalaman($hal_wa, $jumlah_hal_wa, 'hal_wa', 'riwayat'); ?>
-                            </div>
-            </div>
-        </div>
-
-        <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
     </div>
 
-    <!-- Modal Edit Nama Penerima (WA & Telegram). Isinya diisi dari tombol pensil yang diklik. -->
+    <?php if ($alert): ?>
+        <div class="alert alert-<?= $alert[0]; ?> alert-dismissible fade show" role="alert">
+            <?= e($alert[1]); ?>
+            <?php if ($status_key === 'wa_failed' && $wa_error): ?>
+                <br><small>Detail: <?= e($wa_error); ?></small>
+            <?php endif; ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+    <?php foreach ($flash_list as [$tipe, $pesan]): ?>
+        <div class="alert alert-<?= e($tipe); ?> alert-dismissible fade show" role="alert">
+            <?= e($pesan); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endforeach; ?>
+
+<?php if ($menu === 'unit'): ?>
+    <!-- ================= DAFTAR UNIT ================= -->
+    <section class="panel" id="daftar">
+        <?php // Tab status: klik untuk menampilkan unit dengan status tersebut ?>
+        <nav class="tabs" aria-label="Filter status">
+            <?php foreach ($tab_status as [$kunci, $label, $nilai, $penting]): ?>
+                <a href="dashboard.php<?= $kunci === 'semua' ? '' : '?filter=' . $kunci; ?>" class="<?= $filter === $kunci ? 'on' : ''; ?> <?= $penting ? 'penting' : ''; ?>"<?= $filter === $kunci ? ' aria-current="page"' : ''; ?>>
+                    <?= e($label); ?> <i><?= (int) $nilai; ?></i>
+                </a>
+            <?php endforeach; ?>
+        </nav>
+
+        <?php // Pencarian: nama / kode unit + rentang tanggal ?>
+        <form method="GET" action="dashboard.php" class="bar">
+            <?php if ($filter !== 'semua'): ?><input type="hidden" name="filter" value="<?= e($filter); ?>"><?php endif; ?>
+            <input type="text" name="search" class="form-control bar-cari" placeholder="Cari nama atau kode unit" value="<?= e($search); ?>" aria-label="Cari nama atau kode unit">
+            <label class="bar-tgl" title="Tampilkan unit dengan tanggal awal mulai tanggal ini">
+                <span>Awal</span><input type="date" name="dari" class="form-control" value="<?= e($tgl_dari); ?>" aria-label="Tanggal awal">
+            </label>
+            <label class="bar-tgl" title="Tampilkan unit dengan tanggal akhir sampai tanggal ini">
+                <span>Akhir</span><input type="date" name="sampai" class="form-control" value="<?= e($tgl_sampai); ?>" aria-label="Tanggal akhir">
+            </label>
+            <button type="submit" class="btn btn-garis">Cari</button>
+            <?php if ($sedang_menyaring): ?>
+                <a href="dashboard.php" class="btn btn-teks">Hapus filter</a>
+            <?php endif; ?>
+            <span class="bar-ket"><?= (int) $total_rows; ?> unit · deadline terdekat di atas</span>
+        </form>
+
+        <div class="table-responsive">
+            <table class="tabel-a tabel-unit">
+                <thead>
+                    <tr>
+                        <th style="width:30%">Unit</th>
+                        <th style="width:17%">Periode</th>
+                        <th style="width:21%">Deadline</th>
+                        <th style="width:14%">Terkirim Tgl</th>
+                        <th class="text-end"><span class="visually-hidden">Aksi</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php if (!$data_tampil): ?>
+                    <tr><td colspan="5"><div class="kosong"><?= $sedang_menyaring ? 'Tidak ada unit yang cocok dengan filter ini.' : 'Belum ada unit. Klik “+ Tambah unit” untuk mulai.'; ?></div></td></tr>
+                <?php endif; ?>
+                <?php foreach ($data_tampil as $row): $id = (int) $row['id']; ?>
+                    <tr class="<?= $row['selesai_tanggal'] !== null ? 'baris-selesai' : ''; ?>">
+                        <td data-label="Unit">
+                            <div class="nama"><?= e($row['nama_unit']); ?></div>
+                            <div class="kode"><?= e($row['kode_unit']); ?></div>
+                        </td>
+                        <td data-label="Periode" class="mono" title="Tanggal awal s/d tanggal akhir">
+                            <?= tglPendek($row['tanggal_awal']); ?> &rarr; <br><b><?= tglPendek($row['tanggal_akhir']); ?></b>
+                        </td>
+                        <td data-label="Deadline"><?= selStatus($row, $bukti_pengingat[$id] ?? null); ?></td>
+                        <td data-label="Terkirim Tgl" class="mono">
+                            <?php if (empty($row['terakhir_dikirim'])): ?>
+                                <span class="redup">&mdash;</span>
+                            <?php else: ?>
+                                <span title="Pengingat otomatis terakhir terkirim"><?= tglPendek($row['terakhir_dikirim']); ?></span>
+                                <?php // "Kirim ulang": izinkan cron mengirim lagi (tidak untuk unit terlewat) ?>
+                                <?php if ($row['sisa_hari'] >= 0): ?>
+                                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Reset status pengingat unit ini agar dikirim ulang otomatis pada jadwal berikutnya?')">
+                                        <?= csrf_field(); ?>
+                                        <input type="hidden" name="aksi" value="reset_pengingat">
+                                        <input type="hidden" name="id" value="<?= $id; ?>">
+                                        <button type="submit" class="btn-tautan">kirim ulang</button>
+                                    </form>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-end"><?= aksiUnit($row, count($lampiran_per_unit[$id] ?? []), $bisa_wa, $bisa_tg); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="panel-kaki">
+            <span>Menampilkan <?= $total_rows ? ($offset + 1) . '–' . ($offset + count($data_tampil)) : 0; ?> dari <?= (int) $total_rows; ?> unit</span>
+            <?= tombolHalaman($hal, $jumlah_hal, 'hal', 'daftar'); ?>
+        </div>
+    </section>
+
+    <?php // Bilah info: pengingat otomatis terakhir + saluran yang aktif ?>
+    <section class="panel info">
+        <span>Pengingat otomatis terakhir:
+            <?php if ($pengingat_terakhir): ?>
+                <b><?= tglPendek($pengingat_terakhir['waktu']) . ', ' . date('H.i', strtotime($pengingat_terakhir['waktu'])); ?></b>
+                · <?= count(daftarUnitRiwayat($pengingat_terakhir['ringkasan'])); ?> unit
+                · <span class="<?= $pengingat_terakhir['status'] === 'berhasil' ? '' : 'teks-merah'; ?>"><?= e($pengingat_terakhir['status']); ?></span>
+            <?php else: ?>
+                <b>belum pernah</b>
+            <?php endif; ?>
+        </span>
+        <span>Saluran aktif: <b><?= e(implode(' dan ', array_map('namaSaluran', $saluran_notif))); ?></b></span>
+        <a href="dashboard.php?menu=riwayat">Lihat riwayat &rarr;</a>
+    </section>
+
+<?php elseif ($menu === 'penerima'): ?>
+    <!-- ================= PENERIMA ================= -->
+    <div class="dua-kolom">
+        <section class="panel" id="penerima">
+            <div class="panel-judul">
+                <h2>WhatsApp</h2>
+                <span><?= $penerima_aktif; ?> aktif<?= in_array('wa', $saluran_notif, true) ? '' : ' · tidak dipakai'; ?></span>
+            </div>
+            <?php if (!in_array('wa', $saluran_notif, true)): ?>
+                <p class="catatan">WhatsApp sedang tidak dipakai (<code>NOTIF_VIA=telegram</code>). Pengingat hanya dikirim ke Telegram.</p>
+            <?php endif; ?>
+            <?php if (!$penerima_list): ?>
+                <p class="catatan">Belum ada nomor.<?php if ($wa_target_env !== ''): ?> Saat ini pengingat dikirim ke nomor dari pengaturan server (<b><?= e($wa_target_env); ?></b>).<?php endif; ?></p>
+            <?php endif; ?>
+            <?php foreach ($penerima_list as $p): $aktif = (int) $p['aktif'] === 1; ?>
+                <div class="baris-penerima <?= $aktif ? '' : 'nonaktif'; ?>">
+                    <div>
+                        <div class="nama"><?= e($p['nama']); ?><?= $aktif ? '' : ' <span class="tanda">nonaktif</span>'; ?></div>
+                        <div class="kode">+<?= e($p['nomor']); ?></div>
+                    </div>
+                    <div class="aksi">
+                        <button type="button" class="btn btn-teks btn-kecil" data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
+                                data-aksi="ubah_nama_penerima" data-id="<?= (int) $p['id']; ?>" data-nama="<?= e($p['nama']); ?>" data-info="WhatsApp +<?= e($p['nomor']); ?>">Ubah nama</button>
+                        <form method="POST" action="dashboard.php">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="toggle_penerima">
+                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
+                            <button type="submit" class="btn btn-teks btn-kecil"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
+                        </form>
+                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus nomor ini dari penerima WhatsApp?')">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="hapus_penerima">
+                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
+                            <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
+                        </form>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+            <form method="POST" action="dashboard.php" class="form-tambah">
+                <?= csrf_field(); ?>
+                <input type="hidden" name="aksi" value="tambah_penerima">
+                <div class="label-kecil">Tambah nomor</div>
+                <div class="baris-input">
+                    <input type="text" name="nama" class="form-control" placeholder="Nama, contoh: Admin Kantor" maxlength="100" required>
+                    <input type="tel" name="nomor" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" required>
+                    <button type="submit" class="btn btn-gelap">Tambah</button>
+                </div>
+            </form>
+        </section>
+
+        <?php $telegram_dipakai = in_array('telegram', $saluran_notif, true); ?>
+        <section class="panel" id="telegram">
+            <div class="panel-judul">
+                <h2>Telegram</h2>
+                <span><?= $telegram_aktif; ?> aktif<?= $telegram_dipakai ? '' : ' · tidak dipakai'; ?></span>
+            </div>
+            <?php if (!$telegram_dipakai): ?>
+                <p class="catatan">Telegram belum dipakai. Isi <code>NOTIF_VIA=wa,telegram</code> dan <code>TELEGRAM_BOT_TOKEN</code> di pengaturan server agar pengingat juga dikirim ke chat di bawah.</p>
+            <?php endif; ?>
+            <?php if (!$telegram_list): ?>
+                <p class="catatan">Belum ada chat.<?php if ($telegram_env): ?> Saat ini pengingat dikirim ke Chat ID dari pengaturan server (<b><?= e(implode(', ', $telegram_env)); ?></b>).<?php endif; ?></p>
+            <?php endif; ?>
+            <?php foreach ($telegram_list as $t): $aktif = (int) $t['aktif'] === 1; ?>
+                <div class="baris-penerima <?= $aktif ? '' : 'nonaktif'; ?>">
+                    <div>
+                        <div class="nama"><?= e($t['nama']); ?><?= $aktif ? '' : ' <span class="tanda">nonaktif</span>'; ?></div>
+                        <div class="kode">ID <?= e($t['chat_id']); ?><?= strncmp($t['chat_id'], '-', 1) === 0 ? ' · grup' : ''; ?></div>
+                    </div>
+                    <div class="aksi">
+                        <button type="button" class="btn btn-teks btn-kecil" data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
+                                data-aksi="ubah_nama_telegram" data-id="<?= (int) $t['id']; ?>" data-nama="<?= e($t['nama']); ?>" data-info="Telegram ID <?= e($t['chat_id']); ?>">Ubah nama</button>
+                        <form method="POST" action="dashboard.php">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="toggle_telegram">
+                            <input type="hidden" name="id" value="<?= (int) $t['id']; ?>">
+                            <button type="submit" class="btn btn-teks btn-kecil"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
+                        </form>
+                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus chat ini dari penerima Telegram?')">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="hapus_telegram">
+                            <input type="hidden" name="id" value="<?= (int) $t['id']; ?>">
+                            <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
+                        </form>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+
+            <?php // Hasil tombol "Cari chat": klik Tambah untuk langsung menyimpan ?>
+            <?php if ($tg_ditemukan): ?>
+                <div class="label-kecil mt-3">Chat ditemukan</div>
+                <?php foreach ($tg_ditemukan as $cid => $c): ?>
+                    <div class="baris-penerima ditemukan">
+                        <div>
+                            <div class="nama"><?= e($c['nama']); ?> <span class="tanda"><?= e($c['jenis']); ?></span></div>
+                            <div class="kode">ID <?= e((string) $cid); ?></div>
+                        </div>
+                        <form method="POST" action="dashboard.php">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="tambah_telegram">
+                            <input type="hidden" name="nama" value="<?= e($c['nama']); ?>">
+                            <input type="hidden" name="chat_id" value="<?= e((string) $cid); ?>">
+                            <button type="submit" class="btn btn-garis btn-kecil">Tambah</button>
+                        </form>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+
+            <div class="form-tambah">
+                <div class="label-kecil">Tambah chat</div>
+                <form method="POST" action="dashboard.php" class="mb-2">
+                    <?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="cari_telegram">
+                    <button type="submit" class="btn btn-garis w-100" <?= env('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN dulu"'; ?>>Cari chat yang sudah klik Start di bot</button>
+                </form>
+                <form method="POST" action="dashboard.php" class="baris-input">
+                    <?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="tambah_telegram">
+                    <input type="text" name="nama" class="form-control" placeholder="Nama, contoh: Grup Admin" maxlength="100" required>
+                    <input type="text" name="chat_id" class="form-control" placeholder="Chat ID" inputmode="numeric" pattern="-?[0-9]{3,20}" title="Angka; grup diawali tanda minus" required>
+                    <button type="submit" class="btn btn-gelap">Tambah</button>
+                </form>
+            </div>
+        </section>
+    </div>
+
+<?php else: ?>
+    <!-- ================= RIWAYAT KIRIM ================= -->
+    <section class="panel" id="riwayat">
+        <form method="GET" action="dashboard.php" class="bar">
+            <input type="hidden" name="menu" value="riwayat">
+            <input type="text" name="cari_wa" class="form-control bar-cari" placeholder="Cari unit atau penerima" value="<?= e($cari_wa); ?>" aria-label="Cari unit atau penerima">
+            <select name="status_wa" class="form-select bar-pilih" aria-label="Status pengiriman">
+                <option value="">Semua status</option>
+                <option value="berhasil" <?= $status_wa === 'berhasil' ? 'selected' : ''; ?>>Berhasil</option>
+                <option value="sebagian" <?= $status_wa === 'sebagian' ? 'selected' : ''; ?>>Sebagian gagal</option>
+                <option value="gagal" <?= $status_wa === 'gagal' ? 'selected' : ''; ?>>Gagal</option>
+            </select>
+            <label class="bar-tgl" title="Tanggal kirim"><span>Tanggal</span><input type="date" name="tgl_wa" class="form-control" value="<?= e($tgl_wa); ?>" aria-label="Tanggal kirim"></label>
+            <button type="submit" class="btn btn-garis">Cari</button>
+            <?php if ($menyaring_riwayat): ?>
+                <a href="dashboard.php?menu=riwayat" class="btn btn-teks">Hapus filter</a>
+            <?php endif; ?>
+        </form>
+        <div class="table-responsive">
+            <table class="tabel-a tabel-riwayat">
+                <thead><tr><th style="width:15%">Waktu</th><th style="width:10%">Jenis</th><th style="width:28%">Unit</th><th>Penerima</th><th style="width:17%">Status</th></tr></thead>
+                <tbody>
+                <?php if (!$riwayat_wa): ?>
+                    <tr><td colspan="5"><div class="kosong"><?= $menyaring_riwayat ? 'Tidak ada riwayat yang cocok dengan pencarian.' : 'Belum ada riwayat pengiriman.'; ?></div></td></tr>
+                <?php endif; ?>
+                <?php foreach ($riwayat_wa as $w):
+                    $ok = $w['status'] === 'berhasil';
+                    // Hasil per saluran ['wa' => [...], 'telegram' => [...]] jika dikirim lewat WA & Telegram sekaligus
+                    $per_saluran = array_column(!empty($w['detail']) ? (json_decode($w['detail'], true) ?: []) : [], null, 'saluran');
+                ?>
+                    <tr>
+                        <td data-label="Waktu" class="mono"><?= tglPendek($w['waktu']); ?><br><span class="redup"><?= date('H.i', strtotime($w['waktu'])); ?></span></td>
+                        <td data-label="Jenis"><?= e(ucfirst($w['jenis'])); ?></td>
+                        <td data-label="Unit">
+                            <?php foreach (daftarUnitRiwayat($w['ringkasan']) as $unit): ?>
+                                <div><?= e($unit); ?></div>
+                            <?php endforeach; ?>
+                        </td>
+                        <td data-label="Penerima">
+                            <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
+                                <?php $sal = strncmp($no, 'tg:', 3) === 0 ? 'telegram' : 'wa'; ?>
+                                <div class="penerima-riwayat">
+                                    <?php if (isset($per_saluran[$sal])): $ok_sal = !empty($per_saluran[$sal]['ok']); ?>
+                                        <span class="<?= $ok_sal ? 'teks-hijau' : 'teks-merah'; ?>" title="<?= $ok_sal ? 'Terkirim' : 'Gagal'; ?>"><?= $ok_sal ? '✓' : '✗'; ?></span>
+                                    <?php endif; ?>
+                                    <?php if ($sal === 'telegram'): $cid = substr($no, 3); ?>
+                                        <?= e($nama_telegram[$cid] ?? 'Telegram'); ?> <span class="kode">Telegram <?= e($cid); ?></span>
+                                    <?php elseif (isset($nama_penerima[$no])): ?>
+                                        <?= e($nama_penerima[$no]); ?> <span class="kode">+<?= e($no); ?></span>
+                                    <?php else: ?>
+                                        <span class="kode">+<?= e($no); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                            <?php if (trim($w['penerima']) === '-'): ?><span class="redup">&mdash;</span><?php endif; ?>
+                        </td>
+                        <td data-label="Status">
+                            <?php if ($w['status'] === 'berhasil'): ?>
+                                <div class="st hijau">Berhasil</div>
+                            <?php elseif ($w['status'] === 'sebagian'): ?>
+                                <div class="st amber">Sebagian gagal</div>
+                            <?php else: ?>
+                                <div class="st merah">Gagal</div>
+                            <?php endif; ?>
+                            <?php // Alasan gagal: per saluran (pengiriman WA & Telegram sekaligus) atau keterangan biasa ?>
+                            <?php foreach ($per_saluran as $sal => $h): if (!empty($h['ok']) || empty($h['pesan'])) continue; ?>
+                                <div class="st-sub teks-merah"><?= e(namaSaluran($sal) . ': ' . $h['pesan']); ?></div>
+                            <?php endforeach; ?>
+                            <?php if (!$per_saluran && !$ok && $w['keterangan']): ?><div class="st-sub teks-merah"><?= e($w['keterangan']); ?></div><?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <div class="panel-kaki">
+            <span><?= $total_wa; ?> pengiriman</span>
+            <?= tombolHalaman($hal_wa, $jumlah_hal_wa, 'hal_wa', 'riwayat'); ?>
+        </div>
+    </section>
+<?php endif; ?>
+
+    <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
+</main>
+
+<?php if ($menu === 'penerima'): ?>
+    <!-- Popup Ubah Nama Penerima (WA & Telegram). Isinya diisi dari tombol "Ubah nama" yang diklik. -->
     <div class="modal fade" id="modalNamaPenerima" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <form method="POST" action="dashboard.php">
                     <div class="modal-header">
-                        <h5 class="modal-title fw-bold"><i class="fa-solid fa-pen text-warning me-2"></i> Edit Nama Penerima</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">Ubah nama penerima</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
                     </div>
                     <div class="modal-body">
                         <?= csrf_field(); ?>
                         <input type="hidden" name="aksi" value="ubah_nama_penerima">
                         <input type="hidden" name="id" value="">
-                        <div class="small text-redup mb-2" data-info></div>
-                        <label class="form-label text-secondary small fw-bold">Nama</label>
+                        <div class="kode mb-2" data-info></div>
+                        <label class="form-label">Nama</label>
                         <input type="text" name="nama" class="form-control" maxlength="100" required>
-                        <div class="form-text">Nama ini tampil di daftar penerima dan di Riwayat Pengiriman.</div>
+                        <div class="form-text">Nama ini tampil di daftar penerima dan di Riwayat Kirim.</div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-primary">Simpan</button>
+                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-gelap">Simpan</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
     <script>
-    // Isi modal Edit Nama sesuai penerima (WA / Telegram) yang tombolnya diklik
+    // Isi popup Ubah Nama sesuai penerima (WA / Telegram) yang tombolnya diklik
     document.getElementById('modalNamaPenerima').addEventListener('show.bs.modal', (ev) => {
         const tombol = ev.relatedTarget;
         const form = ev.target.querySelector('form');
@@ -1400,42 +1218,91 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
         input.select();
     });
     </script>
+<?php endif; ?>
 
-    <!-- Modal Edit (diletakkan di luar tabel agar HTML valid) -->
+<?php if ($menu === 'unit'): ?>
+    <!-- Popup Tambah Unit (lampiran diunggah per potongan oleh JavaScript di bawah) -->
+    <div class="modal fade" id="modalTambah" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="dashboard.php" enctype="multipart/form-data" data-upload="unit-baru">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Tambah unit</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                    </div>
+                    <div class="modal-body">
+                        <?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="simpan">
+                        <div class="mb-3">
+                            <label class="form-label">Nama unit</label>
+                            <input type="text" name="nama_unit" class="form-control" placeholder="contoh: BRKS Cabang Pekanbaru" maxlength="150" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Kode unit</label>
+                            <input type="text" name="kode_unit" class="form-control" placeholder="contoh: 105BRKS2026" maxlength="50" required>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label class="form-label">Tanggal awal</label>
+                                <input type="date" name="tanggal_awal" class="form-control" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Deadline (tanggal akhir)</label>
+                                <input type="date" name="tanggal_akhir" class="form-control" required>
+                            </div>
+                        </div>
+                        <label class="form-label">Lampiran <span class="redup fw-normal">(opsional)</span></label>
+                        <input type="file" name="lampiran[]" class="form-control" multiple accept="<?= e($accept_lampiran); ?>">
+                        <div class="form-text"><?= e($info_lampiran); ?></div>
+                        <div class="progress mt-2 d-none" style="height: 6px;" data-progres><div class="progress-bar" role="progressbar" style="width: 0%"></div></div>
+                        <div class="small redup mt-1 d-none" data-progres-teks></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-gelap">Simpan unit</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popup Edit (diletakkan di luar tabel agar HTML valid) -->
     <?php foreach ($data_tampil as $row): ?>
     <div class="modal fade" id="modalEdit<?= (int) $row['id']; ?>" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-pen-to-square text-warning me-2"></i> Edit Data Unit</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
                 <form method="POST" action="dashboard.php">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit unit</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                    </div>
                     <div class="modal-body">
                         <?= csrf_field(); ?>
                         <input type="hidden" name="aksi" value="update">
                         <input type="hidden" name="id" value="<?= (int) $row['id']; ?>">
-
                         <div class="mb-3">
-                            <label class="form-label text-secondary small fw-bold">Kode Unit</label>
-                            <input type="text" name="kode_unit" class="form-control" value="<?= e($row['kode_unit']); ?>" maxlength="50" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small fw-bold">Nama Unit</label>
+                            <label class="form-label">Nama unit</label>
                             <input type="text" name="nama_unit" class="form-control" value="<?= e($row['nama_unit']); ?>" maxlength="150" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label text-secondary small fw-bold">Tanggal Awal</label>
-                            <input type="date" name="tanggal_awal" class="form-control" value="<?= e($row['tanggal_awal']); ?>" required>
+                            <label class="form-label">Kode unit</label>
+                            <input type="text" name="kode_unit" class="form-control" value="<?= e($row['kode_unit']); ?>" maxlength="50" required>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small fw-bold">Tanggal Akhir</label>
-                            <input type="date" name="tanggal_akhir" class="form-control" value="<?= e($row['tanggal_akhir']); ?>" required>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <label class="form-label">Tanggal awal</label>
+                                <input type="date" name="tanggal_awal" class="form-control" value="<?= e($row['tanggal_awal']); ?>" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Deadline (tanggal akhir)</label>
+                                <input type="date" name="tanggal_akhir" class="form-control" value="<?= e($row['tanggal_akhir']); ?>" required>
+                            </div>
                         </div>
+                        <div class="form-text mt-2">Mengubah deadline (memperpanjang) akan mengaktifkan lagi pengingat otomatis dan menghapus status selesai.</div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-gelap">Simpan perubahan</button>
                     </div>
                 </form>
             </div>
@@ -1443,67 +1310,65 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     </div>
     <?php endforeach; ?>
 
-    <!-- Modal Lampiran -->
+    <!-- Popup Lampiran -->
     <?php foreach ($data_tampil as $row): $lampiran_unit = $lampiran_per_unit[(int) $row['id']] ?? []; ?>
     <div class="modal fade" id="modalLampiran<?= (int) $row['id']; ?>" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-paperclip text-info me-2"></i> Lampiran: <?= e($row['nama_unit']); ?></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title">Lampiran · <?= e($row['nama_unit']); ?></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
                 </div>
                 <div class="modal-body">
                     <?php if (!$lampiran_unit): ?>
-                        <p class="text-muted small text-center my-3">Belum ada lampiran untuk unit ini.</p>
-                    <?php else: ?>
-                        <ul class="list-group mb-3">
-                            <?php foreach ($lampiran_unit as $l):
-                                // Tombol "Lihat" untuk PDF, gambar, Word (.docx), Excel, CSV, TXT (lihat LAMPIRAN_BISA_DILIHAT)
-                                $bisa_dilihat = in_array(strtolower($l['ekstensi']), LAMPIRAN_BISA_DILIHAT, true); ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
-                                <div class="text-truncate">
-                                    <div class="fw-semibold small text-truncate" title="<?= e($l['nama_file']); ?>"><?= e($l['nama_file']); ?></div>
-                                    <div class="text-secondary" style="font-size:.75rem">
-                                        <?= formatUkuran((int) $l['ukuran']); ?> · <?= tglPendek($l['dibuat_tanggal']) . ' ' . date('H:i', strtotime($l['dibuat_tanggal'])); ?>
-                                        <?= $l['diunggah_oleh'] ? '· ' . e($l['diunggah_oleh']) : ''; ?>
-                                    </div>
-                                </div>
-                                <div class="d-flex gap-1 flex-shrink-0">
-                                    <?php if ($bisa_dilihat): ?>
-                                        <a href="lampiran.php?id=<?= (int) $l['id']; ?>&lihat=1" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="Lihat tanpa mengunduh"><i class="fa-solid fa-eye me-1"></i>Lihat</a>
-                                    <?php endif; ?>
-                                    <a href="lampiran.php?id=<?= (int) $l['id']; ?>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Unduh"><i class="fa-solid fa-download"></i></a>
-                                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus lampiran ini?')">
-                                        <?= csrf_field(); ?>
-                                        <input type="hidden" name="aksi" value="hapus_lampiran">
-                                        <input type="hidden" name="id" value="<?= (int) $l['id']; ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus"><i class="fa-solid fa-trash"></i></button>
-                                    </form>
-                                </div>
-                            </li>
-                            <?php endforeach; ?>
-                        </ul>
+                        <p class="redup small my-2">Belum ada lampiran untuk unit ini.</p>
                     <?php endif; ?>
+                    <?php foreach ($lampiran_unit as $l):
+                        // Tombol "Lihat" untuk PDF, gambar, Word (.docx), Excel, CSV, TXT (lihat LAMPIRAN_BISA_DILIHAT)
+                        $bisa_dilihat = in_array(strtolower($l['ekstensi']), LAMPIRAN_BISA_DILIHAT, true); ?>
+                        <div class="baris-penerima">
+                            <div class="min-w-0">
+                                <div class="nama text-truncate" title="<?= e($l['nama_file']); ?>"><?= e($l['nama_file']); ?></div>
+                                <div class="kode">
+                                    <?= formatUkuran((int) $l['ukuran']); ?> · <?= tglPendek($l['dibuat_tanggal']) . ' ' . date('H.i', strtotime($l['dibuat_tanggal'])); ?>
+                                    <?= $l['diunggah_oleh'] ? '· ' . e($l['diunggah_oleh']) : ''; ?>
+                                </div>
+                            </div>
+                            <div class="aksi">
+                                <?php if ($bisa_dilihat): ?>
+                                    <a href="lampiran.php?id=<?= (int) $l['id']; ?>&lihat=1" target="_blank" rel="noopener" class="btn btn-teks btn-kecil">Lihat</a>
+                                <?php endif; ?>
+                                <a href="lampiran.php?id=<?= (int) $l['id']; ?>" target="_blank" rel="noopener" class="btn btn-teks btn-kecil">Unduh</a>
+                                <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus lampiran ini?')">
+                                    <?= csrf_field(); ?>
+                                    <input type="hidden" name="aksi" value="hapus_lampiran">
+                                    <input type="hidden" name="id" value="<?= (int) $l['id']; ?>">
+                                    <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
+                                </form>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
 
-                    <form method="POST" action="dashboard.php" enctype="multipart/form-data" class="border-top pt-3" data-upload="unit">
+                    <form method="POST" action="dashboard.php" enctype="multipart/form-data" class="form-tambah" data-upload="unit">
                         <?= csrf_field(); ?>
                         <input type="hidden" name="aksi" value="upload_lampiran">
                         <input type="hidden" name="deadline_id" value="<?= (int) $row['id']; ?>">
-                        <label class="form-label text-secondary small fw-bold">Tambah Lampiran</label>
+                        <label class="form-label">Tambah lampiran</label>
                         <input type="file" name="lampiran[]" class="form-control mb-1" multiple required accept="<?= e($accept_lampiran); ?>">
                         <div class="form-text mb-2"><?= e($info_lampiran); ?></div>
-                        <div class="progress mb-2 d-none" style="height: 8px;" data-progres><div class="progress-bar" role="progressbar" style="width: 0%"></div></div>
-                                <div class="small text-muted mb-2 d-none" data-progres-teks></div>
-                        <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-upload me-1"></i> Unggah</button>
+                        <div class="progress mb-2 d-none" style="height: 6px;" data-progres><div class="progress-bar" role="progressbar" style="width: 0%"></div></div>
+                        <div class="small redup mb-2 d-none" data-progres-teks></div>
+                        <button type="submit" class="btn btn-gelap w-100">Unggah</button>
                     </form>
                 </div>
             </div>
         </div>
     </div>
     <?php endforeach; ?>
+<?php endif; ?>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
         // Buka kembali modal lampiran setelah upload / hapus
         <?php if ($buka_lampiran > 0): ?>
         document.addEventListener('DOMContentLoaded', () => {
@@ -1543,6 +1408,15 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                     await new Promise((r) => setTimeout(r, 1000 * coba)); // jaringan putus: coba lagi
                 }
             }
+        }
+
+        // Alamat halaman ini (filter & halaman tabel tetap) + parameter baru, tanpa pesan / popup lama
+        function alamatKembali(tambah) {
+            const u = new URL(window.location.href);
+            ['status', 'lampiran'].forEach((k) => u.searchParams.delete(k));
+            Object.entries(tambah).forEach(([k, v]) => u.searchParams.set(k, v));
+            u.hash = '';
+            return u.toString();
         }
 
         // Unggah 1 file: daftarkan -> kirim potongan satu per satu -> tandai selesai
@@ -1598,10 +1472,10 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         data.delete('lampiran[]');
                         data.append('ajax', '1');
                         deadlineId = (await kirim(data, 1)).id;
-                        tujuan = 'dashboard.php?status=success_add';
+                        tujuan = alamatKembali({ status: 'success_add' });
                     } else {
                         deadlineId = form.querySelector('[name=deadline_id]').value;
-                        tujuan = 'dashboard.php?lampiran=' + deadlineId;
+                        tujuan = alamatKembali({ lampiran: deadlineId });
                     }
                     const gagal = await unggahSemua(form, deadlineId, files);
                     sedangUpload = false;
