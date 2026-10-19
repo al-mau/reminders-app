@@ -7,6 +7,7 @@
  */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
+require_once __DIR__ . '/lib/tampilan.php';
 
 // Jika sudah login, langsung alihkan ke dashboard
 if (!empty($_SESSION['login'])) {
@@ -71,143 +72,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - Aplikasi Pengingat Jadwal</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #0f172a, #1e293b);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .card-register {
-            border: none;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-            width: 100%;
-            max-width: 450px;
-            background-color: #ffffff;
-        }
-        .btn-primary {
-            background-color: #2563eb;
-            border: none;
-            border-radius: 8px;
-            padding: 12px;
-            font-weight: 600;
-        }
-        .btn-primary:hover {
-            background-color: #1d4ed8;
-        }
-        .form-control {
-            border-radius: 8px;
-            padding: 10px 14px;
-        }
-        .form-control:focus {
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
-        }
-        .register-icon {
-            width: 60px;
-            height: 60px;
-            background-color: #eff6ff;
-            color: #2563eb;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            margin: 0 auto 15px auto;
-        }
-    </style>
+    <?= kepalaHalaman('Daftar'); ?>
 </head>
-<body>
+<body class="auth">
 
-    <div class="card card-register p-4 m-3">
-        <div class="card-body text-center p-2">
-            <div class="register-icon">
-                <i class="fa-solid fa-user-plus"></i>
-            </div>
-            
-            <h4 class="fw-bold text-dark mb-1">Buat Akun Baru</h4>
+<?= sisiAuth(); ?>
 
-            <?php if (!$registerAktif): ?>
-                <div class="alert alert-secondary text-start small py-3 px-3 my-4" role="alert">
-                    <i class="fa-solid fa-lock me-1"></i> <strong>Pendaftaran akun ditutup.</strong><br>
-                    Akun baru hanya bisa dibuatkan oleh admin melalui menu <em>Kelola User</em> di dashboard.
-                </div>
-                <a href="login.php" class="btn btn-primary w-100"><i class="fa-solid fa-arrow-left me-1"></i> Kembali ke Login</a>
-            <?php else: ?>
-            <p class="text-muted small mb-4">Lengkapi data di bawah untuk mendaftar</p>
+<main class="auth-isi">
+    <div class="auth-kotak">
+        <h1>Buat akun</h1>
+
+        <?php if (!$registerAktif): ?>
+            <div class="kepala-sub">Pendaftaran akun ditutup.</div>
+            <p class="catatan mx-0 mb-4">Akun baru hanya bisa dibuatkan oleh admin melalui menu <b>Pengguna</b> di aplikasi.</p>
+            <a href="login.php" class="btn btn-gelap w-100">Kembali ke halaman masuk</a>
+        <?php else: ?>
+            <div class="kepala-sub">Lengkapi data di bawah untuk mendaftar.</div>
 
             <?php if ($error): ?>
-                <div class="alert alert-danger alert-dismissible fade show text-start small py-2 px-3 mb-3" role="alert">
-                    <i class="fa-solid fa-circle-exclamation me-1"></i> <?= e($errorMessage); ?>
-                    <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <?= e($errorMessage); ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Tutup"></button>
                 </div>
             <?php endif; ?>
 
             <?php if ($success): ?>
-                <div class="alert alert-success text-start small py-2 px-3 mb-3" role="alert">
-                    <i class="fa-solid fa-circle-check me-1"></i> Pendaftaran berhasil! Silakan <a href="login.php" class="alert-link">Login di sini</a>.
-                </div>
+                <div class="alert alert-success" role="alert">Pendaftaran berhasil. Silakan <a href="login.php" class="alert-link">masuk di sini</a>.</div>
             <?php else: ?>
-
-            <form method="POST" action="register.php" class="text-start">
+            <form method="POST" action="register.php">
                 <?= csrf_field(); ?>
                 <div class="mb-3">
-                    <label class="form-label text-secondary small fw-bold">Nama Lengkap</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-id-card"></i></span>
-                        <input type="text" name="nama_lengkap" class="form-control" placeholder="Masukkan nama lengkap" value="<?= e($old['nama_lengkap']); ?>" maxlength="100" required autofocus>
-                    </div>
+                    <label class="form-label" for="nama_lengkap">Nama lengkap</label>
+                    <input type="text" id="nama_lengkap" name="nama_lengkap" class="form-control" value="<?= e($old['nama_lengkap']); ?>" maxlength="100" required autofocus>
                 </div>
-
                 <div class="mb-3">
-                    <label class="form-label text-secondary small fw-bold">Username</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-user"></i></span>
-                        <input type="text" name="username" class="form-control" placeholder="Masukkan username" value="<?= e($old['username']); ?>" maxlength="50" autocomplete="username" required>
-                    </div>
+                    <label class="form-label" for="username">Username</label>
+                    <input type="text" id="username" name="username" class="form-control" value="<?= e($old['username']); ?>" maxlength="50" autocomplete="username" required>
                 </div>
-
                 <div class="mb-3">
-                    <label class="form-label text-secondary small fw-bold">Password</label>
+                    <label class="form-label" for="password">Password <span class="redup fw-normal">(minimal 6 karakter)</span></label>
                     <div class="input-group">
-                        <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-lock"></i></span>
-                        <input type="password" name="password" class="form-control" placeholder="Minimal 6 karakter" minlength="6" autocomplete="new-password" required>
-                        <?= tombol_mata('btn-light border text-secondary'); ?>
+                        <input type="password" id="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
+                        <?= tombol_mata(); ?>
                     </div>
                 </div>
-
                 <div class="mb-4">
-                    <label class="form-label text-secondary small fw-bold">Konfirmasi Password</label>
+                    <label class="form-label" for="confirm_password">Konfirmasi password</label>
                     <div class="input-group">
-                        <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-key"></i></span>
-                        <input type="password" name="confirm_password" class="form-control" placeholder="Ulangi password" minlength="6" autocomplete="new-password" required>
-                        <?= tombol_mata('btn-light border text-secondary'); ?>
+                        <input type="password" id="confirm_password" name="confirm_password" class="form-control" minlength="6" autocomplete="new-password" required>
+                        <?= tombol_mata(); ?>
                     </div>
                 </div>
-
-                <button type="submit" name="register" class="btn btn-primary w-100 mb-3">
-                    <i class="fa-solid fa-user-plus me-1"></i> Daftar Sekarang
-                </button>
+                <button type="submit" name="register" class="btn btn-gelap w-100">Daftar</button>
             </form>
             <?php endif; ?>
-            <?php endif; /* registerAktif */ ?>
+        <?php endif; /* registerAktif */ ?>
 
-            <div class="text-center mt-2">
-                <p class="text-muted small mb-0">Sudah punya akun? <a href="login.php" class="text-primary text-decoration-none fw-bold">Login</a></p>
-            </div>
-        </div>
+        <div class="auth-bawah">Sudah punya akun? <a href="login.php">Masuk</a></div>
     </div>
+</main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <?= skrip_mata(); ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<?= skrip_mata(); ?>
 </body>
 </html>
