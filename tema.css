@@ -163,11 +163,27 @@ body.app { display: flex; min-height: 100vh; }
 .progress-bar { background: var(--aksen); }
 .list-group-item { font-size: 13px; }
 
+/* ---------- Halaman Login & Daftar: satu kotak form di tengah ---------- */
+body.auth { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 16px; }
+.auth-merek { font-weight: 600; font-size: 15px; margin-bottom: 14px; color: var(--tinta); }
+.auth-merek small { color: var(--tinta3); font-weight: 400; margin-left: 6px; }
+.auth-kotak { width: 100%; max-width: 380px; background: var(--putih); border: 1px solid var(--garis); border-radius: 6px; padding: 28px 28px 22px; }
+.auth-kotak h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; letter-spacing: -.2px; }
+.auth-kotak .kepala-sub { margin-bottom: 22px; }
+.auth-kotak .alert { margin-bottom: 18px; }
+.auth-kotak .form-control { padding: 9px 12px; }
+.auth-kotak .btn-gelap { padding: 10px 14px; font-size: 14px; }
+.auth-bawah { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--garis2); color: var(--tinta3); font-size: 13px; }
+body.auth .kaki { padding: 16px 0 0; }
+
 /* ---------- Layar kecil ---------- */
 @media (max-width: 991.98px) {
     .dua-kolom, .kolom-pengguna { grid-template-columns: 1fr; }
 }
 @media (max-width: 767.98px) {
+    /* Login & Daftar: kotak form mulai dari atas layar */
+    body.auth { justify-content: flex-start; padding-top: 32px; }
+    .auth-kotak { padding: 22px 20px 18px; }
     /* Sidebar menjadi bilah menu di atas */
     body.app { flex-direction: column; }
     .side { width: auto; height: auto; position: static; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 12px 16px; gap: 6px 12px; }

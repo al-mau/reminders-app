@@ -1,13 +1,14 @@
 <?php
 /**
- * Potongan tampilan yang dipakai bersama oleh dashboard.php dan users.php:
+ * Potongan tampilan yang dipakai bersama oleh dashboard.php, users.php, login.php, register.php:
  *  - kepalaHalaman()   -> isi <head> (Bootstrap, ikon, font IBM Plex, tema.css)
  *  - sidebarAplikasi() -> menu samping: Daftar Unit, Penerima, Riwayat Kirim, Pengguna
+ *  - merekAuth()       -> nama aplikasi di atas form Login & Daftar
  * Fungsi e() berasal dari koneksi.php.
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 20;
+const VERSI_TEMA = 22;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -47,4 +48,10 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
     return $html . '</nav>'
         . '<div class="side-bawah"><b>' . e($_SESSION['username'] ?? 'admin') . '</b><a href="logout.php">Keluar</a></div>'
         . '</aside>';
+}
+
+/** Nama aplikasi di atas kotak form halaman Login & Daftar */
+function merekAuth(): string
+{
+    return '<div class="auth-merek">Pengingat Deadline<small>Monitoring user unit</small></div>';
 }

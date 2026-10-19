@@ -7,6 +7,7 @@
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
 require_once __DIR__ . '/lib/skema.php';
+require_once __DIR__ . '/lib/tampilan.php';
 
 // Jika sudah login, redirect ke dashboard
 if (!empty($_SESSION['login'])) {
@@ -86,85 +87,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Aplikasi Pengingat Jadwal</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body {
-            background-color: #1a1e29;
-            color: #ffffff;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .card-login {
-            background-color: #242a38;
-            border-radius: 12px;
-            padding: 30px;
-            width: 100%;
-            max-width: 400px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-        }
-        .btn-primary {
-            background-color: #2563eb;
-            border: none;
-        }
-        .btn-primary:hover {
-            background-color: #1d4ed8;
-        }
-    </style>
+    <?= kepalaHalaman('Masuk'); ?>
 </head>
-<body>
+<body class="auth">
 
-<div class="card-login">
-    <div class="text-center mb-4">
-        <i class="fa-solid fa-bell fa-2x text-primary mb-2"></i>
-        <h4>Aplikasi Pengingat Jadwal</h4>
-        <p class="text-secondary small">Masukkan username & password untuk masuk</p>
-    </div>
+<?= merekAuth(); ?>
+<main class="auth-kotak">
+    <h1>Masuk</h1>
+    <div class="kepala-sub">Gunakan username dan password akun Anda.</div>
 
     <?php if (!empty($pesan_error)): ?>
-        <div class="alert alert-danger text-center py-2 mb-3" role="alert">
-            <small><?= e($pesan_error); ?></small>
-        </div>
+        <div class="alert alert-danger" role="alert"><?= e($pesan_error); ?></div>
     <?php endif; ?>
 
     <form method="POST" action="login.php">
         <?= csrf_field(); ?>
         <div class="mb-3">
-            <label class="form-label text-secondary small">Username</label>
+            <label class="form-label" for="username">Username</label>
+            <input type="text" id="username" name="username" class="form-control" value="<?= e($username); ?>" autocomplete="username" required autofocus>
+        </div>
+        <div class="mb-4">
+            <label class="form-label" for="password">Password</label>
             <div class="input-group">
-                <span class="input-group-text bg-dark border-0 text-secondary"><i class="fa-solid fa-user"></i></span>
-                <input type="text" name="username" class="form-control bg-dark text-white border-0" placeholder="username" value="<?= e($username); ?>" autocomplete="username" required autofocus>
+                <input type="password" id="password" name="password" class="form-control" autocomplete="current-password" required>
+                <?= tombol_mata(); ?>
             </div>
         </div>
-
-        <div class="mb-3">
-            <label class="form-label text-secondary small">Password</label>
-            <div class="input-group">
-                <span class="input-group-text bg-dark border-0 text-secondary"><i class="fa-solid fa-lock"></i></span>
-                <input type="password" name="password" class="form-control bg-dark text-white border-0" placeholder="••••••••" autocomplete="current-password" required>
-                <?= tombol_mata('bg-dark border-0 text-secondary'); ?>
-            </div>
-        </div>
-
-        <button type="submit" name="login" class="btn btn-primary w-100 py-2 mt-2">
-            <i class="fa-solid fa-right-to-bracket me-1"></i> Login
-        </button>
+        <button type="submit" name="login" class="btn btn-gelap w-100">Masuk</button>
     </form>
 
-    <div class="text-center mt-4">
+    <div class="auth-bawah">
         <?php // Link "Daftar" hanya muncul bila ALLOW_REGISTER=true (atau belum ada user sama sekali) ?>
         <?php if (pendaftaranDibuka()): ?>
-            <small class="text-secondary">Belum punya akun? <a href="register.php" class="text-primary text-decoration-none fw-bold">Daftar sekarang</a></small>
+            Belum punya akun? <a href="register.php">Daftar</a>
         <?php else: ?>
-            <small class="text-secondary">Belum punya akun? Hubungi admin untuk dibuatkan akun.</small>
+            Belum punya akun? Hubungi admin untuk dibuatkan akun.
         <?php endif; ?>
     </div>
-</div>
+</main>
+<div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <?= skrip_mata(); ?>
