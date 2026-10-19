@@ -43,6 +43,14 @@ function jsonKeluar(array $data, int $kode = 200): void
     exit;
 }
 
+/** Tanggal pendek bahasa Indonesia untuk tabel, contoh: "2026-10-05" -> "05 Okt 2026" (tanpa tahun: "05 Okt") */
+function tglPendek(string $tanggal, bool $tahun = true): string
+{
+    static $bulan = [1 => 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    $t = strtotime($tanggal);
+    return date('d', $t) . ' ' . $bulan[(int) date('n', $t)] . ($tahun ? ' ' . date('Y', $t) : '');
+}
+
 /** Huruf pertama nama (untuk lingkaran avatar penerima WA), contoh: "Alif" -> "A" */
 function inisial(string $nama): string
 {
@@ -731,7 +739,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="tema.css?v=13">
+    <link rel="stylesheet" href="tema.css?v=14">
     <style>
         /* Daftar file yang dipilih (sebelum disimpan) */
         .daftar-pilihan .list-group-item { padding: 6px 10px; font-size: .85rem; }
@@ -893,11 +901,9 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                             <table class="table table-hover align-middle tabel tabel-unit">
                                 <thead>
                                     <tr>
-                                        <th class="text-center" width="5%">No</th>
-                                        <th>Kode</th>
-                                        <th>Nama Unit</th>
-                                        <th>Tgl Awal</th>
-                                        <th>Tgl Akhir</th>
+                                        <th class="text-center kol-no">No</th>
+                                        <th>Unit</th>
+                                        <th>Periode</th>
                                         <th class="text-center">Deadline</th>
                                         <th class="text-center">Terkirim Tgl</th>
                                         <th class="text-center">Aksi</th>
@@ -921,27 +927,33 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         ?>
                                         <tr>
                                             <td class="text-center text-redup"><?= $no++; ?></td>
-                                            <td><span class="kode"><?= e($row['kode_unit']); ?></span></td>
-                                            <td class="fw-semibold text-dark"><?= e($row['nama_unit']); ?></td>
-                                            <td class="text-redup small text-nowrap"><?= date('d M Y', strtotime($row['tanggal_awal'])); ?></td>
-                                            <td class="small text-nowrap fw-semibold"><?= date('d M Y', strtotime($row['tanggal_akhir'])); ?></td>
+                                            <?php // Unit: nama di atas, kode di bawah ?>
+                                            <td>
+                                                <div class="sel-nama"><?= e($row['nama_unit']); ?></div>
+                                                <span class="kode"><?= e($row['kode_unit']); ?></span>
+                                            </td>
+                                            <?php // Periode: tanggal awal (kecil) sampai tanggal akhir (tebal) ?>
+                                            <td class="text-nowrap" title="Tanggal awal s/d tanggal akhir">
+                                                <div class="sel-kecil"><?= tglPendek($row['tanggal_awal']); ?> &ndash;</div>
+                                                <div class="sel-akhir"><?= tglPendek($row['tanggal_akhir']); ?></div>
+                                            </td>
                                             <?php // Kolom Deadline: status sisa hari, atau "Selesai" + siapa/kapan + bukti pengingat terakhir ?>
                                             <td class="text-center">
                                                 <?php $selesai = $row['selesai_tanggal'] !== null; ?>
                                                 <?php if ($selesai): ?>
                                                     <span class="lencana lencana-hijau"><i class="fa-solid fa-circle-check"></i> Selesai</span>
-                                                    <div class="info-selesai" title="Ditandai selesai oleh <?= e((string) $row['selesai_oleh']); ?>">
-                                                        <?= e((string) $row['selesai_oleh']); ?> · <?= date('d M Y', strtotime($row['selesai_tanggal'])); ?>
+                                                    <div class="info-selesai" title="Ditandai selesai oleh <?= e((string) $row['selesai_oleh']); ?> pada <?= tglPendek($row['selesai_tanggal']); ?>">
+                                                        <i class="fa-solid fa-user-check"></i> <?= e((string) $row['selesai_oleh']); ?>, <?= tglPendek($row['selesai_tanggal'], false); ?>
                                                     </div>
                                                     <?php $bukti = $bukti_pengingat[(int) $row['id']] ?? null; ?>
-                                                    <div class="info-selesai">
-                                                        <?php if ($bukti): ?>
-                                                            <i class="fa-solid fa-paper-plane"></i> Pengingat <?= date('d M', strtotime($bukti['waktu'])); ?>:
+                                                    <?php if ($bukti): ?>
+                                                        <div class="info-selesai" title="Bukti: pengingat terakhir untuk unit ini di Riwayat Pengiriman">
+                                                            <i class="fa-solid fa-paper-plane"></i> <?= tglPendek($bukti['waktu'], false); ?>,
                                                             <span class="<?= $bukti['status'] === 'gagal' ? 'text-danger' : 'text-success'; ?>"><?= e($bukti['status']); ?></span>
-                                                        <?php else: ?>
-                                                            Belum ada pengingat terkirim
-                                                        <?php endif; ?>
-                                                    </div>
+                                                        </div>
+                                                    <?php else: ?>
+                                                        <div class="info-selesai">Belum ada pengingat</div>
+                                                    <?php endif; ?>
                                                 <?php else: ?>
                                                     <?= $badge_deadline; ?>
                                                 <?php endif; ?>
@@ -961,7 +973,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                                     <span class="text-redup">-</span>
                                                 <?php else: ?>
                                                     <div class="info-terkirim mt-0" title="Pengingat otomatis terakhir terkirim">
-                                                        <i class="fa-solid fa-paper-plane"></i> <?= date('d M Y', strtotime($row['terakhir_dikirim'])); ?>
+                                                        <i class="fa-solid fa-paper-plane"></i> <?= tglPendek($row['terakhir_dikirim']); ?>
                                                     </div>
                                                     <?php // Tombol "Kirim ulang" disembunyikan untuk unit expired: cron hanya mengirim unit yang deadline-nya hari ini/besok ?>
                                                     <?php if ($sisa_hari >= 0): ?>
@@ -1043,7 +1055,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="8"><div class="kosong"><i class="fa-regular fa-folder-open"></i>Belum ada unit yang cocok. Tambahkan unit lewat form di samping atau ubah pencarian.</div></td>
+                                            <td colspan="6"><div class="kosong"><i class="fa-regular fa-folder-open"></i>Belum ada unit yang cocok. Tambahkan unit lewat form di samping atau ubah pencarian.</div></td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
@@ -1291,7 +1303,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                         $per_saluran = array_column(!empty($w['detail']) ? (json_decode($w['detail'], true) ?: []) : [], null, 'saluran');
                     ?>
                         <tr>
-                            <td class="text-nowrap"><?= date('d M Y H:i', strtotime($w['waktu'])); ?></td>
+                            <td class="text-nowrap"><?= tglPendek($w['waktu']) . ' ' . date('H:i', strtotime($w['waktu'])); ?></td>
                             <td><span class="lencana <?= $w['jenis'] === 'otomatis' ? 'lencana-biru' : 'lencana-abu'; ?>"><?= e(ucfirst($w['jenis'])); ?></span></td>
                             <td style="min-width: 180px;">
                                 <?php foreach (daftarUnitRiwayat($w['ringkasan']) as $i => $unit): ?>
@@ -1452,7 +1464,7 @@ $info_lampiran   = 'PDF, gambar, Word, Excel, CSV, TXT. Maks ' . formatUkuran(LA
                                 <div class="text-truncate">
                                     <div class="fw-semibold small text-truncate" title="<?= e($l['nama_file']); ?>"><?= e($l['nama_file']); ?></div>
                                     <div class="text-secondary" style="font-size:.75rem">
-                                        <?= formatUkuran((int) $l['ukuran']); ?> · <?= date('d M Y H:i', strtotime($l['dibuat_tanggal'])); ?>
+                                        <?= formatUkuran((int) $l['ukuran']); ?> · <?= tglPendek($l['dibuat_tanggal']) . ' ' . date('H:i', strtotime($l['dibuat_tanggal'])); ?>
                                         <?= $l['diunggah_oleh'] ? '· ' . e($l['diunggah_oleh']) : ''; ?>
                                     </div>
                                 </div>
