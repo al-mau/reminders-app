@@ -91,43 +91,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body class="auth">
 
-<?= sisiAuth(); ?>
+<?= merekAuth(); ?>
+<main class="auth-kotak">
+    <h1>Masuk</h1>
+    <div class="kepala-sub">Gunakan username dan password akun Anda.</div>
 
-<main class="auth-isi">
-    <div class="auth-kotak">
-        <h1>Masuk</h1>
-        <div class="kepala-sub">Gunakan username dan password akun Anda.</div>
+    <?php if (!empty($pesan_error)): ?>
+        <div class="alert alert-danger" role="alert"><?= e($pesan_error); ?></div>
+    <?php endif; ?>
 
-        <?php if (!empty($pesan_error)): ?>
-            <div class="alert alert-danger" role="alert"><?= e($pesan_error); ?></div>
-        <?php endif; ?>
-
-        <form method="POST" action="login.php">
-            <?= csrf_field(); ?>
-            <div class="mb-3">
-                <label class="form-label" for="username">Username</label>
-                <input type="text" id="username" name="username" class="form-control" value="<?= e($username); ?>" autocomplete="username" required autofocus>
-            </div>
-            <div class="mb-4">
-                <label class="form-label" for="password">Password</label>
-                <div class="input-group">
-                    <input type="password" id="password" name="password" class="form-control" autocomplete="current-password" required>
-                    <?= tombol_mata(); ?>
-                </div>
-            </div>
-            <button type="submit" name="login" class="btn btn-gelap w-100">Masuk</button>
-        </form>
-
-        <div class="auth-bawah">
-            <?php // Link "Daftar" hanya muncul bila ALLOW_REGISTER=true (atau belum ada user sama sekali) ?>
-            <?php if (pendaftaranDibuka()): ?>
-                Belum punya akun? <a href="register.php">Daftar</a>
-            <?php else: ?>
-                Belum punya akun? Hubungi admin untuk dibuatkan akun.
-            <?php endif; ?>
+    <form method="POST" action="login.php">
+        <?= csrf_field(); ?>
+        <div class="mb-3">
+            <label class="form-label" for="username">Username</label>
+            <input type="text" id="username" name="username" class="form-control" value="<?= e($username); ?>" autocomplete="username" required autofocus>
         </div>
+        <div class="mb-4">
+            <label class="form-label" for="password">Password</label>
+            <div class="input-group">
+                <input type="password" id="password" name="password" class="form-control" autocomplete="current-password" required>
+                <?= tombol_mata(); ?>
+            </div>
+        </div>
+        <button type="submit" name="login" class="btn btn-gelap w-100">Masuk</button>
+    </form>
+
+    <div class="auth-bawah">
+        <?php // Link "Daftar" hanya muncul bila ALLOW_REGISTER=true (atau belum ada user sama sekali) ?>
+        <?php if (pendaftaranDibuka()): ?>
+            Belum punya akun? <a href="register.php">Daftar</a>
+        <?php else: ?>
+            Belum punya akun? Hubungi admin untuk dibuatkan akun.
+        <?php endif; ?>
     </div>
 </main>
+<div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <?= skrip_mata(); ?>

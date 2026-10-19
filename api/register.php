@@ -76,61 +76,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body class="auth">
 
-<?= sisiAuth(); ?>
+<?= merekAuth(); ?>
+<main class="auth-kotak">
+    <h1>Buat akun</h1>
 
-<main class="auth-isi">
-    <div class="auth-kotak">
-        <h1>Buat akun</h1>
+    <?php if (!$registerAktif): ?>
+        <div class="kepala-sub">Pendaftaran akun ditutup.</div>
+        <p class="catatan mx-0 mb-4">Akun baru hanya bisa dibuatkan oleh admin melalui menu <b>Pengguna</b> di aplikasi.</p>
+        <a href="login.php" class="btn btn-gelap w-100">Kembali ke halaman masuk</a>
+    <?php else: ?>
+        <div class="kepala-sub">Lengkapi data di bawah untuk mendaftar.</div>
 
-        <?php if (!$registerAktif): ?>
-            <div class="kepala-sub">Pendaftaran akun ditutup.</div>
-            <p class="catatan mx-0 mb-4">Akun baru hanya bisa dibuatkan oleh admin melalui menu <b>Pengguna</b> di aplikasi.</p>
-            <a href="login.php" class="btn btn-gelap w-100">Kembali ke halaman masuk</a>
+        <?php if ($error): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <?= e($errorMessage); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Tutup"></button>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($success): ?>
+            <div class="alert alert-success" role="alert">Pendaftaran berhasil. Silakan <a href="login.php" class="alert-link">masuk di sini</a>.</div>
         <?php else: ?>
-            <div class="kepala-sub">Lengkapi data di bawah untuk mendaftar.</div>
+        <form method="POST" action="register.php">
+            <?= csrf_field(); ?>
+            <div class="mb-3">
+                <label class="form-label" for="nama_lengkap">Nama lengkap</label>
+                <input type="text" id="nama_lengkap" name="nama_lengkap" class="form-control" value="<?= e($old['nama_lengkap']); ?>" maxlength="100" required autofocus>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="username">Username</label>
+                <input type="text" id="username" name="username" class="form-control" value="<?= e($old['username']); ?>" maxlength="50" autocomplete="username" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="password">Password <span class="redup fw-normal">(minimal 6 karakter)</span></label>
+                <div class="input-group">
+                    <input type="password" id="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
+                    <?= tombol_mata(); ?>
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="form-label" for="confirm_password">Konfirmasi password</label>
+                <div class="input-group">
+                    <input type="password" id="confirm_password" name="confirm_password" class="form-control" minlength="6" autocomplete="new-password" required>
+                    <?= tombol_mata(); ?>
+                </div>
+            </div>
+            <button type="submit" name="register" class="btn btn-gelap w-100">Daftar</button>
+        </form>
+        <?php endif; ?>
+    <?php endif; /* registerAktif */ ?>
 
-            <?php if ($error): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <?= e($errorMessage); ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Tutup"></button>
-                </div>
-            <?php endif; ?>
-
-            <?php if ($success): ?>
-                <div class="alert alert-success" role="alert">Pendaftaran berhasil. Silakan <a href="login.php" class="alert-link">masuk di sini</a>.</div>
-            <?php else: ?>
-            <form method="POST" action="register.php">
-                <?= csrf_field(); ?>
-                <div class="mb-3">
-                    <label class="form-label" for="nama_lengkap">Nama lengkap</label>
-                    <input type="text" id="nama_lengkap" name="nama_lengkap" class="form-control" value="<?= e($old['nama_lengkap']); ?>" maxlength="100" required autofocus>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="username">Username</label>
-                    <input type="text" id="username" name="username" class="form-control" value="<?= e($old['username']); ?>" maxlength="50" autocomplete="username" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="password">Password <span class="redup fw-normal">(minimal 6 karakter)</span></label>
-                    <div class="input-group">
-                        <input type="password" id="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
-                        <?= tombol_mata(); ?>
-                    </div>
-                </div>
-                <div class="mb-4">
-                    <label class="form-label" for="confirm_password">Konfirmasi password</label>
-                    <div class="input-group">
-                        <input type="password" id="confirm_password" name="confirm_password" class="form-control" minlength="6" autocomplete="new-password" required>
-                        <?= tombol_mata(); ?>
-                    </div>
-                </div>
-                <button type="submit" name="register" class="btn btn-gelap w-100">Daftar</button>
-            </form>
-            <?php endif; ?>
-        <?php endif; /* registerAktif */ ?>
-
-        <div class="auth-bawah">Sudah punya akun? <a href="login.php">Masuk</a></div>
-    </div>
+    <div class="auth-bawah">Sudah punya akun? <a href="login.php">Masuk</a></div>
 </main>
+<div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <?= skrip_mata(); ?>

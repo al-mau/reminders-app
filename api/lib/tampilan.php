@@ -3,12 +3,12 @@
  * Potongan tampilan yang dipakai bersama oleh dashboard.php, users.php, login.php, register.php:
  *  - kepalaHalaman()   -> isi <head> (Bootstrap, ikon, font IBM Plex, tema.css)
  *  - sidebarAplikasi() -> menu samping: Daftar Unit, Penerima, Riwayat Kirim, Pengguna
- *  - sisiAuth()        -> panel gelap di kiri halaman Login & Daftar
+ *  - merekAuth()       -> nama aplikasi di atas form Login & Daftar
  * Fungsi e() berasal dari koneksi.php.
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 21;
+const VERSI_TEMA = 22;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -50,16 +50,8 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
         . '</aside>';
 }
 
-/** Panel gelap di kiri halaman Login & Daftar: nama aplikasi + ringkasan fungsinya */
-function sisiAuth(): string
+/** Nama aplikasi di atas kotak form halaman Login & Daftar */
+function merekAuth(): string
 {
-    return '<aside class="auth-sisi">'
-        . '<div class="brand">Pengingat Deadline<small>Monitoring user unit</small></div>'
-        . '<ul class="auth-poin">'
-        . '<li><b>Deadline tercatat di satu tempat</b>Kode unit, periode, dan dokumen pendukung setiap unit.</li>'
-        . '<li><b>Pengingat otomatis pukul 20.00 WIB</b>Dikirim lewat WhatsApp dan Telegram untuk unit yang jatuh tempo hari ini dan besok.</li>'
-        . '<li><b>Riwayat sebagai bukti</b>Setiap pengiriman dan status penyelesaian unit tercatat.</li>'
-        . '</ul>'
-        . '<div class="kaki">&copy; ' . date('Y') . ' Aplikasi Pengingat Jadwal</div>'
-        . '</aside>';
+    return '<div class="auth-merek">Pengingat Deadline<small>Monitoring user unit</small></div>';
 }
