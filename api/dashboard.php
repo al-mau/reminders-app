@@ -839,7 +839,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <h1><?= e($judul_menu); ?></h1>
             <div class="kepala-sub">
                 <?= e($tanggal_hari_ini); ?>
-                <?php if ($menu === 'unit'): ?> · pengingat otomatis setiap hari pukul 20.00 WIB<?php endif; ?>
+                <?php if ($menu === 'unit'): ?> · pengingat otomatis setiap hari pukul 08.00 WIB<?php endif; ?>
                 <?php if ($menu === 'penerima'): ?> · nomor WhatsApp dan chat Telegram yang menerima pengingat<?php endif; ?>
                 <?php if ($menu === 'riwayat'): ?> · <?= $total_wa; ?> pengiriman<?= $menyaring_riwayat ? ' sesuai pencarian' : ''; ?><?php endif; ?>
             </div>
