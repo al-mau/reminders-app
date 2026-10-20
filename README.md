@@ -44,8 +44,13 @@ File JSON tidak bisa diberi komentar, jadi penjelasannya ditulis di sini:
 1. **Database** — setelah deploy, buka `https://<domain-vercel>/setup.php?key=<CRON_SECRET>` sekali (atau jalankan `database/schema.sql` manual).
 2. **Environment Variables** — di Vercel: *Project → Settings → Environment Variables*, isi semua variabel dari `.env.example`
    (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `FONNTE_TOKEN`, `WA_TARGET`, `CRON_SECRET`). Lalu **Redeploy**.
-3. **Cron** — di cron-job.org set URL:
-   `https://<domain-vercel>/cron_wa_reminder.php?key=<CRON_SECRET>` (misal setiap hari 08:00 WIB).
+3. **Cron** — di cron-job.org buat **dua** job (zona waktu Asia/Jakarta):
+   | Jam | URL | Isi pengingat |
+   |---|---|---|
+   | 08:00 | `https://<domain-vercel>/cron_wa_reminder.php?key=<CRON_SECRET>&jenis=hari_ini` | unit yang deadline-nya hari ini |
+   | 20:00 | `https://<domain-vercel>/cron_wa_reminder.php?key=<CRON_SECRET>&jenis=besok` | unit yang deadline-nya besok (H-1) |
+
+   Tanpa `&jenis=...` keduanya dikirim sekaligus dalam satu pesan (cara lama, cukup satu job).
 4. **Lokal (XAMPP)** — import database lewat `database/import_ke_xampp.bat` (atau phpMyAdmin → Import `database/reminders_db.sql`), salin `.env.xampp.example` menjadi `.env`, lalu buka `http://localhost/reminders-app/api/login.php`. Detail: `database/CARA_PAKAI.txt`.
 
 > Kredensial tidak boleh ditulis di kode. File `.env` sudah masuk `.gitignore`.

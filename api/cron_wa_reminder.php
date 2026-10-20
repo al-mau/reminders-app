@@ -1,13 +1,18 @@
 <?php
 /**
  * CRON PENGINGAT DEADLINE via WhatsApp (dijalankan otomatis, bukan dibuka manual).
- * Dipanggil oleh cron-job.org setiap hari jam 20.00 WIB, contoh URL:
- *   https://<domain-vercel>/cron_wa_reminder.php?key=<CRON_SECRET>
+ * Dipanggil oleh cron-job.org dua kali sehari (dua job terpisah), contoh URL:
+ *   jam 08.00 WIB -> https://<domain-vercel>/cron_wa_reminder.php?key=<CRON_SECRET>&jenis=hari_ini
+ *   jam 20.00 WIB -> https://<domain-vercel>/cron_wa_reminder.php?key=<CRON_SECRET>&jenis=besok
+ * Parameter jenis:
+ *   hari_ini = hanya unit yang deadline-nya HARI INI (hari-H)
+ *   besok    = hanya unit yang deadline-nya BESOK (H-1)
+ *   (kosong) = keduanya sekaligus, cara lama (1 job per hari)
  *
  * Alur:
  *  1. Cek key == CRON_SECRET (agar orang lain tidak bisa memicu kirim WA)
- *  2. Ambil unit yang tanggal_akhir-nya HARI INI atau BESOK, belum dikirim hari ini,
- *     dan belum ditandai selesai
+ *  2. Ambil unit yang tanggal_akhir-nya HARI INI dan/atau BESOK (sesuai jenis),
+ *     belum dikirim hari ini, dan belum ditandai selesai
  *  3. Gabungkan semuanya menjadi 1 pesan WA -> kirim ke semua nomor penerima aktif
  *  4. Jika berhasil: tandai pengingat = 'sent' & terakhir_dikirim = hari ini
  *  5. Bersihkan sisa lampiran tidak terpakai (lihat bersihkanLampiranGantung)
@@ -27,6 +32,17 @@ if (!$cronSecret || !is_string($keyDikirim) || !hash_equals($cronSecret, $keyDik
     exit;
 }
 
+// Jenis pengingat: hari_ini (jam 08.00), besok (jam 20.00), atau kosong = keduanya
+$jenis = (string) ($_GET['jenis'] ?? '');
+if (!in_array($jenis, ['', 'semua', 'hari_ini', 'besok'], true)) {
+    http_response_code(400);
+    echo json_encode(['status' => false, 'pesan' => 'Parameter jenis harus hari_ini atau besok']);
+    exit;
+}
+if ($jenis === '') {
+    $jenis = 'semua';
+}
+
 // Pastikan kolom tambahan sudah ada (selesai_tanggal dipakai di query berikut)
 pastikanTabelTambahan($pdo);
 
@@ -34,17 +50,21 @@ pastikanTabelTambahan($pdo);
 $hari_ini = date('Y-m-d');
 $besok    = date('Y-m-d', strtotime('+1 day'));
 
-// CARI DATA: Tanggal akhir BESOK atau HARI INI, DAN belum dikirim HARI INI, DAN belum selesai
+// Tanggal akhir yang dicari sesuai jenis pengingat
+$tanggalDicari = ['hari_ini' => [$hari_ini], 'besok' => [$besok], 'semua' => [$hari_ini, $besok]][$jenis];
+
+// CARI DATA: Tanggal akhir sesuai jenis, DAN belum dikirim HARI INI, DAN belum selesai
+// (unit H-1 yang dikirim jam 20.00 tetap dikirim lagi besok paginya, karena tanggalnya sudah berganti)
 $stmt = $pdo->prepare(
     "SELECT * FROM deadline
-     WHERE tanggal_akhir IN (:besok, :hari_ini)
-       AND (terakhir_dikirim IS NULL OR terakhir_dikirim <> :hari_ini2)
+     WHERE tanggal_akhir IN (" . implode(',', array_fill(0, count($tanggalDicari), '?')) . ")
+       AND (terakhir_dikirim IS NULL OR terakhir_dikirim <> ?)
        AND selesai_tanggal IS NULL"
 );
-$stmt->execute([':besok' => $besok, ':hari_ini' => $hari_ini, ':hari_ini2' => $hari_ini]);
+$stmt->execute(array_merge($tanggalDicari, [$hari_ini]));
 $rows = $stmt->fetchAll();
 
-$laporan = ['status' => true, 'tanggal' => $hari_ini, 'total' => count($rows), 'terkirim' => 0, 'gagal' => []];
+$laporan = ['status' => true, 'tanggal' => $hari_ini, 'jenis' => $jenis, 'total' => count($rows), 'terkirim' => 0, 'gagal' => []];
 
 if ($rows) {
     // Semua unit digabung dalam 1 pesan agar hemat kuota Fonnte & tidak terlihat spam
@@ -57,7 +77,8 @@ if ($rows) {
 
     // Susun isi pesan WA (*teks* = huruf tebal di WhatsApp).
     // Setiap unit ditulis dalam format: Kode Unit / Nama Unit / Tanggal Awal / Tanggal Akhir / Sisa Waktu
-    $pesan  = "*PENGINGAT DEADLINE UNIT*\n";
+    $judul  = ['hari_ini' => 'PENGINGAT DEADLINE HARI INI', 'besok' => 'PENGINGAT DEADLINE BESOK (H-1)', 'semua' => 'PENGINGAT DEADLINE UNIT'][$jenis];
+    $pesan  = "*$judul*\n";
     $pesan .= "Halo Admin, berikut " . count($rows) . " unit yang perlu segera di-update:\n";
     foreach ($rows as $row) {
         $pesan .= "\n*Kode Unit:* " . $row['kode_unit'] . "\n";

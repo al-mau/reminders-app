@@ -49,16 +49,23 @@ File .env tidak bisa dibuka dari browser (diblokir .htaccess).
 3. PENGINGAT WA OTOMATIS (pengganti cron-job.org)
 ---------------------------------------------------------------------
 Coba manual: klik 2x  reminders-app\kirim_pengingat.bat
-Agar otomatis setiap hari jam 20.00:
+Pengingat dikirim 2x sehari:
+ - jam 08.00 : unit yang deadline-nya HARI INI
+ - jam 20.00 : unit yang deadline-nya BESOK (H-1)
+Buat DUA jadwal di Task Scheduler (langkah sama, beda jam & argumen):
  1) Tekan tombol Windows, ketik "Task Scheduler", buka.
- 2) Klik "Create Basic Task..." -> Nama: Aplikasi Pengingat Jadwal -> Next
- 3) Trigger: Daily -> Next -> jam 20:00:00 -> Next
+ 2) Klik "Create Basic Task..." -> Nama: Pengingat Hari Ini -> Next
+ 3) Trigger: Daily -> Next -> jam 08:00:00 -> Next
  4) Action: Start a program -> Next
  5) Program/script: Browse -> pilih ...\htdocs\reminders-app\kirim_pengingat.bat
-    Add arguments: auto
+    Add arguments: auto hari_ini
  6) Next -> Finish.
+ 7) Ulangi langkah 2-6 untuk jadwal kedua:
+    Nama: Pengingat H-1 -> jam 20:00:00 -> Add arguments: auto besok
+Sudah punya jadwal lama (jam 20.00, argumen "auto" saja)? Hapus dulu
+atau ubah argumennya menjadi "auto besok", lalu tambah jadwal jam 08.00.
 Hasil setiap pengiriman tersimpan di file reminders-app\pengingat_log.txt
-Catatan: MySQL XAMPP harus sudah START saat jam 20.00.
+Catatan: MySQL XAMPP harus sudah START saat jam 08.00 dan 20.00.
 
 ---------------------------------------------------------------------
 4. AMBIL DATA DARI VERSI ONLINE (Aiven) -> XAMPP  (opsional)
