@@ -45,7 +45,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v7'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v8'])) {
         return;
     }
 
@@ -131,6 +131,14 @@ function pastikanTabelTambahan(PDO $pdo): void
         $pdo->exec("ALTER TABLE deadline ADD COLUMN selesai_tanggal DATETIME NULL, ADD COLUMN selesai_oleh VARCHAR(100) NULL");
     }
 
+    // Peran pengguna (lihat lib/peran.php). Akun yang sudah ada menjadi admin agar tidak kehilangan akses;
+    // setelah itu nilai bawaan diubah ke pemantau (hak paling sedikit) untuk akun yang dibuat tanpa peran.
+    $kolomUsers = $pdo->query("SHOW COLUMNS FROM users")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('peran', $kolomUsers, true)) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN peran VARCHAR(20) NOT NULL DEFAULT 'admin'");
+        $pdo->exec("ALTER TABLE users ALTER COLUMN peran SET DEFAULT 'pemantau'");
+    }
+
     // Percobaan login gagal (pembatasan brute force)
     $pdo->exec("CREATE TABLE IF NOT EXISTS login_gagal (
         id       INT AUTO_INCREMENT PRIMARY KEY,
@@ -143,7 +151,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v7'] = true;
+        $_SESSION['skema_tambahan_v8'] = true;
     }
 }
 

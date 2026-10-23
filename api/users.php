@@ -1,21 +1,25 @@
 <?php
 /**
- * Kelola User: tambah admin, ubah akun (username, nama, password), hapus akun.
- * Hanya bisa diakses oleh user yang sudah login.
+ * Kelola User: tambah akun, atur peran, ubah akun (username, nama, password), hapus akun.
+ * Admin melihat & mengelola semua akun; Staf dan Pemantau hanya melihat & mengubah akunnya sendiri
+ * (menu "Akun saya"). Peran dijelaskan di lib/peran.php.
  * Username dipakai sebagai kunci karena kolom ID tabel users bisa berbeda (id / id_user).
  */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
 require_once __DIR__ . '/lib/tampilan.php';
+require_once __DIR__ . '/lib/peran.php';
 
 if (empty($_SESSION['login'])) {
     header("Location: login.php");
     exit;
 }
+wajibAkunAktif(); // juga memastikan kolom peran sudah ada
 
 header('Cache-Control: no-cache, no-store, must-revalidate');
 
-$saya = (string) ($_SESSION['username'] ?? '');
+$saya  = (string) ($_SESSION['username'] ?? '');
+$admin = boleh('kelola_pengguna');
 
 // Kolom opsional yang mungkin berbeda antar database
 $kolomUsers  = $pdo->query("SHOW COLUMNS FROM users")->fetchAll(PDO::FETCH_COLUMN);
@@ -51,6 +55,21 @@ function validasiPassword(string $password, string $konfirmasi): ?string
     return null;
 }
 
+/** Jumlah akun Admin; dipakai agar Admin terakhir tidak dihapus atau diturunkan perannya */
+function jumlahAdmin(PDO $pdo): int
+{
+    return (int) $pdo->query("SELECT COUNT(*) FROM users WHERE peran = 'admin'")->fetchColumn();
+}
+
+/** Peran akun tertentu, atau null bila akunnya tidak ada */
+function peranAkun(PDO $pdo, string $username): ?string
+{
+    $stmt = $pdo->prepare("SELECT peran FROM users WHERE username = ?");
+    $stmt->execute([$username]);
+    $hasil = $stmt->fetchColumn();
+    return $hasil === false ? null : (string) $hasil;
+}
+
 // ===================================================================
 // AKSI (dijalankan saat tombol di halaman ditekan / form dikirim)
 // Setiap aksi diakhiri redirect ke users.php agar form tidak terkirim
@@ -66,15 +85,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $aksi     = $_POST['aksi'] ?? '';
     $username = trim((string) ($_POST['username'] ?? ''));
 
+    // Selain Admin hanya boleh mengubah akunnya sendiri
+    if (!$admin && !($aksi === 'ubah_akun' && $username === $saya)) {
+        flashUser('danger', 'Akun Anda (' . labelPeran(peranSaya()) . ') hanya bisa mengubah akun sendiri.');
+        header("Location: users.php");
+        exit;
+    }
+
     // --- TAMBAH USER ---
     if ($aksi === 'tambah') {
         $nama  = trim((string) ($_POST['nama_lengkap'] ?? ''));
+        $peran = (string) ($_POST['peran'] ?? '');
         $error = validasiPassword((string) ($_POST['password'] ?? ''), (string) ($_POST['konfirmasi'] ?? ''));
 
         if (!preg_match('/^[A-Za-z0-9_.]{3,50}$/', $username)) {
             $error = 'Username 3-50 karakter, hanya huruf, angka, titik, dan underscore.';
         } elseif ($adaNama && $nama === '') {
             $error = 'Nama lengkap wajib diisi.';
+        } elseif (!isset(PERAN[$peran])) {
+            $error = 'Pilih peran pengguna.';
         }
 
         if (!$error) {
@@ -88,8 +117,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($error) {
             flashUser('danger', $error);
         } else {
-            $kolom = ['username', 'password'];
-            $nilai = [$username, password_hash((string) $_POST['password'], PASSWORD_DEFAULT)];
+            $kolom = ['username', 'password', 'peran'];
+            $nilai = [$username, password_hash((string) $_POST['password'], PASSWORD_DEFAULT), $peran];
             if ($adaNama) {
                 $kolom[] = 'nama_lengkap';
                 $nilai[] = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
@@ -103,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 implode(', ', $kolom),
                 implode(', ', array_fill(0, count($kolom), '?'))
             ))->execute($nilai);
-            flashUser('success', "User \"$username\" berhasil dibuat. Berikan username & password-nya kepada yang bersangkutan.");
+            flashUser('success', "User \"$username\" berhasil dibuat dengan " . labelPeran($peran) . '. Berikan username & password-nya kepada yang bersangkutan.');
         }
         header("Location: users.php");
         exit;
@@ -116,6 +145,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = (string) ($_POST['password'] ?? '');
         $gantiPw  = $password !== '' || (string) ($_POST['konfirmasi'] ?? '') !== ''; // kosong = password tidak diubah
         $error    = null;
+        // Peran hanya bisa diubah Admin; Admin terakhir tidak boleh diturunkan
+        $peranLama = peranAkun($pdo, $username);
+        $peranBaru = $admin && isset(PERAN[$_POST['peran'] ?? '']) ? (string) $_POST['peran'] : $peranLama;
+        $gantiPeran = $peranLama !== null && $peranBaru !== $peranLama;
 
         if (!preg_match('/^[A-Za-z0-9_.]{3,50}$/', $baru)) {
             $error = 'Username 3-50 karakter, hanya huruf, angka, titik, dan underscore.';
@@ -123,6 +156,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Nama lengkap wajib diisi.';
         } elseif ($gantiPw && ($e = validasiPassword($password, (string) ($_POST['konfirmasi'] ?? '')))) {
             $error = $e;
+        } elseif ($gantiPeran && $peranLama === 'admin' && jumlahAdmin($pdo) <= 1) {
+            $error = 'Harus ada minimal satu akun dengan Akses Penuh. Berikan Akses Penuh ke akun lain terlebih dahulu.';
         } else {
             // Username lain yang sudah dipakai (selain milik user ini sendiri)
             $cek = $pdo->prepare("SELECT 1 FROM users WHERE username = ? AND username <> ?");
@@ -156,6 +191,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $set[]   = 'password = ?';
             $nilai[] = password_hash($password, PASSWORD_DEFAULT);
         }
+        if ($gantiPeran) {
+            $set[]   = 'peran = ?';
+            $nilai[] = $peranBaru;
+        }
         $nilai[] = $username;
         $pdo->prepare('UPDATE users SET ' . implode(', ', $set) . ' WHERE username = ?')->execute($nilai);
 
@@ -168,13 +207,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        $diubah = array_merge($gantiNama ? ["username menjadi \"$baru\""] : [], $gantiPw ? ['password baru'] : []);
+        $diubah = array_merge($gantiNama ? ["username menjadi \"$baru\""] : [], $gantiPw ? ['password baru'] : [],
+            $gantiPeran ? ['hak akses menjadi ' . labelPeran($peranBaru)] : []);
         if (!$diubah) {
             flashUser('success', "Data \"$username\" berhasil disimpan.");
         } elseif ($username === $saya) {
-            flashUser('success', 'Akun Anda diperbarui: ' . implode(' dan ', $diubah) . '. Pakai data baru ini untuk login berikutnya.');
+            flashUser('success', 'Akun Anda diperbarui: ' . implode(', ', $diubah) . '.' . ($gantiNama || $gantiPw ? ' Pakai data baru ini untuk login berikutnya.' : ''));
         } else {
-            flashUser('success', "Akun \"$username\" diperbarui: " . implode(' dan ', $diubah) . '. User ini harus login ulang.');
+            flashUser('success', "Akun \"$username\" diperbarui: " . implode(', ', $diubah) . '.' . ($gantiNama || $gantiPw ? ' User ini harus login ulang.' : ' Berlaku langsung.'));
         }
         header("Location: users.php");
         exit;
@@ -188,6 +228,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flashUser('danger', 'Tidak bisa menghapus akun yang sedang dipakai login.');
         } elseif ($jumlah <= 1) {
             flashUser('danger', 'Tidak bisa menghapus user terakhir.');
+        } elseif (peranAkun($pdo, $username) === 'admin' && jumlahAdmin($pdo) <= 1) {
+            flashUser('danger', 'Tidak bisa menghapus akun Akses Penuh yang terakhir.');
         } else {
             $stmt = $pdo->prepare("DELETE FROM users WHERE username = ?");
             $stmt->execute([$username]);
@@ -207,8 +249,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ===================================================================
 // DATA TAMPILAN
 // ===================================================================
-$select = 'username' . ($adaNama ? ', nama_lengkap' : '') . ($adaTanggal ? ', dibuat_tanggal' : '');
+$select = 'username, peran' . ($adaNama ? ', nama_lengkap' : '') . ($adaTanggal ? ', dibuat_tanggal' : '');
 $users  = $pdo->query("SELECT $select FROM users ORDER BY username")->fetchAll();
+if (!$admin) {
+    // Staf & Pemantau hanya melihat akunnya sendiri
+    $users = array_values(array_filter($users, static fn($u) => $u['username'] === $saya));
+}
+$judul = $admin ? 'Hak Akses User' : 'Akun saya';
 
 $flash = $_SESSION['flash_user'] ?? [];
 unset($_SESSION['flash_user']);
@@ -216,7 +263,7 @@ unset($_SESSION['flash_user']);
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <?= kepalaHalaman('Pengguna'); ?>
+    <?= kepalaHalaman($judul); ?>
 </head>
 <body class="app">
 
@@ -225,8 +272,10 @@ unset($_SESSION['flash_user']);
 <main class="isi">
     <div class="kepala">
         <div>
-            <h1>Pengguna</h1>
-            <div class="kepala-sub">Akun yang bisa login ke aplikasi · tambah akun, ubah akun (username, nama, password), atau hapus akun</div>
+            <h1><?= e($judul); ?></h1>
+            <div class="kepala-sub"><?= $admin
+                ? 'Akun yang bisa login ke aplikasi · tambah akun, atur hak akses, ubah akun, atau hapus akun'
+                : 'Hak akses Anda: ' . e(labelPeran(peranSaya())) . ' · ubah nama, username, atau password akun Anda'; ?></div>
         </div>
     </div>
     <?php foreach ($flash as [$tipe, $pesan]): ?>
@@ -236,15 +285,17 @@ unset($_SESSION['flash_user']);
         </div>
     <?php endforeach; ?>
 
-    <div class="dua-kolom kolom-pengguna">
+    <?php // Akses Penuh: daftar pengguna + form tambah; Akses Kerja & Akses Lihat: hanya akun sendiri. Lihat README.md ?>
+    <div class="<?= $admin ? 'dua-kolom kolom-pengguna' : ''; ?>">
         <section class="panel">
-            <div class="panel-judul"><h2>Daftar pengguna</h2><span><?= count($users); ?> akun</span></div>
+            <div class="panel-judul"><h2><?= $admin ? 'Daftar user' : 'Akun Anda'; ?></h2><?php if ($admin): ?><span><?= count($users); ?> akun</span><?php endif; ?></div>
             <div class="table-responsive">
                 <table class="tabel-a">
                     <thead>
                         <tr>
                             <th>Username</th>
                             <?php if ($adaNama): ?><th>Nama lengkap</th><?php endif; ?>
+                            <th>Hak akses</th>
                             <?php if ($adaTanggal): ?><th>Dibuat</th><?php endif; ?>
                             <th><span class="visually-hidden">Aksi</span></th>
                         </tr>
@@ -254,13 +305,14 @@ unset($_SESSION['flash_user']);
                         <tr>
                             <td data-label="Username"><span class="nama"><?= e($u['username']); ?></span><?php if ($isSaya): ?> <span class="tanda">Anda</span><?php endif; ?></td>
                             <?php if ($adaNama): ?><td data-label="Nama lengkap"><?= e($u['nama_lengkap'] ?? ''); ?></td><?php endif; ?>
+                            <td data-label="Hak akses"><span class="peran peran-<?= e($u['peran']); ?>"><?= e(labelPeran($u['peran'])); ?></span></td>
                             <?php if ($adaTanggal): ?>
                                 <td data-label="Dibuat" class="mono"><?= !empty($u['dibuat_tanggal']) ? date('d.m.Y', strtotime($u['dibuat_tanggal'])) : '&mdash;'; ?></td>
                             <?php endif; ?>
                             <td>
                                 <div class="aksi">
                                     <button type="button" class="btn btn-garis btn-kecil" data-bs-toggle="modal" data-bs-target="#modalAkun<?= $i; ?>">Ubah akun</button>
-                                    <?php if (!$isSaya && count($users) > 1): ?>
+                                    <?php if ($admin && !$isSaya && count($users) > 1): ?>
                                     <form method="POST" action="users.php" onsubmit="return confirm(this.dataset.konfirmasi)"
                                           data-konfirmasi="Hapus user <?= e($u['username']); ?>? User ini tidak akan bisa login lagi.">
                                         <?= csrf_field(); ?>
@@ -278,8 +330,9 @@ unset($_SESSION['flash_user']);
             </div>
         </section>
 
+        <?php if ($admin): ?>
         <section class="panel">
-            <div class="panel-judul"><h2>Tambah pengguna</h2></div>
+            <div class="panel-judul"><h2>Tambah user</h2></div>
             <form method="POST" action="users.php" autocomplete="off" class="form-tambah">
                 <?= csrf_field(); ?>
                 <input type="hidden" name="aksi" value="tambah">
@@ -307,9 +360,17 @@ unset($_SESSION['flash_user']);
                         <?= tombol_mata(); ?>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-gelap w-100">Simpan pengguna</button>
+                <div class="mb-3">
+                    <label class="form-label" for="peranBaru">Hak akses</label>
+                    <select id="peranBaru" name="peran" class="form-select" required>
+                        <?php foreach (PERAN as $kode => $label): ?>
+                            <option value="<?= $kode; ?>" <?= $kode === 'staf' ? 'selected' : ''; ?>><?= e($label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-gelap w-100">Simpan user</button>
             </form>
-            <p class="catatan mb-3">
+            <p class="catatan mb-2">
                 Halaman Daftar publik: <b class="<?= pendaftaranDibuka() ? 'teks-merah' : 'teks-hijau'; ?>"><?= pendaftaranDibuka() ? 'terbuka' : 'ditutup'; ?></b>.
                 <?php if (pendaftaranDibuka()): ?>
                     Siapa pun yang tahu link bisa membuat akun. Tutup dengan menghapus <code>ALLOW_REGISTER</code> atau mengisinya <code>false</code> di Vercel.
@@ -318,6 +379,7 @@ unset($_SESSION['flash_user']);
                 <?php endif; ?>
             </p>
         </section>
+        <?php endif; ?>
     </div>
 
     <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
@@ -348,6 +410,16 @@ unset($_SESSION['flash_user']);
                         <input type="text" id="usernameBaru<?= $i; ?>" name="username_baru" class="form-control" value="<?= e($u['username']); ?>"
                                maxlength="50" pattern="[A-Za-z0-9_.]{3,50}" title="3-50 karakter: huruf, angka, titik, underscore" required>
                     </div>
+                    <?php if ($admin): ?>
+                    <div class="mb-3">
+                        <label class="form-label" for="peran<?= $i; ?>">Hak akses</label>
+                        <select id="peran<?= $i; ?>" name="peran" class="form-select">
+                            <?php foreach (PERAN as $kode => $label): ?>
+                                <option value="<?= $kode; ?>" <?= $kode === $u['peran'] ? 'selected' : ''; ?>><?= e($label); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
                     <div class="label-kecil mt-4">Ganti password</div>
                     <div class="mb-3">
                         <label class="form-label" for="passwordBaru<?= $i; ?>">Password baru</label>

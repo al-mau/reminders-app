@@ -4,7 +4,8 @@
  *
  * Susunan file ini:
  *  1. AKSI             -> proses tombol/form (tambah, edit, hapus unit, kirim WA manual,
- *                         reset pengingat, tandai selesai, lampiran, penerima WA). Semua lewat POST + CSRF.
+ *                         tandai selesai, lampiran, penerima WA). Semua lewat POST + CSRF,
+ *                         dan dicek hak aksesnya per peran (lib/peran.php).
  *  2. DATA TAMPILAN    -> statistik (tab status), pencarian/filter/halaman tabel, lampiran,
  *                         penerima, riwayat kirim, pengingat otomatis terakhir
  *  3. HTML             -> sidebar (lib/tampilan.php) + satu menu sesuai ?menu=:
@@ -15,12 +16,14 @@ require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
 require_once __DIR__ . '/lib/fonnte.php';
 require_once __DIR__ . '/lib/tampilan.php';
+require_once __DIR__ . '/lib/peran.php';
 
 // Cek status login: belum login -> lempar ke halaman login
 if (empty($_SESSION['login'])) {
     header("Location: login.php");
     exit;
 }
+wajibAkunAktif(); // akun sudah dihapus Admin -> keluar
 
 // Jangan simpan halaman di cache browser (data harus selalu terbaru)
 header('Cache-Control: no-cache, no-store, must-revalidate');
@@ -159,6 +162,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $aksi = $_POST['aksi'] ?? '';
 
+    // --- HAK AKSES per aksi (lihat lib/peran.php). Aksi yang tidak terdaftar hanya untuk Admin. ---
+    $hakAksi = [
+        'simpan' => 'kelola_unit', 'update' => 'kelola_unit', 'kirim_wa' => 'kelola_unit',
+        'tandai_selesai' => 'kelola_unit', 'batal_selesai' => 'kelola_unit', 'upload_lampiran' => 'kelola_unit',
+        'lampiran_mulai' => 'kelola_unit', 'lampiran_bagian' => 'kelola_unit', 'lampiran_selesai' => 'kelola_unit',
+        'hapus' => 'hapus_data', 'hapus_lampiran' => 'hapus_data',
+        'tambah_penerima' => 'kelola_penerima', 'edit_penerima' => 'kelola_penerima', 'toggle_penerima' => 'kelola_penerima',
+        'hapus_penerima' => 'kelola_penerima', 'tambah_telegram' => 'kelola_penerima', 'ubah_nama_telegram' => 'kelola_penerima',
+        'toggle_telegram' => 'kelola_penerima', 'hapus_telegram' => 'kelola_penerima', 'cari_telegram' => 'kelola_penerima',
+    ];
+    if (!boleh($hakAksi[$aksi] ?? 'kelola_pengguna')) {
+        $pesanTolak = 'Akun Anda (' . labelPeran(peranSaya()) . ') tidak punya izin untuk melakukan aksi ini.';
+        if ($ajax) {
+            jsonKeluar(['ok' => false, 'pesan' => $pesanTolak], 403);
+        }
+        flash('danger', $pesanTolak);
+        header('Location: ' . kembaliKe(menuAsal()));
+        exit;
+    }
+
     // --- UPLOAD LAMPIRAN BERPOTONGAN (dipanggil JavaScript) ---
     if (in_array($aksi, ['lampiran_mulai', 'lampiran_bagian', 'lampiran_selesai'], true)) {
         try {
@@ -292,28 +315,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // --- 4b. RESET PENGINGAT: izinkan cron mengirim ulang unit ini ---
-    // (tombol "Kirim ulang" di tabel: pengingat -> pending, terakhir_dikirim -> kosong)
-    if ($aksi === 'reset_pengingat') {
-        $id = (int) ($_POST['id'] ?? 0);
-        // Unit yang sudah expired tidak akan dikirim lagi oleh cron, jadi reset ditolak
-        $cek = $pdo->prepare("SELECT tanggal_akhir FROM deadline WHERE id = ?");
-        $cek->execute([$id]);
-        $tgl = $cek->fetchColumn();
-        if ($tgl === false || hitungSisaHari($tgl) < 0) {
-            flash('danger', 'Unit ini sudah terlewat, pengingat otomatis tidak bisa dikirim ulang. Ubah tanggal akhirnya jika masih perlu diingatkan.');
-            header('Location: ' . kembaliKe('unit'));
-            exit;
-        }
-        // Status selesai ikut dihapus: cron tidak mengirim pengingat untuk unit yang sudah selesai
-        $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL, selesai_tanggal = NULL, selesai_oleh = NULL WHERE id = ?")->execute([$id]);
-        $label = labelUnit($pdo, $id);
-        flash('success', "Pengingat $label di-reset. Akan dikirim ulang otomatis pada jadwal cron berikutnya jika deadline-nya hari ini atau besok.");
-        header('Location: ' . kembaliKe('unit'));
-        exit;
-    }
-
-    // --- 4c. TANDAI SELESAI / BATALKAN ---
+    // --- 4b. TANDAI SELESAI / BATALKAN ---
     // Unit selesai = user unit sudah di-update. Pengingat otomatis berhenti dan unit tidak
     // dihitung sebagai Terlewat. Dicatat siapa yang menandai dan kapan.
     if ($aksi === 'tandai_selesai' || $aksi === 'batal_selesai') {
@@ -641,14 +643,27 @@ if ($data_tampil) {
 }
 $buka_lampiran = (int) ($_GET['lampiran'] ?? 0);
 
-// --- BUKTI PENGINGAT untuk unit yang sudah selesai: pengiriman terakhir di riwayat ---
-// Riwayat mencatat unit sebagai "(kode) nama" (lihat cron_wa_reminder.php & kirim manual)
-$bukti_pengingat = [];
-$cariBukti = $pdo->prepare("SELECT waktu, status FROM wa_log WHERE ringkasan LIKE ? ORDER BY id DESC LIMIT 1");
+// --- PENGIRIMAN TERAKHIR per unit dari Riwayat Kirim (otomatis maupun manual) ---
+// Riwayat mencatat unit sebagai "(kode) nama", satu unit per baris (lihat cron_wa_reminder.php & kirim manual).
+//  $bukti_pengingat[id]  = pengiriman terakhir apa pun statusnya (bukti untuk unit yang sudah selesai)
+//  $kirim_terakhir[id]   = pengiriman terakhir (manual/otomatis) yang berhasil/sebagian (kolom Terkirim Tgl)
+$bukti_pengingat = $kirim_terakhir = [];
+$cariKirim = $pdo->prepare(
+    "SELECT waktu, jenis, status FROM wa_log
+     WHERE ringkasan = ? OR ringkasan LIKE ? OR ringkasan LIKE ? OR ringkasan LIKE ?
+     ORDER BY id DESC LIMIT 30"
+);
 foreach ($data_tampil as $row) {
-    if ($row['selesai_tanggal'] !== null) {
-        $cariBukti->execute(['%' . addcslashes('(' . $row['kode_unit'] . ') ' . $row['nama_unit'], '%_\\') . '%']);
-        $bukti_pengingat[(int) $row['id']] = $cariBukti->fetch() ?: null;
+    $label = '(' . $row['kode_unit'] . ') ' . $row['nama_unit'];
+    $suka  = addcslashes($label, '%_\\');
+    $cariKirim->execute([$label, $suka . "\n%", "%\n" . $suka, "%\n" . $suka . "\n%"]);
+    $log = $cariKirim->fetchAll();
+    $bukti_pengingat[(int) $row['id']] = $log[0] ?? null;
+    foreach ($log as $l) {
+        if ($l['status'] !== 'gagal') {
+            $kirim_terakhir[(int) $row['id']] = $l;
+            break;
+        }
     }
 }
 
@@ -790,19 +805,26 @@ function aksiUnit(array $row, int $jmlLampiran, bool $bisaWa, bool $bisaTg): str
     $tanya   = $selesai ? 'Batalkan status selesai unit ini?' : 'Tandai unit ini selesai (user sudah di-update)? Pengingat otomatis untuk unit ini dihentikan.';
     $kirim   = static fn(string $via, string $label, bool $bisa) => '<button type="submit" name="via" value="' . $via . '" data-label="' . $label . '" class="dropdown-item"' . ($bisa ? '' : ' disabled') . '>'
         . $label . ($bisa ? '' : ' <small>(token belum diatur)</small>') . '</button>';
+    $kelola  = boleh('kelola_unit');
+    $hapus   = boleh('hapus_data');
     ob_start(); ?>
     <div class="aksi">
+        <?php if ($kelola): ?>
         <form method="POST" action="dashboard.php" onsubmit="return confirm('<?= $tanya; ?>')">
             <?= csrf_field(); ?>
             <input type="hidden" name="aksi" value="<?= $selesai ? 'batal_selesai' : 'tandai_selesai'; ?>">
             <input type="hidden" name="id" value="<?= $id; ?>">
             <button type="submit" class="btn btn-garis btn-kecil"><?= $selesai ? 'Batalkan' : 'Tandai selesai'; ?></button>
         </form>
+        <?php endif; ?>
         <div class="dropdown">
             <button type="button" class="btn btn-garis btn-kecil btn-titik" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="Aksi lain" title="Aksi lain">&#8943;</button>
             <ul class="dropdown-menu dropdown-menu-end menu-aksi">
+                <?php if ($kelola): ?>
                 <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalEdit<?= $id; ?>">Edit / perpanjang deadline</button></li>
+                <?php endif; ?>
                 <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalLampiran<?= $id; ?>">Lampiran<?= $jmlLampiran ? ' <span class="angka">' . $jmlLampiran . '</span>' : ''; ?></button></li>
+                <?php if ($kelola): ?>
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Kirim pengingat sekarang</h6></li>
                 <li>
@@ -814,6 +836,8 @@ function aksiUnit(array $row, int $jmlLampiran, bool $bisaWa, bool $bisaTg): str
                         <?= $kirim('wa', 'WhatsApp', $bisaWa) . $kirim('telegram', 'Telegram', $bisaTg) . $kirim('semua', 'WhatsApp dan Telegram', $bisaWa && $bisaTg); ?>
                     </form>
                 </li>
+                <?php endif; ?>
+                <?php if ($hapus): ?>
                 <li><hr class="dropdown-divider"></li>
                 <li>
                     <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus unit ini beserta lampirannya?')">
@@ -823,6 +847,7 @@ function aksiUnit(array $row, int $jmlLampiran, bool $bisaWa, bool $bisaTg): str
                         <button type="submit" class="dropdown-item teks-merah">Hapus unit</button>
                     </form>
                 </li>
+                <?php endif; ?>
             </ul>
         </div>
     </div>
@@ -866,7 +891,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <?php if ($menu === 'riwayat'): ?> · <?= $total_wa; ?> pengiriman<?= $menyaring_riwayat ? ' sesuai pencarian' : ''; ?><?php endif; ?>
             </div>
         </div>
-        <?php if ($menu === 'unit'): ?>
+        <?php if ($menu === 'unit' && boleh('kelola_unit')): ?>
             <button type="button" class="btn btn-gelap" data-bs-toggle="modal" data-bs-target="#modalTambah">+ Tambah unit</button>
         <?php endif; ?>
     </div>
@@ -929,7 +954,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 </thead>
                 <tbody>
                 <?php if (!$data_tampil): ?>
-                    <tr><td colspan="5"><div class="kosong"><?= $sedang_menyaring ? 'Tidak ada unit yang cocok dengan filter ini.' : 'Belum ada unit. Klik “+ Tambah unit” untuk mulai.'; ?></div></td></tr>
+                    <tr><td colspan="5"><div class="kosong"><?= $sedang_menyaring ? 'Tidak ada unit yang cocok dengan filter ini.' : (boleh('kelola_unit') ? 'Belum ada unit. Klik “+ Tambah unit” untuk mulai.' : 'Belum ada unit.'); ?></div></td></tr>
                 <?php endif; ?>
                 <?php foreach ($data_tampil as $row): $id = (int) $row['id']; ?>
                     <tr class="<?= $row['selesai_tanggal'] !== null ? 'baris-selesai' : ''; ?>">
@@ -942,19 +967,15 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         </td>
                         <td data-label="Deadline"><?= selStatus($row, $bukti_pengingat[$id] ?? null); ?></td>
                         <td data-label="Terkirim Tgl" class="mono">
-                            <?php if (empty($row['terakhir_dikirim'])): ?>
+                            <?php
+                            // Kiriman terakhir dari Riwayat Kirim; jika riwayat tidak ditemukan (misal unit diganti namanya),
+                            // pakai tanggal pengingat otomatis yang tersimpan di unit.
+                            $kirim = $kirim_terakhir[$id] ?? (!empty($row['terakhir_dikirim']) ? ['waktu' => $row['terakhir_dikirim']] : null);
+                            ?>
+                            <?php if (!$kirim): ?>
                                 <span class="redup">&mdash;</span>
                             <?php else: ?>
-                                <span title="Pengingat otomatis terakhir terkirim"><?= tglPendek($row['terakhir_dikirim']); ?></span>
-                                <?php // "Kirim ulang": izinkan cron mengirim lagi (tidak untuk unit terlewat) ?>
-                                <?php if ($row['sisa_hari'] >= 0): ?>
-                                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Reset status pengingat unit ini agar dikirim ulang otomatis pada jadwal berikutnya?')">
-                                        <?= csrf_field(); ?>
-                                        <input type="hidden" name="aksi" value="reset_pengingat">
-                                        <input type="hidden" name="id" value="<?= $id; ?>">
-                                        <button type="submit" class="btn-tautan">kirim ulang</button>
-                                    </form>
-                                <?php endif; ?>
+                                <span title="Pengingat terakhir terkirim (detail saluran & jenis ada di Riwayat Kirim)"><?= tglPendek($kirim['waktu']); ?></span>
                             <?php endif; ?>
                         </td>
                         <td class="text-end"><?= aksiUnit($row, count($lampiran_per_unit[$id] ?? []), $bisa_wa, $bisa_tg); ?></td>
@@ -987,6 +1008,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 
 <?php elseif ($menu === 'penerima'): ?>
     <!-- ================= PENERIMA ================= -->
+    <?php $kelola_penerima = boleh('kelola_penerima'); ?>
     <div class="dua-kolom">
         <section class="panel" id="penerima">
             <div class="panel-judul">
@@ -1005,6 +1027,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="nama"><?= e($p['nama']); ?><?= $aktif ? '' : ' <span class="tanda">nonaktif</span>'; ?></div>
                         <div class="kode">+<?= e($p['nomor']); ?></div>
                     </div>
+                    <?php if ($kelola_penerima): ?>
                     <div class="aksi">
                         <button type="button" class="btn btn-teks btn-kecil" data-bs-toggle="modal" data-bs-target="#modalEditWa"
                                 data-id="<?= (int) $p['id']; ?>" data-nama="<?= e($p['nama']); ?>" data-nomor="<?= e($p['nomor']); ?>">Edit</button>
@@ -1021,8 +1044,10 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
                         </form>
                     </div>
+                    <?php endif; ?>
                 </div>
             <?php endforeach; ?>
+            <?php if ($kelola_penerima): ?>
             <form method="POST" action="dashboard.php" class="form-tambah">
                 <?= csrf_field(); ?>
                 <input type="hidden" name="aksi" value="tambah_penerima">
@@ -1033,6 +1058,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                     <button type="submit" class="btn btn-gelap">Tambah</button>
                 </div>
             </form>
+            <?php endif; ?>
         </section>
 
         <?php $telegram_dipakai = in_array('telegram', $saluran_notif, true); ?>
@@ -1053,6 +1079,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="nama"><?= e($t['nama']); ?><?= $aktif ? '' : ' <span class="tanda">nonaktif</span>'; ?></div>
                         <div class="kode">ID <?= e($t['chat_id']); ?><?= strncmp($t['chat_id'], '-', 1) === 0 ? ' · grup' : ''; ?></div>
                     </div>
+                    <?php if ($kelola_penerima): ?>
                     <div class="aksi">
                         <button type="button" class="btn btn-teks btn-kecil" data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
                                 data-aksi="ubah_nama_telegram" data-id="<?= (int) $t['id']; ?>" data-nama="<?= e($t['nama']); ?>" data-info="Telegram ID <?= e($t['chat_id']); ?>">Ubah nama</button>
@@ -1069,11 +1096,12 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
                         </form>
                     </div>
+                    <?php endif; ?>
                 </div>
             <?php endforeach; ?>
 
             <?php // Hasil tombol "Cari chat": klik Tambah untuk langsung menyimpan ?>
-            <?php if ($tg_ditemukan): ?>
+            <?php if ($tg_ditemukan && $kelola_penerima): ?>
                 <div class="label-kecil mt-3">Chat ditemukan</div>
                 <?php foreach ($tg_ditemukan as $cid => $c): ?>
                     <div class="baris-penerima ditemukan">
@@ -1092,6 +1120,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <?php endforeach; ?>
             <?php endif; ?>
 
+            <?php if ($kelola_penerima): ?>
             <div class="form-tambah">
                 <div class="label-kecil">Tambah chat</div>
                 <form method="POST" action="dashboard.php" class="mb-2">
@@ -1107,8 +1136,12 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                     <button type="submit" class="btn btn-gelap">Tambah</button>
                 </form>
             </div>
+            <?php endif; ?>
         </section>
     </div>
+    <?php if (!$kelola_penerima): ?>
+        <p class="catatan mx-0">Daftar penerima hanya bisa diubah oleh pengguna dengan Akses Penuh. Hubungi pengelola aplikasi bila ada nomor atau chat yang perlu ditambah atau diganti.</p>
+    <?php endif; ?>
 
 <?php else: ?>
     <!-- ================= RIWAYAT KIRIM ================= -->
@@ -1195,7 +1228,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
     <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
 </main>
 
-<?php if ($menu === 'penerima'): ?>
+<?php if ($menu === 'penerima' && boleh('kelola_penerima')): ?>
     <!-- Popup Edit Penerima WhatsApp (nama & nomor). Isinya diisi dari tombol "Edit" yang diklik. -->
     <div class="modal fade" id="modalEditWa" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1285,6 +1318,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 <?php endif; ?>
 
 <?php if ($menu === 'unit'): ?>
+    <?php if (boleh('kelola_unit')): // Popup tambah & edit hanya untuk Admin dan Staf ?>
     <!-- Popup Tambah Unit (lampiran diunggah per potongan oleh JavaScript di bawah) -->
     <div class="modal fade" id="modalTambah" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -1374,6 +1408,8 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
     </div>
     <?php endforeach; ?>
 
+    <?php endif; ?>
+
     <!-- Popup Lampiran -->
     <?php foreach ($data_tampil as $row): $lampiran_unit = $lampiran_per_unit[(int) $row['id']] ?? []; ?>
     <div class="modal fade" id="modalLampiran<?= (int) $row['id']; ?>" tabindex="-1" aria-hidden="true">
@@ -1403,16 +1439,19 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                                     <a href="lampiran.php?id=<?= (int) $l['id']; ?>&lihat=1" target="_blank" rel="noopener" class="btn btn-teks btn-kecil">Lihat</a>
                                 <?php endif; ?>
                                 <a href="lampiran.php?id=<?= (int) $l['id']; ?>" target="_blank" rel="noopener" class="btn btn-teks btn-kecil">Unduh</a>
+                                <?php if (boleh('hapus_data')): ?>
                                 <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus lampiran ini?')">
                                     <?= csrf_field(); ?>
                                     <input type="hidden" name="aksi" value="hapus_lampiran">
                                     <input type="hidden" name="id" value="<?= (int) $l['id']; ?>">
                                     <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
                                 </form>
+                                <?php endif; ?>
                             </div>
                         </div>
                     <?php endforeach; ?>
 
+                    <?php if (boleh('kelola_unit')): ?>
                     <form method="POST" action="dashboard.php" enctype="multipart/form-data" class="form-tambah" data-upload="unit">
                         <?= csrf_field(); ?>
                         <input type="hidden" name="aksi" value="upload_lampiran">
@@ -1424,6 +1463,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="small redup mb-2 d-none" data-progres-teks></div>
                         <button type="submit" class="btn btn-gelap w-100">Unggah</button>
                     </form>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

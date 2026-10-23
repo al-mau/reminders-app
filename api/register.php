@@ -8,6 +8,7 @@
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
 require_once __DIR__ . '/lib/tampilan.php';
+require_once __DIR__ . '/lib/skema.php';
 
 // Jika sudah login, langsung alihkan ke dashboard
 if (!empty($_SESSION['login'])) {
@@ -54,9 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($cek->fetchColumn()) {
                 $errorMessage = "Username sudah terdaftar! Gunakan username lain.";
             } else {
+                // Akun pertama (tabel users masih kosong) menjadi Admin; pendaftaran publik berikutnya
+                // hanya Pemantau, Admin bisa menaikkan perannya dari halaman Pengguna (lihat lib/peran.php)
+                pastikanTabelTambahan($pdo);
+                $peran = (int) $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn() === 0 ? 'admin' : 'pemantau';
                 // Password disimpan dalam bentuk hash (tidak bisa dibaca), bukan teks asli
-                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, dibuat_tanggal) VALUES (?, ?, ?, ?)");
-                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $nama_lengkap, date('Y-m-d H:i:s')]);
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, peran, dibuat_tanggal) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$username, password_hash($password, PASSWORD_DEFAULT), $nama_lengkap, $peran, date('Y-m-d H:i:s')]);
 
                 $error   = false;
                 $success = true;

@@ -2,13 +2,13 @@
 /**
  * Potongan tampilan yang dipakai bersama oleh dashboard.php, users.php, login.php, register.php:
  *  - kepalaHalaman()   -> isi <head> (Bootstrap, ikon, font IBM Plex, tema.css)
- *  - sidebarAplikasi() -> menu samping (logo BRK Syariah + nama aplikasi): Daftar Unit, Penerima, Riwayat Kirim, Pengguna
+ *  - sidebarAplikasi() -> menu samping (logo BRK Syariah + nama aplikasi): Daftar Unit, Penerima, Riwayat Kirim, Hak Akses User
  *  - merekAuth()       -> nama aplikasi di atas form Login & Daftar
  * Fungsi e() berasal dari koneksi.php.
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 26;
+const VERSI_TEMA = 31;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -32,13 +32,15 @@ function kepalaHalaman(string $judul): string
  */
 function sidebarAplikasi(string $aktif, array $angka = []): string
 {
+    // Peran akun (lib/peran.php): selain Akses Penuh, menu ini hanya berisi akun sendiri ("Akun saya")
+    $peran = function_exists('peranSaya') ? peranSaya() : 'admin';
     $menu = [
         'unit'     => ['Daftar Unit', 'dashboard.php'],
         'penerima' => ['Penerima', 'dashboard.php?menu=penerima'],
         'riwayat'  => ['Riwayat Kirim', 'dashboard.php?menu=riwayat'],
-        'pengguna' => ['Pengguna', 'users.php'],
+        'pengguna' => [$peran === 'admin' ? 'Hak Akses User' : 'Akun saya', 'users.php'],
     ];
-    $html = '<aside class="side">'
+    $html = '<aside class="side"><div class="side-isi">'
         . '<a class="brand" href="dashboard.php">'
         . '<span class="brand-logo"><img src="logo-brk-syariah.webp" alt="BRK Syariah" width="160" height="33"></span>'
         . '<span class="brand-teks">Pengingat Deadline<small>Monitoring User Aplikasi Naskah Dinas</small></span></a>'
@@ -49,8 +51,9 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
     }
     return $html . '</nav>'
         . '<div class="side-bawah"><b>' . e($_SESSION['username'] ?? 'admin') . '</b>'
+        . (function_exists('labelPeran') && $peran !== '' ? '<span class="peran-saya">' . e(labelPeran($peran)) . '</span>' : '')
         . '<a class="btn-keluar" href="logout.php"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Keluar</a></div>'
-        . '</aside>';
+        . '</div></aside>';
 }
 
 /** Nama aplikasi di atas kotak form halaman Login & Daftar */
