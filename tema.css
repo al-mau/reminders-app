@@ -41,8 +41,9 @@ body.app { display: flex; min-height: 100vh; }
 .nav-side a span { color: #8c979a; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
 .side-bawah { margin-top: auto; padding: 16px 22px 0; border-top: 1px solid #2e393d; font-size: 14px; }
 .side-bawah b { display: block; color: #fff; font-weight: 500; }
-.side-bawah a { color: #8c979a; font-size: 13px; text-decoration: none; }
-.side-bawah a:hover { color: #fff; }
+.btn-keluar { display: block; margin-top: 10px; padding: 7px 12px; border: 1px solid #4b5559; border-radius: 4px; color: #e6eaeb; font-size: 14px; font-weight: 500; text-align: center; text-decoration: none; }
+.btn-keluar i { font-size: 13px; margin-right: 4px; }
+.btn-keluar:hover, .btn-keluar:focus-visible { background: #273236; border-color: #7c8589; color: #fff; }
 
 .isi { flex: 1; min-width: 0; padding: 28px 36px 0; display: flex; flex-direction: column; gap: 18px; }
 .kepala { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -194,7 +195,8 @@ body.auth .kaki { padding: 16px 0 0; }
     .brand small { display: none; }
     .brand-logo { margin: 0; padding: 4px 6px; border-radius: 4px; }
     .brand-logo img { width: auto; height: 22px; }
-    .side-bawah { margin: 0 0 0 auto; padding: 0; border: 0; display: flex; gap: 10px; align-items: baseline; }
+    .side-bawah { margin: 0 0 0 auto; padding: 0; border: 0; display: flex; gap: 10px; align-items: center; }
+    .btn-keluar { margin: 0; padding: 4px 10px; font-size: 13px; }
     .nav-side { order: 3; width: 100%; display: flex; overflow-x: auto; gap: 4px; }
     .nav-side a { border-left: 0; border-bottom: 2px solid transparent; padding: 6px 8px; white-space: nowrap; gap: 6px; }
     .nav-side a.on { background: none; border-bottom-color: #7fb7a8; }

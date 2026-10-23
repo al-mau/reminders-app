@@ -8,7 +8,7 @@
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 25;
+const VERSI_TEMA = 26;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -48,7 +48,8 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
             . e($label) . (isset($angka[$kunci]) ? '<span>' . (int) $angka[$kunci] . '</span>' : '') . '</a>';
     }
     return $html . '</nav>'
-        . '<div class="side-bawah"><b>' . e($_SESSION['username'] ?? 'admin') . '</b><a href="logout.php">Keluar</a></div>'
+        . '<div class="side-bawah"><b>' . e($_SESSION['username'] ?? 'admin') . '</b>'
+        . '<a class="btn-keluar" href="logout.php"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Keluar</a></div>'
         . '</aside>';
 }
 
