@@ -292,28 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // --- 4b. RESET PENGINGAT: izinkan cron mengirim ulang unit ini ---
-    // (tombol "Kirim ulang" di tabel: pengingat -> pending, terakhir_dikirim -> kosong)
-    if ($aksi === 'reset_pengingat') {
-        $id = (int) ($_POST['id'] ?? 0);
-        // Unit yang sudah expired tidak akan dikirim lagi oleh cron, jadi reset ditolak
-        $cek = $pdo->prepare("SELECT tanggal_akhir FROM deadline WHERE id = ?");
-        $cek->execute([$id]);
-        $tgl = $cek->fetchColumn();
-        if ($tgl === false || hitungSisaHari($tgl) < 0) {
-            flash('danger', 'Unit ini sudah terlewat, pengingat otomatis tidak bisa dikirim ulang. Ubah tanggal akhirnya jika masih perlu diingatkan.');
-            header('Location: ' . kembaliKe('unit'));
-            exit;
-        }
-        // Status selesai ikut dihapus: cron tidak mengirim pengingat untuk unit yang sudah selesai
-        $pdo->prepare("UPDATE deadline SET pengingat = 'pending', terakhir_dikirim = NULL, selesai_tanggal = NULL, selesai_oleh = NULL WHERE id = ?")->execute([$id]);
-        $label = labelUnit($pdo, $id);
-        flash('success', "Pengingat $label di-reset. Akan dikirim ulang otomatis pada jadwal cron berikutnya jika deadline-nya hari ini atau besok.");
-        header('Location: ' . kembaliKe('unit'));
-        exit;
-    }
-
-    // --- 4c. TANDAI SELESAI / BATALKAN ---
+    // --- 4b. TANDAI SELESAI / BATALKAN ---
     // Unit selesai = user unit sudah di-update. Pengingat otomatis berhenti dan unit tidak
     // dihitung sebagai Terlewat. Dicatat siapa yang menandai dan kapan.
     if ($aksi === 'tandai_selesai' || $aksi === 'batal_selesai') {
@@ -644,7 +623,7 @@ $buka_lampiran = (int) ($_GET['lampiran'] ?? 0);
 // --- PENGIRIMAN TERAKHIR per unit dari Riwayat Kirim (otomatis maupun manual) ---
 // Riwayat mencatat unit sebagai "(kode) nama", satu unit per baris (lihat cron_wa_reminder.php & kirim manual).
 //  $bukti_pengingat[id]  = pengiriman terakhir apa pun statusnya (bukti untuk unit yang sudah selesai)
-//  $kirim_terakhir[id]   = pengiriman terakhir yang berhasil/sebagian (kolom Terkirim Tgl)
+//  $kirim_terakhir[id]   = pengiriman terakhir (manual/otomatis) yang berhasil/sebagian (kolom Terkirim Tgl)
 $bukti_pengingat = $kirim_terakhir = [];
 $cariKirim = $pdo->prepare(
     "SELECT waktu, jenis, status FROM wa_log
@@ -958,24 +937,12 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <?php
                             // Kiriman terakhir dari Riwayat Kirim; jika riwayat tidak ditemukan (misal unit diganti namanya),
                             // pakai tanggal pengingat otomatis yang tersimpan di unit.
-                            $kirim = $kirim_terakhir[$id] ?? (!empty($row['terakhir_dikirim']) ? ['waktu' => $row['terakhir_dikirim'], 'jenis' => 'otomatis'] : null);
+                            $kirim = $kirim_terakhir[$id] ?? (!empty($row['terakhir_dikirim']) ? ['waktu' => $row['terakhir_dikirim']] : null);
                             ?>
                             <?php if (!$kirim): ?>
                                 <span class="redup">&mdash;</span>
                             <?php else: ?>
-                                <span title="Pengingat terakhir terkirim (<?= e($kirim['jenis']); ?>)"><?= tglPendek($kirim['waktu']); ?></span>
-                                <div class="redup jenis-kirim">(<?= $kirim['jenis'] === 'manual' ? 'manual' : 'otomatis'; ?>)</div>
-                            <?php endif; ?>
-                            <?php if (!empty($row['terakhir_dikirim'])): ?>
-                                <?php // "Kirim ulang": izinkan cron mengirim lagi (tidak untuk unit terlewat) ?>
-                                <?php if ($row['sisa_hari'] >= 0): ?>
-                                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Reset status pengingat unit ini agar dikirim ulang otomatis pada jadwal berikutnya?')">
-                                        <?= csrf_field(); ?>
-                                        <input type="hidden" name="aksi" value="reset_pengingat">
-                                        <input type="hidden" name="id" value="<?= $id; ?>">
-                                        <button type="submit" class="btn-tautan">kirim ulang</button>
-                                    </form>
-                                <?php endif; ?>
+                                <span title="Pengingat terakhir terkirim (detail saluran & jenis ada di Riwayat Kirim)"><?= tglPendek($kirim['waktu']); ?></span>
                             <?php endif; ?>
                         </td>
                         <td class="text-end"><?= aksiUnit($row, count($lampiran_per_unit[$id] ?? []), $bisa_wa, $bisa_tg); ?></td>

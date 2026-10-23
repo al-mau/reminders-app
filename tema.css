@@ -121,7 +121,6 @@ body.app { display: flex; min-height: 100vh; }
 .st.hijau { --c: var(--hijau); color: var(--hijau); }
 .st.abu { --c: #b8bfc1; color: var(--tinta2); }
 .st-sub { font-size: 13px; color: var(--tinta3); margin-top: 3px; padding-left: 15px; }
-.jenis-kirim { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; margin-top: 2px; }
 
 /* Aksi per baris */
 .aksi { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
