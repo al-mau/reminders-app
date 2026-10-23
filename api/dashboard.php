@@ -375,10 +375,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- 7. KELOLA PENERIMA WA ---
     if ($aksi === 'tambah_penerima') {
         $nama  = trim((string) ($_POST['nama'] ?? ''));
-        $nomor = normalisasiNomorWa((string) ($_POST['nomor'] ?? ''));
+        [$nomor, $salahNomor] = periksaNomorWaBaru((string) ($_POST['nomor'] ?? ''));
 
-        if ($nama === '' || strpos($nomor, ',') !== false || !nomorWaValid($nomor)) {
-            flash('danger', 'Nama wajib diisi dan nomor WA harus valid (contoh: 081234567890).');
+        if ($nama === '' || $salahNomor) {
+            flash('danger', $nama === '' ? 'Nama penerima wajib diisi.' : $salahNomor);
         } else {
             try {
                 $cek = $pdo->prepare("SELECT nama, aktif FROM wa_penerima WHERE nomor = ?");
@@ -407,10 +407,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($aksi === 'edit_penerima') {
         $pid   = (int) ($_POST['id'] ?? 0);
         $nama  = trim((string) ($_POST['nama'] ?? ''));
-        $nomor = normalisasiNomorWa((string) ($_POST['nomor'] ?? ''));
+        [$nomor, $salahNomor] = periksaNomorWaBaru((string) ($_POST['nomor'] ?? ''));
 
-        if ($nama === '' || strpos($nomor, ',') !== false || !nomorWaValid($nomor)) {
-            flash('danger', 'Nama wajib diisi dan nomor WA harus valid (contoh: 081234567890).');
+        if ($nama === '' || $salahNomor) {
+            flash('danger', $nama === '' ? 'Nama penerima wajib diisi.' : $salahNomor);
         } else {
             $cek = $pdo->prepare("SELECT nama FROM wa_penerima WHERE nomor = ? AND id <> ?");
             $cek->execute([$nomor, $pid]);
@@ -1029,7 +1029,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <div class="label-kecil">Tambah nomor</div>
                 <div class="baris-input">
                     <input type="text" name="nama" class="form-control" placeholder="Nama, contoh: Admin Kantor" maxlength="100" required>
-                    <input type="tel" name="nomor" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" required>
+                    <input type="tel" name="nomor" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +" required>
                     <button type="submit" class="btn btn-gelap">Tambah</button>
                 </div>
             </form>
@@ -1214,7 +1214,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <input type="text" id="editWaNama" name="nama" class="form-control" maxlength="100" required>
                         </div>
                         <label class="form-label" for="editWaNomor">Nomor WhatsApp</label>
-                        <input type="tel" id="editWaNomor" name="nomor" class="form-control" maxlength="20" inputmode="tel" required>
+                        <input type="tel" id="editWaNomor" name="nomor" class="form-control" maxlength="20" inputmode="tel" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +" required>
                         <div class="form-text">Boleh ditulis 08…, 62…, atau +62…. Ganti nomor ini jika pemiliknya berganti nomor HP.</div>
                     </div>
                     <div class="modal-footer">

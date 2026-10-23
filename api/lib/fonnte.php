@@ -38,6 +38,26 @@ function nomorWaValid(string $nomor): bool
 }
 
 /**
+ * Periksa nomor WA yang diketik admin saat menambah/mengedit penerima (aturan lebih ketat
+ * dari nomorWaValid agar salah ketik tidak tersimpan; nomor lama tetap bisa dikirimi).
+ * - Hanya angka, spasi, dan tanda + - ( ) . yang boleh; huruf ditolak, tidak dibuang diam-diam.
+ * - Harus nomor HP Indonesia: 08 + 8-11 digit (10-13 digit), atau 628 + 8-11 digit.
+ * @return array{0: ?string, 1: ?string} [nomor 62xxx, null] jika valid, atau [null, pesan kesalahan]
+ */
+function periksaNomorWaBaru(string $input): array
+{
+    $input = trim($input);
+    if (preg_match('/[^\d\s+\-().]/', $input)) {
+        return [null, 'Nomor WA hanya boleh berisi angka (boleh memakai spasi, tanda - atau +).'];
+    }
+    $nomor = normalisasiNomorWa($input);
+    if (!preg_match('/^628\d{8,11}$/', $nomor)) {
+        return [null, 'Nomor WA harus nomor HP Indonesia 10–13 digit yang diawali 08 (contoh: 081234567890).'];
+    }
+    return [$nomor, null];
+}
+
+/**
  * Daftar nomor penerima aktif: dari dashboard (tabel wa_penerima),
  * atau WA_TARGET jika belum ada nomor aktif.
  */
