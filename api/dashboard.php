@@ -641,14 +641,27 @@ if ($data_tampil) {
 }
 $buka_lampiran = (int) ($_GET['lampiran'] ?? 0);
 
-// --- BUKTI PENGINGAT untuk unit yang sudah selesai: pengiriman terakhir di riwayat ---
-// Riwayat mencatat unit sebagai "(kode) nama" (lihat cron_wa_reminder.php & kirim manual)
-$bukti_pengingat = [];
-$cariBukti = $pdo->prepare("SELECT waktu, status FROM wa_log WHERE ringkasan LIKE ? ORDER BY id DESC LIMIT 1");
+// --- PENGIRIMAN TERAKHIR per unit dari Riwayat Kirim (otomatis maupun manual) ---
+// Riwayat mencatat unit sebagai "(kode) nama", satu unit per baris (lihat cron_wa_reminder.php & kirim manual).
+//  $bukti_pengingat[id]  = pengiriman terakhir apa pun statusnya (bukti untuk unit yang sudah selesai)
+//  $kirim_terakhir[id]   = pengiriman terakhir yang berhasil/sebagian (kolom Terkirim Tgl)
+$bukti_pengingat = $kirim_terakhir = [];
+$cariKirim = $pdo->prepare(
+    "SELECT waktu, jenis, status FROM wa_log
+     WHERE ringkasan = ? OR ringkasan LIKE ? OR ringkasan LIKE ? OR ringkasan LIKE ?
+     ORDER BY id DESC LIMIT 30"
+);
 foreach ($data_tampil as $row) {
-    if ($row['selesai_tanggal'] !== null) {
-        $cariBukti->execute(['%' . addcslashes('(' . $row['kode_unit'] . ') ' . $row['nama_unit'], '%_\\') . '%']);
-        $bukti_pengingat[(int) $row['id']] = $cariBukti->fetch() ?: null;
+    $label = '(' . $row['kode_unit'] . ') ' . $row['nama_unit'];
+    $suka  = addcslashes($label, '%_\\');
+    $cariKirim->execute([$label, $suka . "\n%", "%\n" . $suka, "%\n" . $suka . "\n%"]);
+    $log = $cariKirim->fetchAll();
+    $bukti_pengingat[(int) $row['id']] = $log[0] ?? null;
+    foreach ($log as $l) {
+        if ($l['status'] !== 'gagal') {
+            $kirim_terakhir[(int) $row['id']] = $l;
+            break;
+        }
     }
 }
 
@@ -942,10 +955,18 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         </td>
                         <td data-label="Deadline"><?= selStatus($row, $bukti_pengingat[$id] ?? null); ?></td>
                         <td data-label="Terkirim Tgl" class="mono">
-                            <?php if (empty($row['terakhir_dikirim'])): ?>
+                            <?php
+                            // Kiriman terakhir dari Riwayat Kirim; jika riwayat tidak ditemukan (misal unit diganti namanya),
+                            // pakai tanggal pengingat otomatis yang tersimpan di unit.
+                            $kirim = $kirim_terakhir[$id] ?? (!empty($row['terakhir_dikirim']) ? ['waktu' => $row['terakhir_dikirim'], 'jenis' => 'otomatis'] : null);
+                            ?>
+                            <?php if (!$kirim): ?>
                                 <span class="redup">&mdash;</span>
                             <?php else: ?>
-                                <span title="Pengingat otomatis terakhir terkirim"><?= tglPendek($row['terakhir_dikirim']); ?></span>
+                                <span title="Pengingat terakhir terkirim (<?= e($kirim['jenis']); ?>)"><?= tglPendek($kirim['waktu']); ?></span>
+                                <div class="redup jenis-kirim">(<?= $kirim['jenis'] === 'manual' ? 'manual' : 'otomatis'; ?>)</div>
+                            <?php endif; ?>
+                            <?php if (!empty($row['terakhir_dikirim'])): ?>
                                 <?php // "Kirim ulang": izinkan cron mengirim lagi (tidak untuk unit terlewat) ?>
                                 <?php if ($row['sisa_hari'] >= 0): ?>
                                     <form method="POST" action="dashboard.php" onsubmit="return confirm('Reset status pengingat unit ini agar dikirim ulang otomatis pada jadwal berikutnya?')">
