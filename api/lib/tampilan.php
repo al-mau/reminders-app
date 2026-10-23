@@ -2,13 +2,13 @@
 /**
  * Potongan tampilan yang dipakai bersama oleh dashboard.php, users.php, login.php, register.php:
  *  - kepalaHalaman()   -> isi <head> (Bootstrap, ikon, font IBM Plex, tema.css)
- *  - sidebarAplikasi() -> menu samping: Daftar Unit, Penerima, Riwayat Kirim, Pengguna
+ *  - sidebarAplikasi() -> menu samping (logo BRK Syariah + nama aplikasi): Daftar Unit, Penerima, Riwayat Kirim, Pengguna
  *  - merekAuth()       -> nama aplikasi di atas form Login & Daftar
  * Fungsi e() berasal dari koneksi.php.
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 24;
+const VERSI_TEMA = 25;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -39,7 +39,9 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
         'pengguna' => ['Pengguna', 'users.php'],
     ];
     $html = '<aside class="side">'
-        . '<a class="brand" href="dashboard.php">Pengingat Deadline<small>Monitoring user unit</small></a>'
+        . '<a class="brand" href="dashboard.php">'
+        . '<span class="brand-logo"><img src="logo-brk-syariah.webp" alt="BRK Syariah" width="160" height="33"></span>'
+        . '<span class="brand-teks">Pengingat Deadline<small>Monitoring User Aplikasi Naskah Dinas</small></span></a>'
         . '<nav class="nav-side">';
     foreach ($menu as $kunci => [$label, $url]) {
         $html .= '<a href="' . $url . '"' . ($kunci === $aktif ? ' class="on" aria-current="page"' : '') . '>'
@@ -53,5 +55,5 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
 /** Nama aplikasi di atas kotak form halaman Login & Daftar */
 function merekAuth(): string
 {
-    return '<div class="auth-merek">Pengingat Deadline<small>Monitoring user unit</small></div>';
+    return '<div class="auth-merek">Pengingat Deadline<small>Monitoring User Aplikasi Naskah Dinas</small></div>';
 }

@@ -6,7 +6,7 @@
 # Agar .env, lib/, dan database/ tidak bisa dibuka dari browser, hanya isi folder
 # public/ yang dilayani Herd (Herd otomatis memakai public/ bila ada public/index.php):
 #   reminders-app/
-#     public/    -> halaman aplikasi (*.php), tema.css, sw.js, manifest.json, vendor/
+#     public/    -> halaman aplikasi (*.php), tema.css, logo, sw.js, manifest.json, vendor/
 #     lib/       -> kode bantu (koneksi, fonnte, sesi, skema)
 #     database/  -> file SQL + bat import/sync (memakai MySQL XAMPP)
 #     .env, cron_lokal.php, kirim_pengingat.bat, CARA_PAKAI_HERD.txt
@@ -20,7 +20,7 @@ mkdir -p "$APP/public/vendor" "$APP/lib" "$APP/database"
 
 cp "$ROOT"/api/*.php "$APP/public/"
 cp "$ROOT"/vendor/* "$APP/public/vendor/"
-cp "$ROOT"/sw.js "$ROOT"/manifest.json "$ROOT"/tema.css "$APP/public/"
+cp "$ROOT"/sw.js "$ROOT"/manifest.json "$ROOT"/tema.css "$ROOT"/logo-brk-syariah.webp "$APP/public/"
 cp "$ROOT"/api/lib/*.php "$APP/lib/"
 cp "$ROOT"/database/{reminders_db.sql,schema.sql,import_ke_xampp.bat,sync_dari_aiven.bat,sync_dari_aiven.php,CARA_PAKAI.txt} "$APP/database/"
 cp "$ROOT"/herd/kirim_pengingat.bat "$ROOT"/herd/CARA_PAKAI_HERD.txt "$APP/"
