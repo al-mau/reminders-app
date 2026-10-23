@@ -2,7 +2,7 @@
 /**
  * Potongan tampilan yang dipakai bersama oleh dashboard.php, users.php, login.php, register.php:
  *  - kepalaHalaman()   -> isi <head> (Bootstrap, ikon, font IBM Plex, tema.css)
- *  - sidebarAplikasi() -> menu samping (logo BRK Syariah + nama aplikasi): Daftar Unit, Penerima, Riwayat Kirim, Hak Akses User
+ *  - sidebarAplikasi() -> menu samping (logo BRK Syariah + nama aplikasi): Daftar Unit, Penerima, Riwayat Kirim, User
  *  - merekAuth()       -> nama aplikasi di atas form Login & Daftar
  * Fungsi e() berasal dari koneksi.php.
  */
@@ -38,7 +38,7 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
         'unit'     => ['Daftar Unit', 'dashboard.php'],
         'penerima' => ['Penerima', 'dashboard.php?menu=penerima'],
         'riwayat'  => ['Riwayat Kirim', 'dashboard.php?menu=riwayat'],
-        'pengguna' => [$peran === 'admin' ? 'Hak Akses User' : 'Akun saya', 'users.php'],
+        'pengguna' => [$peran === 'admin' ? 'User' : 'Akun saya', 'users.php'],
     ];
     $html = '<aside class="side"><div class="side-isi">'
         . '<a class="brand" href="dashboard.php">'

@@ -255,7 +255,7 @@ if (!$admin) {
     // Staf & Pemantau hanya melihat akunnya sendiri
     $users = array_values(array_filter($users, static fn($u) => $u['username'] === $saya));
 }
-$judul = $admin ? 'Hak Akses User' : 'Akun saya';
+$judul = $admin ? 'User' : 'Akun saya';
 
 $flash = $_SESSION['flash_user'] ?? [];
 unset($_SESSION['flash_user']);

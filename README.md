@@ -8,7 +8,7 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 |---|---|
 | `api/index.php` | Redirect `/` ke login / dashboard |
 | `api/login.php`, `api/register.php`, `api/logout.php` | Autentikasi (halaman Daftar publik default ditutup, buka dengan `ALLOW_REGISTER=true`) |
-| `api/users.php` | Menu Hak Akses User: tambah user, atur hak akses, ubah akun (username, nama, password), hapus akun |
+| `api/users.php` | Menu User: tambah user, atur hak akses, ubah akun (username, nama, password), hapus akun |
 | `api/dashboard.php` | CRUD deadline, statistik, filter, kirim WA manual, lampiran, penerima WA, riwayat WA |
 | `api/lampiran.php` | Unduh / lihat lampiran (khusus user yang sudah login) |
 | `api/cron_wa_reminder.php` | Pengingat otomatis H-1 & hari-H (dipanggil cron-job.org) |
@@ -55,7 +55,7 @@ File JSON tidak bisa diberi komentar, jadi penjelasannya ditulis di sini:
 
 ## Hak akses user
 
-Setiap akun punya satu hak akses. Hak akses diatur oleh akun **Akses Penuh** di menu **Hak Akses User** (saat menambah user atau lewat **Ubah akun**) dan langsung berlaku tanpa login ulang.
+Setiap akun punya satu hak akses. Hak akses diatur oleh akun **Akses Penuh** di menu **User** (saat menambah user atau lewat **Ubah akun**) dan langsung berlaku tanpa login ulang.
 
 | Fitur | Akses Penuh | Akses Kerja | Akses Lihat |
 |---|:---:|:---:|:---:|
@@ -75,7 +75,7 @@ Setiap akun punya satu hak akses. Hak akses diatur oleh akun **Akses Penuh** di 
 
 Catatan:
 - Hak dicek di server untuk setiap aksi (bukan hanya tombol yang disembunyikan); aksi yang belum terdaftar di `api/lib/peran.php` hanya untuk Akses Penuh.
-- Akses Kerja & Akses Lihat melihat menu **Akun saya** (bukan Hak Akses User) dan tidak bisa mengubah hak aksesnya sendiri.
+- Akses Kerja & Akses Lihat melihat menu **Akun saya** (bukan User) dan tidak bisa mengubah hak aksesnya sendiri.
 - Selalu ada minimal satu akun Akses Penuh: akun Akses Penuh terakhir tidak bisa dihapus atau diturunkan.
 - Saat pertama kali dipasang, akun yang sudah ada otomatis mendapat Akses Penuh. Pendaftaran publik (`ALLOW_REGISTER=true`) memberi Akses Lihat, kecuali akun pertama yang mendapat Akses Penuh.
 - Di database (kolom `users.peran`) kodenya tetap `admin` (Akses Penuh), `staf` (Akses Kerja), dan `pemantau` (Akses Lihat).
