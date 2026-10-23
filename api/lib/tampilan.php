@@ -8,7 +8,7 @@
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 28;
+const VERSI_TEMA = 29;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -32,11 +32,13 @@ function kepalaHalaman(string $judul): string
  */
 function sidebarAplikasi(string $aktif, array $angka = []): string
 {
+    // Peran akun (lib/peran.php): selain Admin, menu Pengguna hanya berisi akun sendiri
+    $peran = function_exists('peranSaya') ? peranSaya() : 'admin';
     $menu = [
         'unit'     => ['Daftar Unit', 'dashboard.php'],
         'penerima' => ['Penerima', 'dashboard.php?menu=penerima'],
         'riwayat'  => ['Riwayat Kirim', 'dashboard.php?menu=riwayat'],
-        'pengguna' => ['Pengguna', 'users.php'],
+        'pengguna' => [$peran === 'admin' ? 'Pengguna' : 'Akun saya', 'users.php'],
     ];
     $html = '<aside class="side">'
         . '<a class="brand" href="dashboard.php">'
@@ -49,6 +51,7 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
     }
     return $html . '</nav>'
         . '<div class="side-bawah"><b>' . e($_SESSION['username'] ?? 'admin') . '</b>'
+        . (function_exists('labelPeran') && $peran !== '' ? '<span class="peran-saya">' . e(labelPeran($peran)) . '</span>' : '')
         . '<a class="btn-keluar" href="logout.php"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Keluar</a></div>'
         . '</aside>';
 }
