@@ -1,7 +1,7 @@
 <?php
 /**
  * CRON PENGINGAT DEADLINE via WhatsApp (dijalankan otomatis, bukan dibuka manual).
- * Dipanggil oleh cron-job.org setiap hari jam 08.00 WIB, contoh URL:
+ * Dipanggil oleh cron-job.org setiap hari jam 07.00 WIB, contoh URL:
  *   https://<domain-vercel>/cron_wa_reminder.php?key=<CRON_SECRET>
  *
  * Alur:

@@ -4,7 +4,7 @@ rem  Kirim pengingat WA otomatis (versi XAMPP).
 rem  Sama dengan yang dilakukan cron-job.org pada versi online:
 rem  mengirim unit yang deadline-nya HARI INI dan BESOK, maks 1x per hari.
 rem
-rem  Agar berjalan otomatis setiap hari jam 08.00, daftarkan file ini
+rem  Agar berjalan otomatis setiap hari jam 07.00, daftarkan file ini
 rem  di Windows Task Scheduler (lihat CARA_PAKAI_XAMPP.txt).
 rem  Hasil setiap pengiriman dicatat di pengingat_log.txt.
 rem ==========================================================

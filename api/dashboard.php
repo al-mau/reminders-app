@@ -375,10 +375,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- 7. KELOLA PENERIMA WA ---
     if ($aksi === 'tambah_penerima') {
         $nama  = trim((string) ($_POST['nama'] ?? ''));
-        $nomor = normalisasiNomorWa((string) ($_POST['nomor'] ?? ''));
+        [$nomor, $salahNomor] = periksaNomorWaBaru((string) ($_POST['nomor'] ?? ''));
 
-        if ($nama === '' || strpos($nomor, ',') !== false || !nomorWaValid($nomor)) {
-            flash('danger', 'Nama wajib diisi dan nomor WA harus valid (contoh: 081234567890).');
+        if ($nama === '' || $salahNomor) {
+            flash('danger', $nama === '' ? 'Nama penerima wajib diisi.' : $salahNomor);
         } else {
             try {
                 $cek = $pdo->prepare("SELECT nama, aktif FROM wa_penerima WHERE nomor = ?");
@@ -403,19 +403,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Edit nama penerima WA / Telegram (nomor & chat id tidak berubah)
-    if ($aksi === 'ubah_nama_penerima' || $aksi === 'ubah_nama_telegram') {
-        $tabel = $aksi === 'ubah_nama_penerima' ? 'wa_penerima' : 'telegram_penerima';
-        $jangkar = $aksi === 'ubah_nama_penerima' ? 'penerima' : 'telegram';
+    // Edit penerima WA: nama dan nomor (misalnya user mengganti nomor HP)
+    if ($aksi === 'edit_penerima') {
+        $pid   = (int) ($_POST['id'] ?? 0);
+        $nama  = trim((string) ($_POST['nama'] ?? ''));
+        [$nomor, $salahNomor] = periksaNomorWaBaru((string) ($_POST['nomor'] ?? ''));
+
+        if ($nama === '' || $salahNomor) {
+            flash('danger', $nama === '' ? 'Nama penerima wajib diisi.' : $salahNomor);
+        } else {
+            $cek = $pdo->prepare("SELECT nama FROM wa_penerima WHERE nomor = ? AND id <> ?");
+            $cek->execute([$nomor, $pid]);
+            $ada = $cek->fetchColumn();
+            if ($ada !== false) {
+                flash('warning', "Nomor $nomor sudah terdaftar atas nama \"$ada\".");
+            } else {
+                $nama = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
+                $pdo->prepare("UPDATE wa_penerima SET nama = ?, nomor = ? WHERE id = ?")->execute([$nama, $nomor, $pid]);
+                flash('success', "Penerima \"$nama\" disimpan dengan nomor +$nomor.");
+            }
+        }
+        header('Location: ' . kembaliKe('penerima', [], 'penerima'));
+        exit;
+    }
+
+    // Edit nama penerima Telegram (chat id tidak berubah)
+    if ($aksi === 'ubah_nama_telegram') {
         $nama  = trim((string) ($_POST['nama'] ?? ''));
         if ($nama === '') {
             flash('danger', 'Nama penerima tidak boleh kosong.');
         } else {
             $nama = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
-            $pdo->prepare("UPDATE $tabel SET nama = ? WHERE id = ?")->execute([$nama, (int) ($_POST['id'] ?? 0)]);
+            $pdo->prepare("UPDATE telegram_penerima SET nama = ? WHERE id = ?")->execute([$nama, (int) ($_POST['id'] ?? 0)]);
             flash('success', "Nama penerima diubah menjadi \"$nama\".");
         }
-        header('Location: ' . kembaliKe('penerima', [], $jangkar));
+        header('Location: ' . kembaliKe('penerima', [], 'telegram'));
         exit;
     }
 
@@ -839,7 +861,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <h1><?= e($judul_menu); ?></h1>
             <div class="kepala-sub">
                 <?= e($tanggal_hari_ini); ?>
-                <?php if ($menu === 'unit'): ?> · pengingat otomatis setiap hari pukul 08.00 WIB<?php endif; ?>
+                <?php if ($menu === 'unit'): ?> · pengingat otomatis setiap hari pukul 07.00 WIB<?php endif; ?>
                 <?php if ($menu === 'penerima'): ?> · nomor WhatsApp dan chat Telegram yang menerima pengingat<?php endif; ?>
                 <?php if ($menu === 'riwayat'): ?> · <?= $total_wa; ?> pengiriman<?= $menyaring_riwayat ? ' sesuai pencarian' : ''; ?><?php endif; ?>
             </div>
@@ -984,8 +1006,8 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="kode">+<?= e($p['nomor']); ?></div>
                     </div>
                     <div class="aksi">
-                        <button type="button" class="btn btn-teks btn-kecil" data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
-                                data-aksi="ubah_nama_penerima" data-id="<?= (int) $p['id']; ?>" data-nama="<?= e($p['nama']); ?>" data-info="WhatsApp +<?= e($p['nomor']); ?>">Ubah nama</button>
+                        <button type="button" class="btn btn-teks btn-kecil" data-bs-toggle="modal" data-bs-target="#modalEditWa"
+                                data-id="<?= (int) $p['id']; ?>" data-nama="<?= e($p['nama']); ?>" data-nomor="<?= e($p['nomor']); ?>">Edit</button>
                         <form method="POST" action="dashboard.php">
                             <?= csrf_field(); ?>
                             <input type="hidden" name="aksi" value="toggle_penerima">
@@ -1007,7 +1029,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <div class="label-kecil">Tambah nomor</div>
                 <div class="baris-input">
                     <input type="text" name="nama" class="form-control" placeholder="Nama, contoh: Admin Kantor" maxlength="100" required>
-                    <input type="tel" name="nomor" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" required>
+                    <input type="tel" name="nomor" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +" required>
                     <button type="submit" class="btn btn-gelap">Tambah</button>
                 </div>
             </form>
@@ -1174,7 +1196,37 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 </main>
 
 <?php if ($menu === 'penerima'): ?>
-    <!-- Popup Ubah Nama Penerima (WA & Telegram). Isinya diisi dari tombol "Ubah nama" yang diklik. -->
+    <!-- Popup Edit Penerima WhatsApp (nama & nomor). Isinya diisi dari tombol "Edit" yang diklik. -->
+    <div class="modal fade" id="modalEditWa" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST" action="dashboard.php">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit penerima WhatsApp</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                    </div>
+                    <div class="modal-body">
+                        <?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="edit_penerima">
+                        <input type="hidden" name="id" value="">
+                        <div class="mb-3">
+                            <label class="form-label" for="editWaNama">Nama</label>
+                            <input type="text" id="editWaNama" name="nama" class="form-control" maxlength="100" required>
+                        </div>
+                        <label class="form-label" for="editWaNomor">Nomor WhatsApp</label>
+                        <input type="tel" id="editWaNomor" name="nomor" class="form-control" maxlength="20" inputmode="tel" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +" required>
+                        <div class="form-text">Boleh ditulis 08…, 62…, atau +62…. Ganti nomor ini jika pemiliknya berganti nomor HP.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-gelap">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popup Ubah Nama Penerima Telegram. Isinya diisi dari tombol "Ubah nama" yang diklik. -->
     <div class="modal fade" id="modalNamaPenerima" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1185,7 +1237,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                     </div>
                     <div class="modal-body">
                         <?= csrf_field(); ?>
-                        <input type="hidden" name="aksi" value="ubah_nama_penerima">
+                        <input type="hidden" name="aksi" value="ubah_nama_telegram">
                         <input type="hidden" name="id" value="">
                         <div class="kode mb-2" data-info></div>
                         <label class="form-label">Nama</label>
@@ -1201,7 +1253,19 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
         </div>
     </div>
     <script>
-    // Isi popup Ubah Nama sesuai penerima (WA / Telegram) yang tombolnya diklik
+    // Isi popup Edit WA sesuai penerima yang tombolnya diklik
+    document.getElementById('modalEditWa').addEventListener('show.bs.modal', (ev) => {
+        const tombol = ev.relatedTarget;
+        const form = ev.target.querySelector('form');
+        if (!tombol) return;
+        form.elements['id'].value = tombol.dataset.id;
+        form.elements['nama'].value = tombol.dataset.nama;
+        form.elements['nomor'].value = '+' + tombol.dataset.nomor;
+    });
+    document.getElementById('modalEditWa').addEventListener('shown.bs.modal', (ev) => {
+        ev.target.querySelector('input[name=nama]').focus();
+    });
+    // Isi popup Ubah Nama sesuai penerima Telegram yang tombolnya diklik
     document.getElementById('modalNamaPenerima').addEventListener('show.bs.modal', (ev) => {
         const tombol = ev.relatedTarget;
         const form = ev.target.querySelector('form');
