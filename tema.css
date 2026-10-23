@@ -28,7 +28,9 @@ a { color: var(--aksen); }
 
 /* ---------- Kerangka: sidebar + isi ---------- */
 body.app { display: flex; min-height: 100vh; }
-.side { width: 224px; flex: none; background: var(--tinta); color: #c9d0d2; display: flex; flex-direction: column; padding: 22px 0; position: sticky; top: 0; height: 100vh; }
+/* Latar sidebar selalu setinggi halaman; isinya menempel di layar saat halaman digulir */
+.side { width: 224px; flex: none; align-self: stretch; background: var(--tinta); color: #c9d0d2; }
+.side-isi { display: flex; flex-direction: column; padding: 22px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .brand { display: block; padding: 0 22px 26px; color: #fff; font-weight: 600; font-size: 19px; line-height: 1.3; text-decoration: none; }
 .brand:hover { color: #fff; }
 .brand small { display: block; color: #8c979a; font-weight: 400; font-size: 13.5px; margin-top: 4px; }
@@ -51,6 +53,7 @@ body.app { display: flex; min-height: 100vh; }
 .kepala h1 { font-size: 26px; font-weight: 600; letter-spacing: -.2px; margin: 0; }
 .kepala-sub { color: var(--tinta3); font-size: 14px; margin-top: 3px; }
 .kaki { color: var(--tinta3); font-size: 13px; padding: 8px 0 24px; }
+body.app .kaki { margin-top: auto; text-align: right; }
 
 /* ---------- Tombol ---------- */
 .btn { font-family: inherit; font-size: 14px; font-weight: 500; border-radius: 4px; padding: 7px 14px; line-height: 1.4; }
@@ -201,7 +204,8 @@ body.auth .kaki { padding: 16px 0 0; }
     .auth-kotak { padding: 22px 20px 18px; }
     /* Sidebar menjadi bilah menu di atas */
     body.app { flex-direction: column; }
-    .side { width: auto; height: auto; position: static; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 12px 16px; gap: 6px 12px; }
+    .side { width: auto; }
+    .side-isi { height: auto; position: static; overflow: visible; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 12px 16px; gap: 6px 12px; }
     .brand { padding: 0; font-size: 17px; display: flex; align-items: center; gap: 10px; }
     .brand small { display: none; }
     .brand-logo { margin: 0; padding: 4px 6px; border-radius: 4px; }

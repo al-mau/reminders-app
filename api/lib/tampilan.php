@@ -8,7 +8,7 @@
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 29;
+const VERSI_TEMA = 30;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -40,7 +40,7 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
         'riwayat'  => ['Riwayat Kirim', 'dashboard.php?menu=riwayat'],
         'pengguna' => [$peran === 'admin' ? 'Pengguna' : 'Akun saya', 'users.php'],
     ];
-    $html = '<aside class="side">'
+    $html = '<aside class="side"><div class="side-isi">'
         . '<a class="brand" href="dashboard.php">'
         . '<span class="brand-logo"><img src="logo-brk-syariah.webp" alt="BRK Syariah" width="160" height="33"></span>'
         . '<span class="brand-teks">Pengingat Deadline<small>Monitoring User Aplikasi Naskah Dinas</small></span></a>'
@@ -53,7 +53,7 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
         . '<div class="side-bawah"><b>' . e($_SESSION['username'] ?? 'admin') . '</b>'
         . (function_exists('labelPeran') && $peran !== '' ? '<span class="peran-saya">' . e(labelPeran($peran)) . '</span>' : '')
         . '<a class="btn-keluar" href="logout.php"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Keluar</a></div>'
-        . '</aside>';
+        . '</div></aside>';
 }
 
 /** Nama aplikasi di atas kotak form halaman Login & Daftar */
