@@ -6,6 +6,8 @@
  *  staf     -> kerja harian: tambah/edit unit, tandai selesai, kirim pengingat, unggah lampiran
  *  pemantau -> hanya melihat (Daftar Unit, lampiran, Penerima, Riwayat Kirim)
  * Semua peran boleh mengubah nama, username, dan password akunnya sendiri.
+ * Di tampilan, peran ditulis sebagai hak akses (lihat PERAN): admin = "Akses Penuh",
+ * staf = "Akses Kerja", pemantau = "Akses Lihat". Kode di database tetap admin/staf/pemantau.
  * Penjelasan lengkap untuk pengguna ada di README.md (bagian "Peran pengguna").
  *
  * Peran dibaca dari database setiap halaman dibuka (bukan dari sesi), sehingga
@@ -14,9 +16,9 @@
 require_once __DIR__ . '/skema.php';
 
 const PERAN = [
-    'admin'    => 'Admin',
-    'staf'     => 'Staf',
-    'pemantau' => 'Pemantau',
+    'admin'    => 'Akses Penuh',
+    'staf'     => 'Akses Kerja',
+    'pemantau' => 'Akses Lihat',
 ];
 
 /** Hak -> peran yang boleh. Hak yang tidak terdaftar di sini tidak diberikan ke siapa pun. */
@@ -50,10 +52,10 @@ function boleh(string $hak): bool
     return in_array(peranSaya(), HAK_PERAN[$hak] ?? [], true);
 }
 
-/** Nama peran untuk ditampilkan, contoh "Staf" */
+/** Nama peran untuk ditampilkan, contoh "Akses Kerja" */
 function labelPeran(string $peran): string
 {
-    return PERAN[$peran] ?? 'Pemantau';
+    return PERAN[$peran] ?? PERAN['pemantau'];
 }
 
 /** Akun yang sedang login sudah dihapus Admin: akhiri sesi dan kembali ke halaman login */

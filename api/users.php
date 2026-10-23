@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 implode(', ', $kolom),
                 implode(', ', array_fill(0, count($kolom), '?'))
             ))->execute($nilai);
-            flashUser('success', "User \"$username\" berhasil dibuat sebagai " . labelPeran($peran) . '. Berikan username & password-nya kepada yang bersangkutan.');
+            flashUser('success', "User \"$username\" berhasil dibuat dengan " . labelPeran($peran) . '. Berikan username & password-nya kepada yang bersangkutan.');
         }
         header("Location: users.php");
         exit;
@@ -157,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($gantiPw && ($e = validasiPassword($password, (string) ($_POST['konfirmasi'] ?? '')))) {
             $error = $e;
         } elseif ($gantiPeran && $peranLama === 'admin' && jumlahAdmin($pdo) <= 1) {
-            $error = 'Harus ada minimal satu Admin. Jadikan akun lain Admin terlebih dahulu.';
+            $error = 'Harus ada minimal satu akun dengan Akses Penuh. Berikan Akses Penuh ke akun lain terlebih dahulu.';
         } else {
             // Username lain yang sudah dipakai (selain milik user ini sendiri)
             $cek = $pdo->prepare("SELECT 1 FROM users WHERE username = ? AND username <> ?");
@@ -208,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $diubah = array_merge($gantiNama ? ["username menjadi \"$baru\""] : [], $gantiPw ? ['password baru'] : [],
-            $gantiPeran ? ['peran menjadi ' . labelPeran($peranBaru)] : []);
+            $gantiPeran ? ['hak akses menjadi ' . labelPeran($peranBaru)] : []);
         if (!$diubah) {
             flashUser('success', "Data \"$username\" berhasil disimpan.");
         } elseif ($username === $saya) {
@@ -229,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($jumlah <= 1) {
             flashUser('danger', 'Tidak bisa menghapus user terakhir.');
         } elseif (peranAkun($pdo, $username) === 'admin' && jumlahAdmin($pdo) <= 1) {
-            flashUser('danger', 'Tidak bisa menghapus Admin terakhir.');
+            flashUser('danger', 'Tidak bisa menghapus akun Akses Penuh yang terakhir.');
         } else {
             $stmt = $pdo->prepare("DELETE FROM users WHERE username = ?");
             $stmt->execute([$username]);
@@ -255,7 +255,7 @@ if (!$admin) {
     // Staf & Pemantau hanya melihat akunnya sendiri
     $users = array_values(array_filter($users, static fn($u) => $u['username'] === $saya));
 }
-$judul = $admin ? 'Pengguna' : 'Akun saya';
+$judul = $admin ? 'Hak Akses User' : 'Akun saya';
 
 $flash = $_SESSION['flash_user'] ?? [];
 unset($_SESSION['flash_user']);
@@ -274,8 +274,8 @@ unset($_SESSION['flash_user']);
         <div>
             <h1><?= e($judul); ?></h1>
             <div class="kepala-sub"><?= $admin
-                ? 'Akun yang bisa login ke aplikasi · tambah akun, atur peran, ubah akun, atau hapus akun'
-                : 'Peran Anda: ' . e(labelPeran(peranSaya())) . ' · ubah nama, username, atau password akun Anda'; ?></div>
+                ? 'Akun yang bisa login ke aplikasi · tambah akun, atur hak akses, ubah akun, atau hapus akun'
+                : 'Hak akses Anda: ' . e(labelPeran(peranSaya())) . ' · ubah nama, username, atau password akun Anda'; ?></div>
         </div>
     </div>
     <?php foreach ($flash as [$tipe, $pesan]): ?>
@@ -285,17 +285,17 @@ unset($_SESSION['flash_user']);
         </div>
     <?php endforeach; ?>
 
-    <?php // Admin: daftar pengguna + form tambah; Staf & Pemantau: hanya akun sendiri. Hak tiap peran dijelaskan di README.md ?>
+    <?php // Akses Penuh: daftar pengguna + form tambah; Akses Kerja & Akses Lihat: hanya akun sendiri. Lihat README.md ?>
     <div class="<?= $admin ? 'dua-kolom kolom-pengguna' : ''; ?>">
         <section class="panel">
-            <div class="panel-judul"><h2><?= $admin ? 'Daftar pengguna' : 'Akun Anda'; ?></h2><?php if ($admin): ?><span><?= count($users); ?> akun</span><?php endif; ?></div>
+            <div class="panel-judul"><h2><?= $admin ? 'Daftar user' : 'Akun Anda'; ?></h2><?php if ($admin): ?><span><?= count($users); ?> akun</span><?php endif; ?></div>
             <div class="table-responsive">
                 <table class="tabel-a">
                     <thead>
                         <tr>
                             <th>Username</th>
                             <?php if ($adaNama): ?><th>Nama lengkap</th><?php endif; ?>
-                            <th>Peran</th>
+                            <th>Hak akses</th>
                             <?php if ($adaTanggal): ?><th>Dibuat</th><?php endif; ?>
                             <th><span class="visually-hidden">Aksi</span></th>
                         </tr>
@@ -305,7 +305,7 @@ unset($_SESSION['flash_user']);
                         <tr>
                             <td data-label="Username"><span class="nama"><?= e($u['username']); ?></span><?php if ($isSaya): ?> <span class="tanda">Anda</span><?php endif; ?></td>
                             <?php if ($adaNama): ?><td data-label="Nama lengkap"><?= e($u['nama_lengkap'] ?? ''); ?></td><?php endif; ?>
-                            <td data-label="Peran"><span class="peran peran-<?= e($u['peran']); ?>"><?= e(labelPeran($u['peran'])); ?></span></td>
+                            <td data-label="Hak akses"><span class="peran peran-<?= e($u['peran']); ?>"><?= e(labelPeran($u['peran'])); ?></span></td>
                             <?php if ($adaTanggal): ?>
                                 <td data-label="Dibuat" class="mono"><?= !empty($u['dibuat_tanggal']) ? date('d.m.Y', strtotime($u['dibuat_tanggal'])) : '&mdash;'; ?></td>
                             <?php endif; ?>
@@ -332,7 +332,7 @@ unset($_SESSION['flash_user']);
 
         <?php if ($admin): ?>
         <section class="panel">
-            <div class="panel-judul"><h2>Tambah pengguna</h2></div>
+            <div class="panel-judul"><h2>Tambah user</h2></div>
             <form method="POST" action="users.php" autocomplete="off" class="form-tambah">
                 <?= csrf_field(); ?>
                 <input type="hidden" name="aksi" value="tambah">
@@ -361,14 +361,14 @@ unset($_SESSION['flash_user']);
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label" for="peranBaru">Peran</label>
+                    <label class="form-label" for="peranBaru">Hak akses</label>
                     <select id="peranBaru" name="peran" class="form-select" required>
                         <?php foreach (PERAN as $kode => $label): ?>
                             <option value="<?= $kode; ?>" <?= $kode === 'staf' ? 'selected' : ''; ?>><?= e($label); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <button type="submit" class="btn btn-gelap w-100">Simpan pengguna</button>
+                <button type="submit" class="btn btn-gelap w-100">Simpan user</button>
             </form>
             <p class="catatan mb-2">
                 Halaman Daftar publik: <b class="<?= pendaftaranDibuka() ? 'teks-merah' : 'teks-hijau'; ?>"><?= pendaftaranDibuka() ? 'terbuka' : 'ditutup'; ?></b>.
@@ -412,7 +412,7 @@ unset($_SESSION['flash_user']);
                     </div>
                     <?php if ($admin): ?>
                     <div class="mb-3">
-                        <label class="form-label" for="peran<?= $i; ?>">Peran</label>
+                        <label class="form-label" for="peran<?= $i; ?>">Hak akses</label>
                         <select id="peran<?= $i; ?>" name="peran" class="form-select">
                             <?php foreach (PERAN as $kode => $label): ?>
                                 <option value="<?= $kode; ?>" <?= $kode === $u['peran'] ? 'selected' : ''; ?>><?= e($label); ?></option>

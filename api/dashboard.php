@@ -1140,7 +1140,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
         </section>
     </div>
     <?php if (!$kelola_penerima): ?>
-        <p class="catatan mx-0">Daftar penerima hanya bisa diubah oleh Admin. Hubungi Admin bila ada nomor atau chat yang perlu ditambah atau diganti.</p>
+        <p class="catatan mx-0">Daftar penerima hanya bisa diubah oleh pengguna dengan Akses Penuh. Hubungi pengelola aplikasi bila ada nomor atau chat yang perlu ditambah atau diganti.</p>
     <?php endif; ?>
 
 <?php else: ?>
