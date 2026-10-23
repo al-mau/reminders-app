@@ -8,7 +8,7 @@
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 30;
+const VERSI_TEMA = 31;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string

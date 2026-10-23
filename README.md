@@ -8,7 +8,7 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 |---|---|
 | `api/index.php` | Redirect `/` ke login / dashboard |
 | `api/login.php`, `api/register.php`, `api/logout.php` | Autentikasi (halaman Daftar publik default ditutup, buka dengan `ALLOW_REGISTER=true`) |
-| `api/users.php` | Kelola User: tambah admin, ganti password, hapus akun |
+| `api/users.php` | Kelola pengguna: tambah akun, atur peran, ubah akun (username, nama, password), hapus akun |
 | `api/dashboard.php` | CRUD deadline, statistik, filter, kirim WA manual, lampiran, penerima WA, riwayat WA |
 | `api/lampiran.php` | Unduh / lihat lampiran (khusus user yang sudah login) |
 | `api/cron_wa_reminder.php` | Pengingat otomatis H-1 & hari-H (dipanggil cron-job.org) |
@@ -16,6 +16,7 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 | `api/lib/session_handler.php` | Session disimpan di tabel `sessions` (wajib di serverless) |
 | `api/lib/fonnte.php` | Helper kirim WhatsApp |
 | `api/lib/skema.php` | Tabel tambahan + helper lampiran, riwayat WA, pembatasan login |
+| `api/lib/peran.php` | Peran pengguna (Admin, Staf, Pemantau) dan pengecekan hak akses (lihat [Peran pengguna](#peran-pengguna)) |
 | `api/setup.php` | Membuat tabel database otomatis (sekali jalan) |
 | `database/schema.sql` | Skema tabel `users`, `deadline`, `sessions` |
 | `database/sync_dari_aiven.*` | Salin data Aiven ke MySQL XAMPP (backup lokal) |
@@ -51,6 +52,32 @@ File JSON tidak bisa diberi komentar, jadi penjelasannya ditulis di sini:
 > Kredensial tidak boleh ditulis di kode. File `.env` sudah masuk `.gitignore`.
 
 > **Batas Vercel Hobby: maksimal 12 Serverless Functions per deployment.** Setiap file `.php` langsung di `api/` dihitung 1 function. File pembantu (bukan halaman) simpan di `api/lib/` agar tidak ikut dihitung.
+
+## Peran pengguna
+
+Setiap akun punya satu peran. Peran diatur Admin di menu **Pengguna** (saat menambah akun atau lewat **Ubah akun**) dan langsung berlaku tanpa login ulang.
+
+| Fitur | Admin | Staf | Pemantau |
+|---|:---:|:---:|:---:|
+| Lihat Daftar Unit, lampiran, Penerima, Riwayat Kirim | ✓ | ✓ | ✓ |
+| Tambah & edit unit (termasuk perpanjang deadline) | ✓ | ✓ | – |
+| Tandai selesai / batalkan | ✓ | ✓ | – |
+| Kirim pengingat sekarang (WhatsApp / Telegram) | ✓ | ✓ | – |
+| Unggah lampiran | ✓ | ✓ | – |
+| Hapus unit & lampiran | ✓ | – | – |
+| Kelola penerima WhatsApp & Telegram | ✓ | – | – |
+| Kelola pengguna & atur peran | ✓ | – | – |
+| Ubah nama, username, password akun sendiri | ✓ | ✓ | ✓ |
+
+- **Admin** — penanggung jawab aplikasi. Memegang hak yang berisiko besar: menghapus data (tidak bisa dibatalkan), menentukan ke mana pengingat dikirim, dan mengatur siapa yang boleh masuk.
+- **Staf** — operator harian. Cukup untuk memantau dan menindaklanjuti unit, tetapi tidak bisa menghapus data, mengubah penerima, atau mengelola pengguna.
+- **Pemantau** — misalnya atasan atau auditor. Hanya melihat, tidak bisa mengubah apa pun.
+
+Catatan:
+- Hak dicek di server untuk setiap aksi (bukan hanya tombol yang disembunyikan); aksi yang belum terdaftar di `api/lib/peran.php` hanya untuk Admin.
+- Staf & Pemantau melihat menu **Akun saya** (bukan Pengguna) dan tidak bisa mengubah perannya sendiri.
+- Selalu ada minimal satu Admin: Admin terakhir tidak bisa dihapus atau diturunkan perannya.
+- Saat pertama kali dipasang, akun yang sudah ada otomatis menjadi Admin. Pendaftaran publik (`ALLOW_REGISTER=true`) memberi peran Pemantau, kecuali akun pertama yang menjadi Admin.
 
 ## Notifikasi Telegram (opsional, gratis)
 

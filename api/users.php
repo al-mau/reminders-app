@@ -285,7 +285,8 @@ unset($_SESSION['flash_user']);
         </div>
     <?php endforeach; ?>
 
-    <div class="dua-kolom kolom-pengguna">
+    <?php // Admin: daftar pengguna + form tambah; Staf & Pemantau: hanya akun sendiri. Hak tiap peran dijelaskan di README.md ?>
+    <div class="<?= $admin ? 'dua-kolom kolom-pengguna' : ''; ?>">
         <section class="panel">
             <div class="panel-judul"><h2><?= $admin ? 'Daftar pengguna' : 'Akun Anda'; ?></h2><?php if ($admin): ?><span><?= count($users); ?> akun</span><?php endif; ?></div>
             <div class="table-responsive">
@@ -329,7 +330,6 @@ unset($_SESSION['flash_user']);
             </div>
         </section>
 
-        <div class="tumpuk">
         <?php if ($admin): ?>
         <section class="panel">
             <div class="panel-judul"><h2>Tambah pengguna</h2></div>
@@ -370,7 +370,7 @@ unset($_SESSION['flash_user']);
                 </div>
                 <button type="submit" class="btn btn-gelap w-100">Simpan pengguna</button>
             </form>
-            <p class="catatan mb-3">
+            <p class="catatan mb-2">
                 Halaman Daftar publik: <b class="<?= pendaftaranDibuka() ? 'teks-merah' : 'teks-hijau'; ?>"><?= pendaftaranDibuka() ? 'terbuka' : 'ditutup'; ?></b>.
                 <?php if (pendaftaranDibuka()): ?>
                     Siapa pun yang tahu link bisa membuat akun. Tutup dengan menghapus <code>ALLOW_REGISTER</code> atau mengisinya <code>false</code> di Vercel.
@@ -380,17 +380,6 @@ unset($_SESSION['flash_user']);
             </p>
         </section>
         <?php endif; ?>
-
-        <section class="panel">
-            <div class="panel-judul"><h2>Hak akses tiap peran</h2></div>
-            <dl class="daftar-peran">
-                <?php foreach (KETERANGAN_PERAN as $kode => $teks): ?>
-                    <dt><span class="peran peran-<?= $kode; ?>"><?= e(labelPeran($kode)); ?></span></dt>
-                    <dd><?= e($teks); ?></dd>
-                <?php endforeach; ?>
-            </dl>
-        </section>
-        </div>
     </div>
 
     <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>

@@ -6,6 +6,7 @@
  *  staf     -> kerja harian: tambah/edit unit, tandai selesai, kirim pengingat, unggah lampiran
  *  pemantau -> hanya melihat (Daftar Unit, lampiran, Penerima, Riwayat Kirim)
  * Semua peran boleh mengubah nama, username, dan password akunnya sendiri.
+ * Penjelasan lengkap untuk pengguna ada di README.md (bagian "Peran pengguna").
  *
  * Peran dibaca dari database setiap halaman dibuka (bukan dari sesi), sehingga
  * perubahan peran oleh Admin langsung berlaku tanpa perlu login ulang.
@@ -16,13 +17,6 @@ const PERAN = [
     'admin'    => 'Admin',
     'staf'     => 'Staf',
     'pemantau' => 'Pemantau',
-];
-
-/** Penjelasan singkat tiap peran (ditampilkan di halaman Pengguna) */
-const KETERANGAN_PERAN = [
-    'admin'    => 'Semua akses: kelola unit, hapus unit & lampiran, kelola penerima WA/Telegram, dan kelola pengguna.',
-    'staf'     => 'Kerja harian: tambah & edit unit, tandai selesai, kirim pengingat, unggah lampiran. Tidak bisa menghapus data, mengubah penerima, atau mengelola pengguna.',
-    'pemantau' => 'Hanya melihat Daftar Unit, lampiran, Penerima, dan Riwayat Kirim. Tidak bisa mengubah apa pun.',
 ];
 
 /** Hak -> peran yang boleh. Hak yang tidak terdaftar di sini tidak diberikan ke siapa pun. */

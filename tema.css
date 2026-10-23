@@ -82,16 +82,11 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .panel.info a { margin-left: auto; text-decoration: none; }
 .dua-kolom { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 .kolom-pengguna { grid-template-columns: 2fr 1fr; }
-.tumpuk { display: flex; flex-direction: column; gap: 18px; }
 /* Label peran pengguna: Admin / Staf / Pemantau */
 .peran { display: inline-block; font-size: 12.5px; font-weight: 500; border-radius: 3px; padding: 1px 7px; border: 1px solid; white-space: nowrap; }
 .peran-admin { color: var(--aksen); border-color: #b9d3cc; background: #eef5f3; }
 .peran-staf { color: var(--tinta2); border-color: var(--garis); background: #f7f6f2; }
 .peran-pemantau { color: var(--tinta3); border-color: var(--garis); background: #fff; }
-.daftar-peran { margin: 0; padding: 14px 20px 18px; font-size: 14px; }
-.daftar-peran dt { margin-top: 10px; }
-.daftar-peran dt:first-child { margin-top: 0; }
-.daftar-peran dd { margin: 4px 0 0; color: var(--tinta2); line-height: 1.5; }
 .input-group .btn[data-mata] { border-color: var(--garis); color: var(--tinta3); border-radius: 0 4px 4px 0; }
 
 /* ---------- Tab status ---------- */
