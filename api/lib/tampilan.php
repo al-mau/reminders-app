@@ -8,7 +8,7 @@
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 32;
+const VERSI_TEMA = 33;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -59,5 +59,7 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
 /** Nama aplikasi di atas kotak form halaman Login & Daftar */
 function merekAuth(): string
 {
-    return '<div class="auth-merek">Pengingat Deadline<small>Monitoring User Aplikasi Naskah Dinas</small></div>';
+    return '<div class="auth-merek">'
+        . '<img src="logo-brk-syariah.webp" alt="BRK Syariah" width="180" height="37">'
+        . '<div class="auth-judul">Pengingat Deadline<small>Monitoring User Aplikasi Naskah Dinas</small></div></div>';
 }

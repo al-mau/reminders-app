@@ -190,17 +190,23 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .list-group-item { font-size: 14px; }
 
 /* ---------- Halaman Login & Daftar: satu kotak form di tengah ---------- */
-body.auth { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 16px; }
-.auth-merek { font-weight: 600; font-size: 16px; margin-bottom: 14px; color: var(--tinta); }
-.auth-merek small { color: var(--tinta3); font-weight: 400; margin-left: 6px; }
-.auth-kotak { width: 100%; max-width: 380px; background: var(--putih); border: 1px solid var(--garis); border-radius: 6px; padding: 28px 28px 22px; }
+/* Login & Daftar: latar hijau seperti sidebar; kepala putih berlogo + garis tiga warna logo, lalu kotak form */
+body.auth { min-height: 100vh; background: var(--side); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 16px; }
+.auth-merek { position: relative; width: 100%; max-width: 380px; background: var(--putih); border-radius: 6px 6px 0 0; padding: 24px 28px 18px; text-align: center; margin-bottom: 4px; }
+.auth-merek::after { content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 4px;
+    background: linear-gradient(90deg, var(--logo-oranye) 0 33.3%, var(--logo-merah) 33.3% 66.6%, var(--logo-hijau) 66.6%); }
+.auth-merek img { display: block; width: 180px; height: auto; margin: 0 auto 14px; }
+.auth-judul { font-weight: 600; font-size: 17px; color: var(--tinta); }
+.auth-judul small { display: block; color: var(--tinta3); font-weight: 400; font-size: 13.5px; margin-top: 2px; }
+.auth-kotak { width: 100%; max-width: 380px; background: var(--putih); border-radius: 0 0 6px 6px; padding: 26px 28px 22px; box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
 .auth-kotak h1 { font-size: 24px; font-weight: 600; margin: 0 0 4px; letter-spacing: -.2px; }
 .auth-kotak .kepala-sub { margin-bottom: 22px; }
 .auth-kotak .alert { margin-bottom: 18px; }
 .auth-kotak .form-control { padding: 9px 12px; }
-.auth-kotak .btn-gelap { padding: 10px 14px; font-size: 15px; }
+.auth-kotak .btn-gelap { padding: 10px 14px; font-size: 15px; background: var(--side); border-color: var(--side); }
+.auth-kotak .btn-gelap:hover, .auth-kotak .btn-gelap:focus-visible { background: var(--side3); border-color: var(--side3); color: #fff; }
 .auth-bawah { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--garis2); color: var(--tinta3); font-size: 14px; }
-body.auth .kaki { padding: 16px 0 0; }
+body.auth .kaki { padding: 16px 0 0; color: var(--side-redup); }
 
 /* ---------- Layar kecil ---------- */
 @media (max-width: 991.98px) {
@@ -210,6 +216,7 @@ body.auth .kaki { padding: 16px 0 0; }
     /* Login & Daftar: kotak form mulai dari atas layar */
     body.auth { justify-content: flex-start; padding-top: 32px; }
     .auth-kotak { padding: 22px 20px 18px; }
+    .auth-merek { padding: 20px 20px 16px; }
     /* Sidebar menjadi bilah menu di atas */
     body.app { flex-direction: column; }
     .side { width: auto; }
