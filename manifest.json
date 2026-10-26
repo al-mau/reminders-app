@@ -4,8 +4,8 @@
   "description": "Aplikasi Pengingat Deadline Unit",
   "start_url": "dashboard.php",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#1e293b",
+  "background_color": "#0f3d34",
+  "theme_color": "#0f3d34",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/3602/3602145.png",

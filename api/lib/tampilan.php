@@ -8,7 +8,7 @@
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 33;
+const VERSI_TEMA = 34;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -17,7 +17,7 @@ function kepalaHalaman(string $judul): string
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>' . e($judul) . ' · Pengingat Deadline</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1d2528">
+    <meta name="theme-color" content="#0f3d34">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">

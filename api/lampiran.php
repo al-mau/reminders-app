@@ -109,18 +109,18 @@ header('Content-Type: text/html; charset=utf-8');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($file['nama_file']); ?></title>
     <style>
-        body { font-family: system-ui, sans-serif; background: #f8f9fa; color: #1e293b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        body { font-family: system-ui, sans-serif; background: #f1f5f3; color: #1d2528; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         .kotak { background: #fff; padding: 24px 28px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.08); width: min(420px, 90vw); }
-        .bar { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin: 12px 0; }
-        .isi { height: 100%; width: 0; background: #2563eb; transition: width .2s; }
-        .kecil { font-size: .85rem; color: #64748b; word-break: break-all; }
-        a { color: #2563eb; }
+        .bar { height: 8px; background: #d8e2de; border-radius: 4px; overflow: hidden; margin: 12px 0; }
+        .isi { height: 100%; width: 0; background: #1e5e52; transition: width .2s; }
+        .kecil { font-size: .85rem; color: #7c8589; word-break: break-all; }
+        a { color: #1e5e52; }
         /* Mode pratinjau Word/Excel/CSV/TXT: bilah judul di atas + isi file memenuhi layar */
-        body.pratinjau { display: block; background: #e2e8f0; }
-        .bilah { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #1e293b; color: #fff; }
+        body.pratinjau { display: block; background: #d8e2de; }
+        .bilah { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #0f3d34; color: #fff; }  /* hijau sidebar */
         .bilah .nama { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-        .bilah .kecil { color: #cbd5e1; }
-        .bilah a { color: #fff; background: #2563eb; padding: 6px 14px; border-radius: 6px; text-decoration: none; white-space: nowrap; }
+        .bilah .kecil { color: #9fbdb5; }
+        .bilah a { color: #fff; background: #1b5448; border: 1px solid #3d6f64; padding: 6px 14px; border-radius: 6px; text-decoration: none; white-space: nowrap; }
         iframe { display: block; width: 100%; height: calc(100vh - 52px); border: 0; background: #fff; }
     </style>
 </head>
