@@ -868,8 +868,8 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
         #pratinjauLokal { position: fixed; inset: 0; z-index: 2000; background: rgba(29, 37, 40, .75); display: none; padding: 16px; }
         #pratinjauLokal.tampil { display: flex; }
         #pratinjauLokal .kotak { background: #fff; border-radius: 6px; width: 100%; max-width: 1000px; margin: auto; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-        #pratinjauLokal .bilah { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #dedbd3; }
-        #pratinjauLokal .wadah { flex: 1; min-height: 0; background: #f3f2ee; }
+        #pratinjauLokal .bilah { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--garis); }
+        #pratinjauLokal .wadah { flex: 1; min-height: 0; background: var(--kertas); }
         #pratinjauLokal iframe { width: 100%; height: 100%; border: 0; background: #fff; display: block; }
         #pratinjauLokal img { max-width: 100%; max-height: 100%; display: block; margin: auto; }
     </style>
