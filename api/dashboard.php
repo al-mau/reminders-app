@@ -252,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         if ($salahKontak === null && mb_strlen($jabatan) > 100) {
-            $salahKontak = 'Jabatan maksimal 100 karakter.';
+            $salahKontak = 'Keterangan maksimal 100 karakter.';
         }
         if ($salahKontak !== null) {
             if ($ajax) {
@@ -985,7 +985,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
         <?php // Pencarian: nama / kode unit + rentang tanggal ?>
         <form method="GET" action="dashboard.php" class="bar">
             <?php if ($filter !== 'semua'): ?><input type="hidden" name="filter" value="<?= e($filter); ?>"><?php endif; ?>
-            <input type="text" name="search" class="form-control bar-cari" placeholder="Cari unit, jabatan, email, atau No HP" value="<?= e($search); ?>" aria-label="Cari unit, jabatan, email, atau No HP">
+            <input type="text" name="search" class="form-control bar-cari" placeholder="Cari unit, keterangan, email, atau No HP" value="<?= e($search); ?>" aria-label="Cari unit, keterangan, email, atau No HP">
             <label class="bar-tgl" title="Tampilkan unit dengan tanggal awal mulai tanggal ini">
                 <span>Awal</span><input type="date" name="dari" class="form-control" value="<?= e($tgl_dari); ?>" aria-label="Tanggal awal">
             </label>
@@ -1408,7 +1408,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <input type="text" name="kode_unit" class="form-control" placeholder="contoh: 105BRKS2026" maxlength="50" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Jabatan <span class="redup fw-normal">(opsional)</span></label>
+                            <label class="form-label">Keterangan <span class="redup fw-normal">(opsional)</span></label>
                             <input type="text" name="jabatan" class="form-control" placeholder="contoh: Pgs SPV Operasional" maxlength="100">
                         </div>
                         <div class="row g-3 mb-3">
@@ -1476,7 +1476,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <input type="text" name="kode_unit" class="form-control" value="<?= e($row['kode_unit']); ?>" maxlength="50" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Jabatan <span class="redup fw-normal">(opsional)</span></label>
+                            <label class="form-label">Keterangan <span class="redup fw-normal">(opsional)</span></label>
                             <input type="text" name="jabatan" class="form-control" value="<?= e($row['jabatan'] ?? ''); ?>" maxlength="100">
                         </div>
                         <div class="row g-3 mb-3">
