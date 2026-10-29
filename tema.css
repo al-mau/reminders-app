@@ -130,7 +130,7 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .tabel-a tbody tr:hover { background: #f8fbfa; }
 .tabel-a .nama, .baris-penerima .nama { font-weight: 500; }
 .tabel-a .kode, .baris-penerima .kode { font-size: 13px; color: var(--tinta3); margin-top: 2px; }
-.tabel-a .kontak { font-size: 13px; color: var(--tinta2); margin-top: 6px; line-height: 1.45; word-break: break-word; }
+.tabel-a td.kontak { font-size: 13.5px; color: var(--tinta2); line-height: 1.5; overflow-wrap: anywhere; }
 .tabel-a td.mono { font-size: 13.5px; color: var(--tinta2); white-space: nowrap; }
 .tabel-a td.mono b { color: var(--tinta); font-weight: 500; }
 .tabel-a td.mono form { margin: 2px 0 0; }

@@ -981,28 +981,31 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <table class="tabel-a tabel-unit">
                 <thead>
                     <tr>
-                        <th style="width:30%">Unit</th>
-                        <th style="width:17%">Periode</th>
-                        <th style="width:21%">Deadline</th>
-                        <th style="width:14%">Terkirim Tgl</th>
+                        <th style="width:19%">Unit</th>
+                        <th style="width:20%">Kontak</th>
+                        <th style="width:15%">Periode</th>
+                        <th style="width:17%">Deadline</th>
+                        <th style="width:12%">Terkirim Tgl</th>
                         <th class="text-end"><span class="visually-hidden">Aksi</span></th>
                     </tr>
                 </thead>
                 <tbody>
                 <?php if (!$data_tampil): ?>
-                    <tr><td colspan="5"><div class="kosong"><?= $sedang_menyaring ? 'Tidak ada unit yang cocok dengan filter ini.' : (boleh('kelola_unit') ? 'Belum ada unit. Klik “+ Tambah unit” untuk mulai.' : 'Belum ada unit.'); ?></div></td></tr>
+                    <tr><td colspan="6"><div class="kosong"><?= $sedang_menyaring ? 'Tidak ada unit yang cocok dengan filter ini.' : (boleh('kelola_unit') ? 'Belum ada unit. Klik “+ Tambah unit” untuk mulai.' : 'Belum ada unit.'); ?></div></td></tr>
                 <?php endif; ?>
                 <?php foreach ($data_tampil as $row): $id = (int) $row['id']; ?>
                     <tr class="<?= $row['selesai_tanggal'] !== null ? 'baris-selesai' : ''; ?>">
                         <td data-label="Unit">
                             <div class="nama"><?= e($row['nama_unit']); ?></div>
                             <div class="kode"><?= e($row['kode_unit']); ?></div>
-                            <?php if (!empty($row['jabatan']) || !empty($row['email']) || !empty($row['no_hp'])): ?>
-                            <div class="kontak">
+                        </td>
+                        <td data-label="Kontak" class="kontak">
+                            <?php if (empty($row['jabatan']) && empty($row['email']) && empty($row['no_hp'])): ?>
+                                <span class="redup">–</span>
+                            <?php else: ?>
                                 <?php if (!empty($row['jabatan'])): ?><div><?= e($row['jabatan']); ?></div><?php endif; ?>
                                 <?php if (!empty($row['email'])): ?><div><?= e($row['email']); ?></div><?php endif; ?>
                                 <?php if (!empty($row['no_hp'])): ?><div class="mono"><?= e(nomorHpTampil($row['no_hp'])); ?></div><?php endif; ?>
-                            </div>
                             <?php endif; ?>
                         </td>
                         <td data-label="Periode" class="mono" title="Tanggal awal s/d tanggal akhir">
