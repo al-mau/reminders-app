@@ -63,6 +63,20 @@ function nomorHpTampil(?string $nomor): string
     return substr($nomor, 0, 2) === '62' ? '0' . substr($nomor, 2) : $nomor;
 }
 
+/** No HP untuk kolom isian berawalan +62: 628xxx -> 8xxx */
+function nomorHpForm(?string $nomor): string
+{
+    $nomor = (string) $nomor;
+    return substr($nomor, 0, 2) === '62' ? substr($nomor, 2) : $nomor;
+}
+
+/** Email untuk kolom isian berakhiran @gmail.com: nama@gmail.com -> nama */
+function emailTampil(?string $email): string
+{
+    $email = (string) $email;
+    return strtolower(substr($email, -10)) === '@gmail.com' ? substr($email, 0, -10) : $email;
+}
+
 /**
  * Tombol pindah halaman: [‹ Sebelumnya] [2 / 5] [Berikutnya ›].
  * Parameter lain di URL (pencarian, tanggal, halaman tabel lain) tetap dipertahankan.
@@ -219,6 +233,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $jabatan       = trim($_POST['jabatan'] ?? '');
         $email         = trim($_POST['email'] ?? '');
         $no_hp         = trim($_POST['no_hp'] ?? '');
+        // Form hanya meminta bagian depan email; tanpa "@" dianggap akun Gmail
+        if ($email !== '' && strpos($email, '@') === false) {
+            $email .= '@gmail.com';
+        }
+        // Form sudah menampilkan +62, jadi nomor boleh diketik mulai dari 8
+        if (substr(preg_replace('/\D/', '', $no_hp), 0, 1) === '8') {
+            $no_hp = '0' . $no_hp;
+        }
 
         $salahKontak = null;
         if ($email !== '' && (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 150)) {
@@ -982,7 +1004,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <thead>
                     <tr>
                         <th style="width:19%">Unit</th>
-                        <th style="width:20%">Kontak</th>
+                        <th style="width:20%">Keterangan</th>
                         <th style="width:15%">Periode</th>
                         <th style="width:17%">Deadline</th>
                         <th style="width:12%">Terkirim Tgl</th>
@@ -999,7 +1021,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <div class="nama"><?= e($row['nama_unit']); ?></div>
                             <div class="kode"><?= e($row['kode_unit']); ?></div>
                         </td>
-                        <td data-label="Kontak" class="kontak">
+                        <td data-label="Keterangan" class="kontak">
                             <?php if (empty($row['jabatan']) && empty($row['email']) && empty($row['no_hp'])): ?>
                                 <span class="redup">–</span>
                             <?php else: ?>
@@ -1392,11 +1414,18 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="row g-3 mb-3">
                             <div class="col-sm-6">
                                 <label class="form-label">Email <span class="redup fw-normal">(opsional)</span></label>
-                                <input type="email" name="email" class="form-control" placeholder="nama@gmail.com" maxlength="150">
+                                <div class="input-group input-email">
+                                    <input type="text" name="email" class="form-control" placeholder="nama" maxlength="150" autocomplete="off" autocapitalize="off" spellcheck="false">
+                                    <span class="input-group-text">@gmail.com</span>
+                                </div>
+                                <div class="form-text">Email selain Gmail: ketik alamat lengkapnya.</div>
                             </div>
                             <div class="col-sm-6">
                                 <label class="form-label">No HP <span class="redup fw-normal">(opsional)</span></label>
-                                <input type="tel" name="no_hp" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +">
+                                <div class="input-group">
+                                    <span class="input-group-text">+62</span>
+                                    <input type="tel" name="no_hp" class="form-control" placeholder="81234567890" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +">
+                                </div>
                             </div>
                         </div>
                         <div class="row g-3 mb-3">
@@ -1453,11 +1482,17 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="row g-3 mb-3">
                             <div class="col-sm-6">
                                 <label class="form-label">Email <span class="redup fw-normal">(opsional)</span></label>
-                                <input type="email" name="email" class="form-control" value="<?= e($row['email'] ?? ''); ?>" maxlength="150">
+                                <div class="input-group input-email">
+                                    <input type="text" name="email" class="form-control" value="<?= e(emailTampil($row['email'] ?? '')); ?>" placeholder="nama" maxlength="150" autocomplete="off" autocapitalize="off" spellcheck="false">
+                                    <span class="input-group-text">@gmail.com</span>
+                                </div>
                             </div>
                             <div class="col-sm-6">
                                 <label class="form-label">No HP <span class="redup fw-normal">(opsional)</span></label>
-                                <input type="tel" name="no_hp" class="form-control" value="<?= e(nomorHpTampil($row['no_hp'] ?? '')); ?>" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +">
+                                <div class="input-group">
+                                    <span class="input-group-text">+62</span>
+                                    <input type="tel" name="no_hp" class="form-control" value="<?= e(nomorHpForm($row['no_hp'] ?? '')); ?>" placeholder="81234567890" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +">
+                                </div>
                             </div>
                         </div>
                         <div class="row g-3">
@@ -1547,6 +1582,14 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+        // Akhiran @gmail.com disembunyikan bila pengguna mengetik alamat email lengkap
+        document.querySelectorAll('.input-email').forEach((grup) => {
+            const isian = grup.querySelector('input');
+            const atur = () => grup.classList.toggle('lengkap', isian.value.includes('@'));
+            isian.addEventListener('input', atur);
+            atur();
+        });
+
         // Buka kembali modal lampiran setelah upload / hapus
         <?php if ($buka_lampiran > 0): ?>
         document.addEventListener('DOMContentLoaded', () => {
