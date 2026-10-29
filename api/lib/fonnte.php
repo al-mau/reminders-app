@@ -1,7 +1,8 @@
 <?php
 /**
- * Helper pengiriman notifikasi: WhatsApp (via Fonnte) dan/atau Telegram Bot.
- *  - NOTIF_VIA          : saluran yang dipakai: "wa" (default), "telegram", atau "wa,telegram"
+ * Helper pengiriman notifikasi: WhatsApp (via Fonnte), Telegram Bot, dan/atau Email (lib/email.php).
+ *  - NOTIF_VIA          : saluran yang dipakai, dipisah koma: "wa" (default), "telegram", "email",
+ *                         contoh "wa,telegram,email" untuk ketiganya
  *  - TELEGRAM_BOT_TOKEN : token bot dari @BotFather
  *  - TELEGRAM_CHAT_ID   : chat id penerima (orang atau grup), bisa lebih dari 1 dipisah koma
  *  - FONNTE_TOKEN (Environment Variable) : token device dari dashboard fonnte.com
@@ -10,6 +11,7 @@
  */
 require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/skema.php';
+require_once __DIR__ . '/email.php';
 
 /**
  * Rapikan nomor WA ke format internasional tanpa simbol.
@@ -81,12 +83,22 @@ function daftarNomorPenerima(): array
     return array_values(array_unique(array_filter($nomor, 'nomorWaValid')));
 }
 
-/** Saluran notifikasi yang aktif menurut NOTIF_VIA, contoh: ['wa'], ['telegram'], ['wa', 'telegram'] */
+/** Saluran notifikasi yang aktif menurut NOTIF_VIA, contoh: ['wa'], ['wa', 'telegram'], ['wa', 'telegram', 'email'] */
 function saluranNotifikasi(): array
 {
     $pilihan = array_map('trim', preg_split('/[,;+ ]+/', strtolower((string) env('NOTIF_VIA', 'wa'))));
-    $saluran = array_values(array_intersect(['wa', 'telegram'], $pilihan));
+    $saluran = array_values(array_intersect(['wa', 'telegram', 'email'], $pilihan));
     return $saluran ?: ['wa'];
+}
+
+/** Saluran yang pengaturannya sudah lengkap (token / SMTP terisi) -> bisa dipilih di tombol kirim manual */
+function saluranSiap(): array
+{
+    return array_keys(array_filter([
+        'wa'       => (string) env('FONNTE_TOKEN', '') !== '',
+        'telegram' => (string) env('TELEGRAM_BOT_TOKEN', '') !== '',
+        'email'    => emailSiap(),
+    ]));
 }
 
 /** Validasi chat id Telegram: angka; grup/channel diawali tanda minus (contoh -1001234567890) */
@@ -166,11 +178,11 @@ function cariChatTelegram(): array
 }
 
 /**
- * Kirim notifikasi ke semua saluran aktif (WhatsApp dan/atau Telegram), lalu catat di riwayat (wa_log).
+ * Kirim notifikasi ke semua saluran aktif (WhatsApp, Telegram, dan/atau Email), lalu catat di riwayat (wa_log).
  * Nama fungsi tetap "kirimWhatsApp" agar pemanggil lama (cron & dashboard) tidak perlu diubah.
  * @param string $jenis     'otomatis' (cron) atau 'manual' (tombol di dashboard)
  * @param string $ringkasan Daftar unit yang diingatkan, untuk riwayat
- * @param array|null $saluran ['wa'], ['telegram'], atau keduanya; null = ikut NOTIF_VIA
+ * @param array|null $saluran daftar saluran ('wa', 'telegram', 'email'); null = ikut NOTIF_VIA
  *                            (dipakai tombol kirim manual yang memilih saluran sendiri)
  * @return array{ok: bool, pesan: string}  ok = minimal satu saluran berhasil
  */
@@ -199,7 +211,15 @@ function kirimWhatsApp(string $pesan, string $jenis = 'manual', string $ringkasa
         $semua['Telegram'] = $hasil;
     }
 
-    // WA & Telegram dari satu pengiriman dicatat sebagai satu baris riwayat
+    if (in_array('email', $saluran, true)) {
+        $alamat = daftarEmailPenerima();
+        $hasil  = kirimKeEmail($pesan, $alamat, subjekEmail($ringkasan));
+        // Penerima Email dicatat dengan awalan "em:" agar riwayat bisa membedakannya dari nomor WA
+        $catatan[] = ['saluran' => 'email', 'penerima' => $alamat ? 'em:' . implode(',em:', $alamat) : '-'] + $hasil;
+        $semua['Email'] = $hasil;
+    }
+
+    // Semua saluran dari satu pengiriman dicatat sebagai satu baris riwayat
     catatPengiriman($pdo, $jenis, $ringkasan, $catatan);
 
     if (count($semua) === 1) {
@@ -219,6 +239,15 @@ function pasangSertifikatXampp($curl): void
     if (ini_get('curl.cainfo')) {
         return;
     }
+    $ca = fileSertifikatCa();
+    if ($ca !== '') {
+        curl_setopt($curl, CURLOPT_CAINFO, $ca);
+    }
+}
+
+/** File sertifikat CA bawaan PHP/XAMPP/Laragon yang ditemukan ('' jika tidak ada). Dipakai cURL & SMTP. */
+function fileSertifikatCa(): string
+{
     $kandidat = [
         ini_get('openssl.cafile') ?: '',
         dirname(PHP_BINARY, 2) . '/apache/bin/curl-ca-bundle.crt',
@@ -231,14 +260,11 @@ function pasangSertifikatXampp($curl): void
         'D:/xampp/apache/bin/curl-ca-bundle.crt',
     ];
     foreach ($kandidat as $ca) {
-        if ($ca === '') {
-            continue;
-        }
-        if (is_file($ca)) {
-            curl_setopt($curl, CURLOPT_CAINFO, $ca);
-            return;
+        if ($ca !== '' && is_file($ca)) {
+            return $ca;
         }
     }
+    return '';
 }
 
 /**
