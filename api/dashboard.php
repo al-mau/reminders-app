@@ -879,7 +879,7 @@ function aksiUnit(array $row, int $jmlLampiran, bool $bisaWa, bool $bisaTg): str
             <button type="button" class="btn btn-garis btn-kecil btn-titik" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="Aksi lain" title="Aksi lain">&#8943;</button>
             <ul class="dropdown-menu dropdown-menu-end menu-aksi">
                 <?php if ($kelola): ?>
-                <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalEdit<?= $id; ?>">Edit / perpanjang deadline</button></li>
+                <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalEdit<?= $id; ?>">Edit</button></li>
                 <?php endif; ?>
                 <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalLampiran<?= $id; ?>">Lampiran<?= $jmlLampiran ? ' <span class="angka">' . $jmlLampiran . '</span>' : ''; ?></button></li>
                 <?php if ($kelola): ?>
