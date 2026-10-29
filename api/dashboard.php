@@ -1004,7 +1004,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <thead>
                     <tr>
                         <th style="width:19%">Unit</th>
-                        <th style="width:20%">Keterangan</th>
+                        <th style="width:20%">Detail</th>
                         <th style="width:15%">Periode</th>
                         <th style="width:17%">Deadline</th>
                         <th style="width:12%">Terkirim Tgl</th>
@@ -1021,7 +1021,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <div class="nama"><?= e($row['nama_unit']); ?></div>
                             <div class="kode"><?= e($row['kode_unit']); ?></div>
                         </td>
-                        <td data-label="Keterangan" class="kontak">
+                        <td data-label="Detail" class="kontak">
                             <?php if (empty($row['jabatan']) && empty($row['email']) && empty($row['no_hp'])): ?>
                                 <span class="redup">–</span>
                             <?php else: ?>
