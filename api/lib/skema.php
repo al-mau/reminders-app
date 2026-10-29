@@ -4,10 +4,10 @@
  * Tabel dibuat otomatis saat pertama kali dibutuhkan, tidak perlu setup manual.
  *
  * Isi file ini:
- *  - pastikanTabelTambahan() -> membuat tabel wa_penerima, lampiran, lampiran_bagian,
+ *  - pastikanTabelTambahan() -> membuat tabel wa_penerima, telegram_penerima, email_penerima, lampiran, lampiran_bagian,
  *                               wa_log, login_gagal (jika belum ada) + kolom selesai di deadline
  *  - LAMPIRAN ...            -> simpan / hapus dokumen per unit (upload per potongan)
- *  - RIWAYAT PENGIRIMAN      -> catatPengiriman() mencatat setiap pengiriman WhatsApp/Telegram
+ *  - RIWAYAT PENGIRIMAN      -> catatPengiriman() mencatat setiap pengiriman WhatsApp/Telegram/Email
  *  - PEMBATASAN LOGIN        -> kunci login 15 menit setelah salah password berkali-kali
  */
 require_once __DIR__ . '/koneksi.php';
@@ -45,7 +45,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v9'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v10'])) {
         return;
     }
 
@@ -63,6 +63,15 @@ function pastikanTabelTambahan(PDO $pdo): void
         id             INT AUTO_INCREMENT PRIMARY KEY,
         nama           VARCHAR(100) NOT NULL,
         chat_id        VARCHAR(25)  NOT NULL UNIQUE,
+        aktif          TINYINT(1)   NOT NULL DEFAULT 1,
+        dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Daftar alamat email penerima pengingat (diatur dari dashboard)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS email_penerima (
+        id             INT AUTO_INCREMENT PRIMARY KEY,
+        nama           VARCHAR(100) NOT NULL,
+        email          VARCHAR(150) NOT NULL UNIQUE,
         aktif          TINYINT(1)   NOT NULL DEFAULT 1,
         dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
@@ -155,7 +164,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v9'] = true;
+        $_SESSION['skema_tambahan_v10'] = true;
     }
 }
 
@@ -406,19 +415,19 @@ function potong(string $teks, int $maks): string
     return function_exists('mb_substr') ? mb_substr($teks, 0, $maks) : substr($teks, 0, $maks);
 }
 
-/** Nama saluran untuk ditampilkan: wa -> WhatsApp, telegram -> Telegram */
+/** Nama saluran untuk ditampilkan: wa -> WhatsApp, telegram -> Telegram, email -> Email */
 function namaSaluran(string $saluran): string
 {
-    return $saluran === 'telegram' ? 'Telegram' : 'WhatsApp';
+    return ['telegram' => 'Telegram', 'email' => 'Email'][$saluran] ?? 'WhatsApp';
 }
 
 /**
  * Catat satu pengiriman (berhasil maupun gagal) ke tabel wa_log -> kartu "Riwayat Pengiriman".
- * Pengiriman lewat WhatsApp & Telegram sekaligus dicatat sebagai SATU baris:
+ * Pengiriman lewat beberapa saluran sekaligus (WhatsApp, Telegram, Email) dicatat sebagai SATU baris:
  * penerima digabung, hasil tiap saluran disimpan di kolom detail.
  * Jika pencatatan gagal, pengiriman tetap dianggap jalan (error hanya masuk log).
  *
- * @param array $hasil daftar ['saluran' => 'wa'|'telegram', 'penerima' => '628..,tg:-100..', 'ok' => bool, 'pesan' => string]
+ * @param array $hasil daftar ['saluran' => 'wa'|'telegram'|'email', 'penerima' => '628..,tg:-100..,em:a@b.com', 'ok' => bool, 'pesan' => string]
  */
 function catatPengiriman(PDO $pdo, string $jenis, string $ringkasan, array $hasil): void
 {

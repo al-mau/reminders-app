@@ -56,6 +56,16 @@ function tglPendek(string $tanggal, bool $tahun = true): string
     return date('d', $t) . ' ' . $bulan[(int) date('n', $t)] . ($tahun ? ' ' . date('Y', $t) : '');
 }
 
+/** Gabung daftar kata: ['A'] -> "A", ['A', 'B'] -> "A dan B", ['A', 'B', 'C'] -> "A, B, dan C" */
+function gabungKata(array $kata): string
+{
+    $akhir = array_pop($kata);
+    if (!$kata) {
+        return (string) $akhir;
+    }
+    return implode(', ', $kata) . (count($kata) > 1 ? ',' : '') . ' dan ' . $akhir;
+}
+
 /** No HP tersimpan 628xxx -> ditampilkan 08xxx */
 function nomorHpTampil(?string $nomor): string
 {
@@ -192,6 +202,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'tambah_penerima' => 'kelola_penerima', 'edit_penerima' => 'kelola_penerima', 'toggle_penerima' => 'kelola_penerima',
         'hapus_penerima' => 'kelola_penerima', 'tambah_telegram' => 'kelola_penerima', 'ubah_nama_telegram' => 'kelola_penerima',
         'toggle_telegram' => 'kelola_penerima', 'hapus_telegram' => 'kelola_penerima', 'cari_telegram' => 'kelola_penerima',
+        'tambah_email' => 'kelola_penerima', 'edit_email' => 'kelola_penerima', 'toggle_email' => 'kelola_penerima',
+        'hapus_email' => 'kelola_penerima', 'uji_email' => 'kelola_penerima',
     ];
     if (!boleh($hakAksi[$aksi] ?? 'kelola_pengguna')) {
         $pesanTolak = 'Akun Anda (' . labelPeran(peranSaya()) . ') tidak punya izin untuk melakukan aksi ini.';
@@ -231,12 +243,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tanggal_akhir = $_POST['tanggal_akhir'] ?? '';
         // Kontak penanggung jawab unit (opsional)
         $jabatan       = trim($_POST['jabatan'] ?? '');
-        $email         = trim($_POST['email'] ?? '');
-        $no_hp         = trim($_POST['no_hp'] ?? '');
         // Form hanya meminta bagian depan email; tanpa "@" dianggap akun Gmail
-        if ($email !== '' && strpos($email, '@') === false) {
-            $email .= '@gmail.com';
-        }
+        $email         = lengkapiEmail((string) ($_POST['email'] ?? ''));
+        $no_hp         = trim($_POST['no_hp'] ?? '');
         // Form sudah menampilkan +62, jadi nomor boleh diketik mulai dari 8
         if (substr(preg_replace('/\D/', '', $no_hp), 0, 1) === '8') {
             $no_hp = '0' . $no_hp;
@@ -354,11 +363,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pesan .= "Mohon segera update kembali usernya sebelum tanggal " . date('d-m-Y', strtotime($data_wa['tanggal_akhir']));
 
         $label = '(' . $data_wa['kode_unit'] . ') ' . $data_wa['nama_unit'];
-        // Saluran dipilih dari menu tombol kirim: WhatsApp, Telegram, atau keduanya
+        // Saluran dipilih dari menu tombol kirim: WhatsApp, Telegram, Email, atau semua yang sudah diatur
         $via = [
             'wa'       => ['wa'],
             'telegram' => ['telegram'],
-            'semua'    => ['wa', 'telegram'],
+            'email'    => ['email'],
+            'semua'    => saluranSiap(),
         ][(string) ($_POST['via'] ?? '')] ?? null;
 
         // Kirim manual tidak mengubah status pengingat unit (pengingat otomatis tetap berjalan sesuai jadwal)
@@ -572,6 +582,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // --- 9. KELOLA PENERIMA EMAIL ---
+    if ($aksi === 'tambah_email' || $aksi === 'edit_email') {
+        $pid  = (int) ($_POST['id'] ?? 0);
+        $nama = trim((string) ($_POST['nama'] ?? ''));
+        [$email, $salahEmail] = periksaEmailBaru((string) ($_POST['email'] ?? ''));
+
+        if ($nama === '' || $salahEmail) {
+            flash('danger', $nama === '' ? 'Nama penerima wajib diisi.' : $salahEmail);
+        } else {
+            try {
+                $cek = $pdo->prepare("SELECT nama, aktif FROM email_penerima WHERE email = ? AND id <> ?");
+                $cek->execute([$email, $aksi === 'edit_email' ? $pid : 0]);
+                $ada  = $cek->fetch();
+                $nama = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
+
+                if ($ada) {
+                    flash('warning', "Email $email sudah terdaftar atas nama \"{$ada['nama']}\" (status: "
+                        . ((int) $ada['aktif'] === 1 ? 'aktif' : 'nonaktif — klik Aktifkan untuk memakainya lagi') . ').');
+                } elseif ($aksi === 'edit_email') {
+                    $pdo->prepare("UPDATE email_penerima SET nama = ?, email = ? WHERE id = ?")->execute([$nama, $email, $pid]);
+                    flash('success', "Penerima \"$nama\" disimpan dengan email $email.");
+                } else {
+                    $pdo->prepare("INSERT INTO email_penerima (nama, email, dibuat_tanggal) VALUES (?, ?, ?)")
+                        ->execute([$nama, $email, date('Y-m-d H:i:s')]);
+                    flash('success', "Email $email ($nama) ditambahkan sebagai penerima.");
+                }
+            } catch (PDOException $e) {
+                error_log('Simpan penerima email gagal: ' . $e->getMessage());
+                flash('danger', 'Gagal menyimpan email: ' . $e->getMessage());
+            }
+        }
+        header('Location: ' . kembaliKe('penerima', [], 'email'));
+        exit;
+    }
+
+    if ($aksi === 'toggle_email') {
+        $pdo->prepare("UPDATE email_penerima SET aktif = 1 - aktif WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
+        header('Location: ' . kembaliKe('penerima', [], 'email'));
+        exit;
+    }
+
+    if ($aksi === 'hapus_email') {
+        $pdo->prepare("DELETE FROM email_penerima WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
+        flash('warning', 'Email penerima dihapus.');
+        header('Location: ' . kembaliKe('penerima', [], 'email'));
+        exit;
+    }
+
+    // Kirim email percobaan ke penerima aktif untuk memastikan pengaturan SMTP benar (tidak dicatat di riwayat)
+    if ($aksi === 'uji_email') {
+        $hasil = kirimKeEmail(
+            "*EMAIL PERCOBAAN*\n\nPengaturan email Aplikasi Pengingat Jadwal sudah benar.\nPengingat deadline akan dikirim ke alamat ini.",
+            daftarEmailPenerima(),
+            'Percobaan email Pengingat Deadline'
+        );
+        flash($hasil['ok'] ? 'success' : 'danger', ($hasil['ok'] ? 'Email percobaan: ' : 'Email percobaan gagal: ') . $hasil['pesan']);
+        header('Location: ' . kembaliKe('penerima', [], 'email'));
+        exit;
+    }
+
     header('Location: ' . kembaliKe('unit'));
     exit;
 }
@@ -732,6 +802,9 @@ $wa_target_env   = normalisasiNomorWa((string) env('WA_TARGET', ''));
 $telegram_list   = $pdo->query("SELECT * FROM telegram_penerima ORDER BY id")->fetchAll();
 $telegram_aktif  = count(array_filter($telegram_list, static fn($t) => (int) $t['aktif'] === 1));
 $telegram_env    = $telegram_list ? [] : array_filter(preg_split('/[\s,;]+/', (string) env('TELEGRAM_CHAT_ID', '')), 'chatIdTelegramValid');
+$email_list      = $pdo->query("SELECT * FROM email_penerima ORDER BY id")->fetchAll();
+$email_aktif     = count(array_filter($email_list, static fn($m) => (int) $m['aktif'] === 1));
+$email_env       = $email_list ? [] : array_filter(preg_split('/[\s,;]+/', (string) env('EMAIL_TARGET', '')), static fn($a) => (bool) filter_var($a, FILTER_VALIDATE_EMAIL));
 // Hasil tombol "Cari chat" (sekali tampil). Chat yang sudah terdaftar tidak ditampilkan lagi.
 $tg_ditemukan    = array_diff_key($_SESSION['tg_ditemukan'] ?? [], array_flip(array_column($telegram_list, 'chat_id')));
 unset($_SESSION['tg_ditemukan']);
@@ -751,6 +824,12 @@ if ($cari_wa !== '') {
         if (stripos($p['nama'], $cari_wa) !== false) {
             $kolom[] = "penerima LIKE :n$i";
             $params_wa[":n$i"] = '%' . $p['nomor'] . '%';
+        }
+    }
+    foreach ($email_list as $i => $m) {
+        if (stripos($m['nama'], $cari_wa) !== false) {
+            $kolom[] = "penerima LIKE :m$i";
+            $params_wa[":m$i"] = '%em:' . $m['email'] . '%';
         }
     }
     $where_wa[] = '(' . implode(' OR ', $kolom) . ')';
@@ -779,10 +858,10 @@ $riwayat_wa = $stmtWa->fetchAll();
 // Nomor yang sudah dihapus dari daftar penerima tetap tampil sebagai nomor saja.
 $nama_penerima = array_column($penerima_list, 'nama', 'nomor');
 $nama_telegram = array_column($telegram_list, 'nama', 'chat_id');
-$saluran_notif = saluranNotifikasi(); // ['wa'], ['telegram'], atau keduanya (NOTIF_VIA)
-// Saluran yang bisa dipilih di tombol kirim manual (token sudah diisi)
-$bisa_wa = (string) env('FONNTE_TOKEN', '') !== '';
-$bisa_tg = (string) env('TELEGRAM_BOT_TOKEN', '') !== '';
+$nama_email    = array_column($email_list, 'nama', 'email');
+$saluran_notif = saluranNotifikasi(); // contoh ['wa'], ['wa', 'telegram', 'email'] (NOTIF_VIA)
+// Saluran yang bisa dipilih di tombol kirim manual (token / SMTP sudah diisi)
+$saluran_siap  = saluranSiap();
 
 // --- PESAN NOTIFIKASI ---
 $alerts = [
@@ -790,7 +869,7 @@ $alerts = [
     'success_update'  => ['info', 'Data berhasil diperbarui!'],
     'success_delete'  => ['warning', 'Data berhasil dihapus!'],
     'wa_sent'         => ['success', 'Pesan pengingat berhasil dikirim!'],
-    'wa_failed'       => ['danger', 'Gagal mengirim pesan. Cek token & penerima WhatsApp/Telegram.'],
+    'wa_failed'       => ['danger', 'Gagal mengirim pesan. Cek pengaturan & penerima WhatsApp/Telegram/Email.'],
     'invalid'         => ['danger', 'Data tidak valid. Pastikan semua kolom terisi dengan benar.'],
     'invalid_tanggal' => ['danger', 'Tanggal akhir tidak boleh lebih awal dari tanggal awal.'],
     'not_found'       => ['danger', 'Data tidak ditemukan.'],
@@ -856,13 +935,13 @@ function selStatus(array $row, ?array $bukti): string
 }
 
 /** Tombol aksi satu unit: "Tandai selesai" / "Batalkan" + menu ⋯ (edit, lampiran, kirim sekarang, hapus) */
-function aksiUnit(array $row, int $jmlLampiran, bool $bisaWa, bool $bisaTg): string
+function aksiUnit(array $row, int $jmlLampiran, array $siap): string
 {
     $id      = (int) $row['id'];
     $selesai = $row['selesai_tanggal'] !== null;
     $tanya   = $selesai ? 'Batalkan status selesai unit ini?' : 'Tandai unit ini selesai (user sudah di-update)? Pengingat otomatis untuk unit ini dihentikan.';
     $kirim   = static fn(string $via, string $label, bool $bisa) => '<button type="submit" name="via" value="' . $via . '" data-label="' . $label . '" class="dropdown-item"' . ($bisa ? '' : ' disabled') . '>'
-        . $label . ($bisa ? '' : ' <small>(token belum diatur)</small>') . '</button>';
+        . $label . ($bisa ? '' : ' <small>(belum diatur)</small>') . '</button>';
     $kelola  = boleh('kelola_unit');
     $hapus   = boleh('hapus_data');
     ob_start(); ?>
@@ -891,7 +970,8 @@ function aksiUnit(array $row, int $jmlLampiran, bool $bisaWa, bool $bisaTg): str
                         <?= csrf_field(); ?>
                         <input type="hidden" name="aksi" value="kirim_wa">
                         <input type="hidden" name="id" value="<?= $id; ?>">
-                        <?= $kirim('wa', 'WhatsApp', $bisaWa) . $kirim('telegram', 'Telegram', $bisaTg) . $kirim('semua', 'WhatsApp dan Telegram', $bisaWa && $bisaTg); ?>
+                        <?= $kirim('wa', 'WhatsApp', in_array('wa', $siap, true)) . $kirim('telegram', 'Telegram', in_array('telegram', $siap, true))
+                            . $kirim('email', 'Email', in_array('email', $siap, true)) . $kirim('semua', 'Semua saluran', count($siap) > 1); ?>
                     </form>
                 </li>
                 <?php endif; ?>
@@ -934,7 +1014,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 </head>
 <body class="app">
 
-<?= sidebarAplikasi($menu, ['unit' => $stat_total, 'penerima' => $penerima_aktif + $telegram_aktif]); ?>
+<?= sidebarAplikasi($menu, ['unit' => $stat_total, 'penerima' => $penerima_aktif + $telegram_aktif + $email_aktif]); ?>
 
 <main class="isi">
 
@@ -945,7 +1025,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <div class="kepala-sub">
                 <?= e($tanggal_hari_ini); ?>
                 <?php if ($menu === 'unit'): ?> · pengingat otomatis setiap hari pukul 07.00 WIB<?php endif; ?>
-                <?php if ($menu === 'penerima'): ?> · nomor WhatsApp dan chat Telegram yang menerima pengingat<?php endif; ?>
+                <?php if ($menu === 'penerima'): ?> · nomor WhatsApp, chat Telegram, dan alamat email yang menerima pengingat<?php endif; ?>
                 <?php if ($menu === 'riwayat'): ?> · <?= $total_wa; ?> pengiriman<?= $menyaring_riwayat ? ' sesuai pencarian' : ''; ?><?php endif; ?>
             </div>
         </div>
@@ -1046,7 +1126,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                                 <span title="Pengingat terakhir terkirim (detail saluran & jenis ada di Riwayat Kirim)"><?= tglPendek($kirim['waktu']); ?></span>
                             <?php endif; ?>
                         </td>
-                        <td class="text-end"><?= aksiUnit($row, count($lampiran_per_unit[$id] ?? []), $bisa_wa, $bisa_tg); ?></td>
+                        <td class="text-end"><?= aksiUnit($row, count($lampiran_per_unit[$id] ?? []), $saluran_siap); ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -1070,7 +1150,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <b>belum pernah</b>
             <?php endif; ?>
         </span>
-        <span>Saluran aktif: <b><?= e(implode(' dan ', array_map('namaSaluran', $saluran_notif))); ?></b></span>
+        <span>Saluran aktif: <b><?= e(gabungKata(array_map('namaSaluran', $saluran_notif))); ?></b></span>
         <a href="dashboard.php?menu=riwayat">Lihat riwayat &rarr;</a>
     </section>
 
@@ -1206,6 +1286,69 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             </div>
             <?php endif; ?>
         </section>
+
+        <?php $email_dipakai = in_array('email', $saluran_notif, true); ?>
+        <section class="panel" id="email">
+            <div class="panel-judul">
+                <h2>Email</h2>
+                <span><?= $email_aktif; ?> aktif<?= $email_dipakai ? '' : ' · tidak dipakai'; ?></span>
+            </div>
+            <?php if (!$email_dipakai): ?>
+                <p class="catatan">Email belum dipakai untuk pengingat otomatis. Isi <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>, lalu tambahkan <code>email</code> pada <code>NOTIF_VIA</code> (contoh <code>wa,telegram,email</code>) di pengaturan server.</p>
+            <?php endif; ?>
+            <?php if (!$email_list): ?>
+                <p class="catatan">Belum ada alamat email.<?php if ($email_env): ?> Saat ini pengingat dikirim ke email dari pengaturan server (<b><?= e(implode(', ', $email_env)); ?></b>).<?php endif; ?></p>
+            <?php endif; ?>
+            <?php foreach ($email_list as $m): $aktif = (int) $m['aktif'] === 1; ?>
+                <div class="baris-penerima <?= $aktif ? '' : 'nonaktif'; ?>">
+                    <div>
+                        <div class="nama"><?= e($m['nama']); ?><?= $aktif ? '' : ' <span class="tanda">nonaktif</span>'; ?></div>
+                        <div class="kode"><?= e($m['email']); ?></div>
+                    </div>
+                    <?php if ($kelola_penerima): ?>
+                    <div class="aksi">
+                        <button type="button" class="btn btn-teks btn-kecil" data-bs-toggle="modal" data-bs-target="#modalEditEmail"
+                                data-id="<?= (int) $m['id']; ?>" data-nama="<?= e($m['nama']); ?>" data-email="<?= e(emailTampil($m['email'])); ?>">Edit</button>
+                        <form method="POST" action="dashboard.php">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="toggle_email">
+                            <input type="hidden" name="id" value="<?= (int) $m['id']; ?>">
+                            <button type="submit" class="btn btn-teks btn-kecil"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
+                        </form>
+                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus alamat ini dari penerima Email?')">
+                            <?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="hapus_email">
+                            <input type="hidden" name="id" value="<?= (int) $m['id']; ?>">
+                            <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
+                        </form>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+            <?php if ($kelola_penerima): ?>
+            <div class="form-tambah">
+                <form method="POST" action="dashboard.php">
+                    <?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="tambah_email">
+                    <div class="label-kecil">Tambah email</div>
+                    <div class="baris-input">
+                        <input type="text" name="nama" class="form-control" placeholder="Nama, contoh: Admin Kantor" maxlength="100" required>
+                        <div class="input-group input-email">
+                            <input type="text" name="email" class="form-control" placeholder="nama" maxlength="150" autocomplete="off" autocapitalize="off" spellcheck="false" required aria-label="Alamat email">
+                            <span class="input-group-text">@gmail.com</span>
+                        </div>
+                        <button type="submit" class="btn btn-gelap">Tambah</button>
+                    </div>
+                    <div class="form-text">Email selain Gmail: ketik alamat lengkapnya.</div>
+                </form>
+                <form method="POST" action="dashboard.php" class="mt-2">
+                    <?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="uji_email">
+                    <button type="submit" class="btn btn-garis w-100" <?= emailSiap() ? '' : 'disabled title="Isi SMTP_HOST, SMTP_USER, dan SMTP_PASS dulu"'; ?>>Kirim email percobaan ke penerima aktif</button>
+                </form>
+            </div>
+            <?php endif; ?>
+        </section>
     </div>
     <?php if (!$kelola_penerima): ?>
         <p class="catatan mx-0">Daftar penerima hanya bisa diubah oleh pengguna dengan Akses Penuh. Hubungi pengelola aplikasi bila ada nomor atau chat yang perlu ditambah atau diganti.</p>
@@ -1238,7 +1381,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <?php endif; ?>
                 <?php foreach ($riwayat_wa as $w):
                     $ok = $w['status'] === 'berhasil';
-                    // Hasil per saluran ['wa' => [...], 'telegram' => [...]] jika dikirim lewat WA & Telegram sekaligus
+                    // Hasil per saluran ['wa' => [...], 'telegram' => [...], 'email' => [...]] jika dikirim lewat beberapa saluran sekaligus
                     $per_saluran = array_column(!empty($w['detail']) ? (json_decode($w['detail'], true) ?: []) : [], null, 'saluran');
                 ?>
                     <tr>
@@ -1251,13 +1394,21 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         </td>
                         <td data-label="Penerima">
                             <?php foreach (array_filter(array_map('trim', explode(',', $w['penerima'])), static fn($n) => $n !== '' && $n !== '-') as $no): ?>
-                                <?php $sal = strncmp($no, 'tg:', 3) === 0 ? 'telegram' : 'wa'; ?>
+                                <?php $sal = ['tg:' => 'telegram', 'em:' => 'email'][substr($no, 0, 3)] ?? 'wa'; ?>
                                 <div class="penerima-riwayat">
-                                    <?php if (isset($per_saluran[$sal])): $ok_sal = !empty($per_saluran[$sal]['ok']); ?>
+                                    <?php if (isset($per_saluran[$sal])):
+                                        $ok_sal = !empty($per_saluran[$sal]['ok']);
+                                        // Email mencatat alamat yang gagal ("..., gagal ke a@b.com, c@d.com") -> tandai per alamat
+                                        if ($ok_sal && $sal === 'email' && preg_match('/gagal ke (.+)$/', (string) $per_saluran[$sal]['pesan'], $cocok)) {
+                                            $ok_sal = !in_array(substr($no, 3), array_map('trim', explode(',', $cocok[1])), true);
+                                        }
+                                    ?>
                                         <span class="<?= $ok_sal ? 'teks-hijau' : 'teks-merah'; ?>" title="<?= $ok_sal ? 'Terkirim' : 'Gagal'; ?>"><?= $ok_sal ? '✓' : '✗'; ?></span>
                                     <?php endif; ?>
                                     <?php if ($sal === 'telegram'): $cid = substr($no, 3); ?>
                                         <?= e($nama_telegram[$cid] ?? 'Telegram'); ?> <span class="kode">Telegram <?= e($cid); ?></span>
+                                    <?php elseif ($sal === 'email'): $alamat = substr($no, 3); ?>
+                                        <?= e($nama_email[$alamat] ?? 'Email'); ?> <span class="kode"><?= e($alamat); ?></span>
                                     <?php elseif (isset($nama_penerima[$no])): ?>
                                         <?= e($nama_penerima[$no]); ?> <span class="kode">+<?= e($no); ?></span>
                                     <?php else: ?>
@@ -1275,11 +1426,12 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <?php else: ?>
                                 <div class="st merah">Gagal</div>
                             <?php endif; ?>
-                            <?php // Alasan gagal: per saluran (pengiriman WA & Telegram sekaligus) atau keterangan biasa ?>
-                            <?php foreach ($per_saluran as $sal => $h): if (!empty($h['ok']) || empty($h['pesan'])) continue; ?>
+                            <?php // Alasan gagal: per saluran (pengiriman lewat beberapa saluran sekaligus) atau keterangan biasa ?>
+                            <?php // Saluran yang berhasil tetapi gagal ke sebagian penerima (contoh: "Terkirim ke 2 alamat email, gagal ke x@y.com") juga ditampilkan ?>
+                            <?php foreach ($per_saluran as $sal => $h): if (empty($h['pesan']) || (!empty($h['ok']) && stripos($h['pesan'], 'gagal') === false)) continue; ?>
                                 <div class="st-sub teks-merah"><?= e(namaSaluran($sal) . ': ' . $h['pesan']); ?></div>
                             <?php endforeach; ?>
-                            <?php if (!$per_saluran && !$ok && $w['keterangan']): ?><div class="st-sub teks-merah"><?= e($w['keterangan']); ?></div><?php endif; ?>
+                            <?php if (!$per_saluran && $w['keterangan'] && (!$ok || stripos($w['keterangan'], 'gagal') !== false)): ?><div class="st-sub teks-merah"><?= e($w['keterangan']); ?></div><?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -1327,6 +1479,39 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
         </div>
     </div>
 
+    <!-- Popup Edit Penerima Email (nama & alamat). Isinya diisi dari tombol "Edit" yang diklik. -->
+    <div class="modal fade" id="modalEditEmail" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST" action="dashboard.php">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit penerima Email</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                    </div>
+                    <div class="modal-body">
+                        <?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="edit_email">
+                        <input type="hidden" name="id" value="">
+                        <div class="mb-3">
+                            <label class="form-label" for="editEmailNama">Nama</label>
+                            <input type="text" id="editEmailNama" name="nama" class="form-control" maxlength="100" required>
+                        </div>
+                        <label class="form-label" for="editEmailAlamat">Alamat email</label>
+                        <div class="input-group input-email">
+                            <input type="text" id="editEmailAlamat" name="email" class="form-control" maxlength="150" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+                            <span class="input-group-text">@gmail.com</span>
+                        </div>
+                        <div class="form-text">Email selain Gmail: ketik alamat lengkapnya.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-gelap">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Popup Ubah Nama Penerima Telegram. Isinya diisi dari tombol "Ubah nama" yang diklik. -->
     <div class="modal fade" id="modalNamaPenerima" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1364,6 +1549,20 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
         form.elements['nomor'].value = '+' + tombol.dataset.nomor;
     });
     document.getElementById('modalEditWa').addEventListener('shown.bs.modal', (ev) => {
+        ev.target.querySelector('input[name=nama]').focus();
+    });
+    // Isi popup Edit Email sesuai penerima yang tombolnya diklik
+    document.getElementById('modalEditEmail').addEventListener('show.bs.modal', (ev) => {
+        const tombol = ev.relatedTarget;
+        const form = ev.target.querySelector('form');
+        if (!tombol) return;
+        form.elements['id'].value = tombol.dataset.id;
+        form.elements['nama'].value = tombol.dataset.nama;
+        form.elements['email'].value = tombol.dataset.email;
+        // Perbarui tampilan akhiran @gmail.com sesuai alamat yang diisi
+        form.elements['email'].dispatchEvent(new Event('input'));
+    });
+    document.getElementById('modalEditEmail').addEventListener('shown.bs.modal', (ev) => {
         ev.target.querySelector('input[name=nama]').focus();
     });
     // Isi popup Ubah Nama sesuai penerima Telegram yang tombolnya diklik

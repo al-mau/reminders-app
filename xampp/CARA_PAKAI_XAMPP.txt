@@ -36,11 +36,19 @@ PENTING
 Buka file .env dengan Notepad. Yang perlu diisi:
   FONNTE_TOKEN=   token device dari dashboard fonnte.com (untuk kirim WA)
 Opsional, kirim lewat Telegram (gratis):
-  NOTIF_VIA=telegram   (atau wa,telegram untuk keduanya)
+  NOTIF_VIA=telegram   (atau wa,telegram untuk keduanya, wa,telegram,email untuk ketiganya)
   TELEGRAM_BOT_TOKEN=  token dari @BotFather
   Penerima Telegram diatur di dashboard (kartu "Penerima Telegram"):
   minta penerima klik Start di bot (di grup: /start@nama_bot), lalu
   klik "Cari chat" -> Tambah. TELEGRAM_CHAT_ID= boleh dikosongkan.
+Opsional, kirim lewat Email (SMTP Gmail atau SMTP kantor):
+  SMTP_HOST=smtp.gmail.com   SMTP_PORT=587
+  SMTP_USER=  alamat Gmail pengirim
+  SMTP_PASS=  App Password Gmail (BUKAN password biasa). Buat di
+              myaccount.google.com/apppasswords (wajib Verifikasi 2 Langkah)
+  Tambahkan email di NOTIF_VIA, contoh: NOTIF_VIA=wa,telegram,email
+  Penerima email diatur di dashboard (menu Penerima -> Email). Klik
+  "Kirim email percobaan" untuk mengecek pengaturan.
 Yang lain sudah terisi untuk XAMPP standar (user root tanpa password).
 Jika MySQL XAMPP memakai password, isi DB_PASSWORD=.
 File .env tidak bisa dibuka dari browser (diblokir .htaccess).

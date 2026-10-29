@@ -86,8 +86,27 @@ Selain WhatsApp (Fonnte), pengingat bisa dikirim lewat Telegram Bot:
 
 | Variabel | Isi |
 |---|---|
-| `NOTIF_VIA` | `wa` (default), `telegram`, atau `wa,telegram` |
+| `NOTIF_VIA` | Saluran dipisah koma: `wa` (default), `telegram`, `email`. Contoh `wa,telegram,email` |
 | `TELEGRAM_BOT_TOKEN` | Token bot dari @BotFather |
 | `TELEGRAM_CHAT_ID` | Opsional. Chat id cadangan jika belum ada penerima Telegram di dashboard (kartu **Penerima Telegram**); grup diawali `-`, bisa lebih dari 1 dipisah koma |
 
 Riwayat pengiriman Telegram tampil di kartu Riwayat Pengiriman WA dengan ikon Telegram.
+
+## Notifikasi Email (opsional, SMTP + PHPMailer)
+
+Pengingat juga bisa dikirim lewat email memakai library [PHPMailer](https://github.com/PHPMailer/PHPMailer) 6.12.0
+(disalin di `api/lib/phpmailer`, tanpa Composer). Penerima email diatur di menu **Penerima → Email**,
+sama seperti WhatsApp dan Telegram. Tombol **Kirim email percobaan** di panel itu dipakai untuk mengecek pengaturan SMTP.
+
+| Variabel | Isi |
+|---|---|
+| `SMTP_HOST` | Server SMTP, contoh `smtp.gmail.com` |
+| `SMTP_PORT` | `587` (STARTTLS, default) atau `465` (SSL) |
+| `SMTP_USER` | Username SMTP. Gmail: alamat Gmail lengkap |
+| `SMTP_PASS` | Password SMTP. Gmail: **App Password** (wajib Verifikasi 2 Langkah), bukan password Gmail biasa |
+| `EMAIL_PENGIRIM` | Opsional. Alamat pengirim, default sama dengan `SMTP_USER` |
+| `EMAIL_NAMA_PENGIRIM` | Opsional. Nama pengirim, default `Pengingat Deadline` |
+| `EMAIL_TARGET` | Opsional. Alamat cadangan jika belum ada penerima Email di dashboard, bisa lebih dari 1 dipisah koma |
+
+Tambahkan `email` di `NOTIF_VIA` agar pengingat otomatis jam 07.00 juga dikirim lewat email.
+Batas Gmail sekitar 500 email/hari; untuk pemakaian resmi sebaiknya memakai SMTP kantor agar tidak masuk Spam.

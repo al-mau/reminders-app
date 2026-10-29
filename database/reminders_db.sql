@@ -64,6 +64,15 @@ CREATE TABLE IF NOT EXISTS telegram_penerima (
     dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Daftar alamat email penerima notifikasi (dikelola dari dashboard)
+CREATE TABLE IF NOT EXISTS email_penerima (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    nama           VARCHAR(100) NOT NULL,
+    email          VARCHAR(150) NOT NULL UNIQUE,
+    aktif          TINYINT(1)   NOT NULL DEFAULT 1,
+    dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Lampiran dokumen per unit (file disimpan di database, maks 5 MB per file)
 CREATE TABLE IF NOT EXISTS lampiran (
     id             INT AUTO_INCREMENT PRIMARY KEY,

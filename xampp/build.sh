@@ -17,6 +17,7 @@ mkdir -p "$APP/lib" "$APP/database" "$APP/vendor"
 
 cp "$ROOT"/api/*.php "$APP/"
 cp "$ROOT"/api/lib/*.php "$APP/lib/"
+cp -r "$ROOT"/api/lib/phpmailer "$APP/lib/"
 cp "$ROOT"/vendor/* "$APP/vendor/"
 cp "$ROOT"/sw.js "$ROOT"/manifest.json "$ROOT"/tema.css "$ROOT"/logo-brk-syariah.webp "$APP/"
 cp "$ROOT"/database/{reminders_db.sql,schema.sql,import_ke_xampp.bat,sync_dari_aiven.bat,sync_dari_aiven.php,CARA_PAKAI.txt} "$APP/database/"

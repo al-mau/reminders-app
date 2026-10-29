@@ -22,6 +22,7 @@ cp "$ROOT"/api/*.php "$APP/public/"
 cp "$ROOT"/vendor/* "$APP/public/vendor/"
 cp "$ROOT"/sw.js "$ROOT"/manifest.json "$ROOT"/tema.css "$ROOT"/logo-brk-syariah.webp "$APP/public/"
 cp "$ROOT"/api/lib/*.php "$APP/lib/"
+cp -r "$ROOT"/api/lib/phpmailer "$APP/lib/"
 cp "$ROOT"/database/{reminders_db.sql,schema.sql,import_ke_xampp.bat,sync_dari_aiven.bat,sync_dari_aiven.php,CARA_PAKAI.txt} "$APP/database/"
 cp "$ROOT"/herd/kirim_pengingat.bat "$ROOT"/herd/CARA_PAKAI_HERD.txt "$APP/"
 
