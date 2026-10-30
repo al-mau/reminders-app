@@ -62,6 +62,10 @@ if ($rows) {
     foreach ($rows as $row) {
         $pesan .= "\n*Kode Unit:* " . $row['kode_unit'] . "\n";
         $pesan .= "*Nama Unit:* " . $row['nama_unit'] . "\n";
+        // Nomor surat (No. CTT) diisi di kolom Keterangan unit (kolom database: jabatan); baris dilewati bila kosong
+        if (trim((string) ($row['jabatan'] ?? '')) !== '') {
+            $pesan .= "*Berdasarkan Nomor Surat:* " . trim($row['jabatan']) . "\n";
+        }
         $pesan .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($row['tanggal_awal'])) . "\n";
         $pesan .= "*Tanggal Akhir:* " . date('d-m-Y', strtotime($row['tanggal_akhir'])) . "\n";
         $pesan .= "*Sisa Waktu:* " . keteranganSisaHari(hitungSisaHari($row['tanggal_akhir'])) . "\n";
