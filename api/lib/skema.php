@@ -45,7 +45,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v10'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v11'])) {
         return;
     }
 
@@ -143,6 +143,10 @@ function pastikanTabelTambahan(PDO $pdo): void
     if (!in_array('jabatan', $kolomDeadline, true)) {
         $pdo->exec("ALTER TABLE deadline ADD COLUMN jabatan VARCHAR(100) NULL, ADD COLUMN email VARCHAR(150) NULL, ADD COLUMN no_hp VARCHAR(20) NULL");
     }
+    // Nomor surat per unit (opsional), ditulis di pesan pengingat
+    if (!in_array('no_surat', $kolomDeadline, true)) {
+        $pdo->exec("ALTER TABLE deadline ADD COLUMN no_surat VARCHAR(100) NULL");
+    }
 
     // Peran pengguna (lihat lib/peran.php). Akun yang sudah ada menjadi admin agar tidak kehilangan akses;
     // setelah itu nilai bawaan diubah ke pemantau (hak paling sedikit) untuk akun yang dibuat tanpa peran.
@@ -164,7 +168,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v10'] = true;
+        $_SESSION['skema_tambahan_v11'] = true;
     }
 }
 

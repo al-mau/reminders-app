@@ -61,10 +61,9 @@ if ($rows) {
     $pesan .= "Halo Admin, berikut " . count($rows) . " unit yang perlu segera di-update:\n";
     foreach ($rows as $row) {
         $pesan .= "\n";
-        // Nomor surat (No. CTT) diisi di kolom Keterangan unit (kolom database: jabatan), ditulis paling atas;
-        // baris dilewati bila kosong
-        if (trim((string) ($row['jabatan'] ?? '')) !== '') {
-            $pesan .= "*Berdasarkan Nomor Surat:* " . trim($row['jabatan']) . "\n";
+        // Nomor surat dari kolom No. Surat unit, ditulis paling atas; baris dilewati bila kosong
+        if (trim((string) ($row['no_surat'] ?? '')) !== '') {
+            $pesan .= "*Berdasarkan Nomor Surat:* " . trim($row['no_surat']) . "\n";
         }
         $pesan .= "*Kode Unit:* " . $row['kode_unit'] . "\n";
         $pesan .= "*Nama Unit:* " . $row['nama_unit'] . "\n";

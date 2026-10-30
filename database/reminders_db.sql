@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS deadline (
     jabatan          VARCHAR(100) NULL,  -- kontak penanggung jawab unit (opsional)
     email            VARCHAR(150) NULL,
     no_hp            VARCHAR(20)  NULL,
+    no_surat         VARCHAR(100) NULL,  -- nomor surat, ditulis di pesan pengingat
     INDEX idx_tanggal_akhir (tanggal_akhir)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
