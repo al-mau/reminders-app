@@ -354,6 +354,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $pesan  = "*NOTIFIKASI PENGINGAT DEADLINE*\n\n";
         $pesan .= "Halo Admin, berikut detail unit:\n\n";
+        // Nomor surat (No. CTT) diisi di kolom Keterangan unit (kolom database: jabatan), ditulis paling atas;
+        // baris dilewati bila kosong
+        if (trim((string) ($data_wa['jabatan'] ?? '')) !== '') {
+            $pesan .= "*Berdasarkan Nomor Surat:* " . trim($data_wa['jabatan']) . "\n";
+        }
         $pesan .= "*Kode Unit:* " . $data_wa['kode_unit'] . "\n";
         $pesan .= "*Nama Unit:* " . $data_wa['nama_unit'] . "\n";
         $pesan .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($data_wa['tanggal_awal'])) . "\n";
