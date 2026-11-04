@@ -178,7 +178,7 @@ function cariChatTelegram(): array
 }
 
 /**
- * Kirim notifikasi ke semua saluran aktif (WhatsApp, Telegram, dan/atau Email), lalu catat di riwayat (wa_log).
+ * Kirim notifikasi ke semua saluran aktif (WhatsApp, Telegram, dan/atau Email), lalu catat di riwayat (log_pengiriman).
  * Nama fungsi tetap "kirimWhatsApp" agar pemanggil lama (cron & dashboard) tidak perlu diubah.
  * @param string $jenis     'otomatis' (cron) atau 'manual' (tombol di dashboard)
  * @param string $ringkasan Daftar unit yang diingatkan, untuk riwayat
