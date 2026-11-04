@@ -5,7 +5,7 @@
  *
  * Isi file ini:
  *  - pastikanTabelTambahan() -> membuat tabel wa_penerima, telegram_penerima, email_penerima, lampiran, lampiran_bagian,
- *                               wa_log, login_gagal (jika belum ada) + kolom selesai di deadline
+ *                               log_pengiriman, login_gagal (jika belum ada) + kolom selesai di deadline
  *  - LAMPIRAN ...            -> simpan / hapus dokumen per unit (upload per potongan)
  *  - RIWAYAT PENGIRIMAN      -> catatPengiriman() mencatat setiap pengiriman WhatsApp/Telegram/Email
  *  - PEMBATASAN LOGIN        -> kunci login 15 menit setelah salah password berkali-kali
@@ -45,7 +45,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v11'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v12'])) {
         return;
     }
 
@@ -111,10 +111,22 @@ function pastikanTabelTambahan(PDO $pdo): void
         UNIQUE KEY uk_lampiran_urutan (lampiran_id, urutan)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    // Riwayat pengiriman WA/Telegram (otomatis & manual).
-    // Satu pengiriman = satu baris; detail = hasil per saluran (JSON) bila lewat WA & Telegram sekaligus.
+    // Tabel riwayat dulu bernama wa_log (saat aplikasi hanya mengirim lewat WhatsApp).
+    // Database lama: ganti namanya sekali menjadi log_pengiriman; isi riwayat tetap utuh.
+    if ($pdo->query("SHOW TABLES LIKE 'wa\\_log'")->fetchColumn() !== false
+        && $pdo->query("SHOW TABLES LIKE 'log\\_pengiriman'")->fetchColumn() === false) {
+        try {
+            $pdo->exec("RENAME TABLE wa_log TO log_pengiriman");
+        } catch (PDOException $e) {
+            // Bisa terjadi bila dua request bersamaan mengganti nama; request lain sudah menyelesaikannya
+            error_log('Ganti nama wa_log -> log_pengiriman: ' . $e->getMessage());
+        }
+    }
+
+    // Riwayat pengiriman WhatsApp/Telegram/Email (otomatis & manual).
+    // Satu pengiriman = satu baris; detail = hasil per saluran (JSON) bila lewat beberapa saluran sekaligus.
     // status: berhasil (semua saluran berhasil), sebagian (ada yang gagal), gagal (semua gagal)
-    $pdo->exec("CREATE TABLE IF NOT EXISTS wa_log (
+    $pdo->exec("CREATE TABLE IF NOT EXISTS log_pengiriman (
         id         INT AUTO_INCREMENT PRIMARY KEY,
         waktu      DATETIME     NOT NULL,
         jenis      VARCHAR(10)  NOT NULL,
@@ -127,9 +139,9 @@ function pastikanTabelTambahan(PDO $pdo): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // Database lama: tambah kolom detail, lalu satukan riwayat lama yang terpisah WA & Telegram
-    $kolomLog = $pdo->query("SHOW COLUMNS FROM wa_log")->fetchAll(PDO::FETCH_COLUMN);
+    $kolomLog = $pdo->query("SHOW COLUMNS FROM log_pengiriman")->fetchAll(PDO::FETCH_COLUMN);
     if (!in_array('detail', $kolomLog, true)) {
-        $pdo->exec("ALTER TABLE wa_log ADD COLUMN detail VARCHAR(1000) NULL AFTER keterangan");
+        $pdo->exec("ALTER TABLE log_pengiriman ADD COLUMN detail VARCHAR(1000) NULL AFTER keterangan");
         gabungRiwayatLama($pdo);
     }
 
@@ -168,7 +180,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v11'] = true;
+        $_SESSION['skema_tambahan_v12'] = true;
     }
 }
 
@@ -426,7 +438,7 @@ function namaSaluran(string $saluran): string
 }
 
 /**
- * Catat satu pengiriman (berhasil maupun gagal) ke tabel wa_log -> kartu "Riwayat Pengiriman".
+ * Catat satu pengiriman (berhasil maupun gagal) ke tabel log_pengiriman -> kartu "Riwayat Pengiriman".
  * Pengiriman lewat beberapa saluran sekaligus (WhatsApp, Telegram, Email) dicatat sebagai SATU baris:
  * penerima digabung, hasil tiap saluran disimpan di kolom detail.
  * Jika pencatatan gagal, pengiriman tetap dianggap jalan (error hanya masuk log).
@@ -453,7 +465,7 @@ function catatPengiriman(PDO $pdo, string $jenis, string $ringkasan, array $hasi
 
     try {
         pastikanTabelTambahan($pdo);
-        $pdo->prepare("INSERT INTO wa_log (waktu, jenis, ringkasan, penerima, status, keterangan, detail) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        $pdo->prepare("INSERT INTO log_pengiriman (waktu, jenis, ringkasan, penerima, status, keterangan, detail) VALUES (?, ?, ?, ?, ?, ?, ?)")
             ->execute([
                 date('Y-m-d H:i:s'),
                 $jenis,
@@ -464,7 +476,7 @@ function catatPengiriman(PDO $pdo, string $jenis, string $ringkasan, array $hasi
                 $detail,
             ]);
     } catch (PDOException $e) {
-        error_log('Gagal mencatat wa_log: ' . $e->getMessage());
+        error_log('Gagal mencatat log_pengiriman: ' . $e->getMessage());
     }
 }
 
@@ -479,15 +491,15 @@ function gabungRiwayatLama(PDO $pdo): void
                 w.penerima AS penerima_wa, t.penerima AS penerima_tg,
                 w.status AS status_wa, t.status AS status_tg,
                 w.keterangan AS ket_wa, t.keterangan AS ket_tg
-         FROM wa_log w
-         JOIN wa_log t ON t.id = w.id + 1
+         FROM log_pengiriman w
+         JOIN log_pengiriman t ON t.id = w.id + 1
          WHERE t.penerima LIKE 'tg:%' AND w.penerima NOT LIKE 'tg:%'
            AND t.jenis = w.jenis AND t.ringkasan = w.ringkasan
            AND ABS(TIMESTAMPDIFF(SECOND, w.waktu, t.waktu)) <= 120"
     )->fetchAll();
 
-    $ubah  = $pdo->prepare("UPDATE wa_log SET penerima = ?, status = ?, keterangan = ?, detail = ? WHERE id = ?");
-    $hapus = $pdo->prepare("DELETE FROM wa_log WHERE id = ?");
+    $ubah  = $pdo->prepare("UPDATE log_pengiriman SET penerima = ?, status = ?, keterangan = ?, detail = ? WHERE id = ?");
+    $hapus = $pdo->prepare("DELETE FROM log_pengiriman WHERE id = ?");
     foreach ($pasangan as $p) {
         $hasil = [
             ['saluran' => 'wa', 'ok' => $p['status_wa'] === 'berhasil', 'pesan' => (string) $p['ket_wa']],

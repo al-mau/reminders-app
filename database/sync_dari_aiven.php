@@ -26,7 +26,9 @@ if (PHP_SAPI !== 'cli') {
 date_default_timezone_set('Asia/Jakarta');
 
 // Tabel yang disalin dari Aiven ke XAMPP (urutan tidak penting)
-$tabelDisalin = ['users', 'deadline', 'wa_penerima', 'telegram_penerima', 'email_penerima', 'lampiran', 'lampiran_bagian', 'wa_log'];
+$tabelDisalin = ['users', 'deadline', 'wa_penerima', 'telegram_penerima', 'email_penerima', 'lampiran', 'lampiran_bagian', 'log_pengiriman'];
+// Nama lama tabel di database online yang belum diperbarui aplikasi (dipakai bila nama baru belum ada)
+$namaLama = ['log_pengiriman' => 'wa_log'];
 
 /** Tampilkan pesan di layar dengan jam, contoh: [20:00:01] OK `users`: 3 baris disalin */
 function tulis(string $pesan): void
@@ -179,18 +181,25 @@ $lokal->exec('SET FOREIGN_KEY_CHECKS = 0');
 
 $total = 0;
 foreach ($tabelDisalin as $tabel) {
+    // Tabel di database online bisa masih memakai nama lama (contoh wa_log -> log_pengiriman)
+    $sumber = $tabel;
     $ada = $aiven->query('SHOW TABLES LIKE ' . $aiven->quote($tabel))->fetchColumn();
+    if (!$ada && isset($namaLama[$tabel]) && $aiven->query('SHOW TABLES LIKE ' . $aiven->quote($namaLama[$tabel]))->fetchColumn()) {
+        $sumber = $namaLama[$tabel];
+        $ada    = true;
+    }
     if (!$ada) {
         tulis("Lewati `$tabel`: tidak ada di Aiven.");
         continue;
     }
 
     // Struktur tabel dari Aiven (MySQL 8) disesuaikan agar cocok dengan MariaDB XAMPP
-    $create = $aiven->query("SHOW CREATE TABLE `$tabel`")->fetch(PDO::FETCH_NUM)[1];
+    $create = $aiven->query("SHOW CREATE TABLE `$sumber`")->fetch(PDO::FETCH_NUM)[1];
+    $create = preg_replace('/^CREATE TABLE `' . preg_quote($sumber, '/') . '`/', "CREATE TABLE `$tabel`", $create);
     $create = preg_replace('/utf8mb4_0900_\w+/', 'utf8mb4_unicode_ci', $create);
     $create = preg_replace('#/\*!80\d{3}.*?\*/#s', '', $create);
 
-    $rows = $aiven->query("SELECT * FROM `$tabel`")->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $aiven->query("SELECT * FROM `$sumber`")->fetchAll(PDO::FETCH_ASSOC);
 
     // Pengaman: jangan timpa backup lokal yang berisi data dengan tabel Aiven yang kosong
     // (misal service Aiven baru dibuat ulang setelah trial habis).
@@ -223,6 +232,11 @@ foreach ($tabelDisalin as $tabel) {
                 $stmt->execute(array_values($row));
             }
             $lokal->commit();
+        }
+
+        // Tabel lokal bernama lama sudah tergantikan oleh salinan bernama baru
+        if (isset($namaLama[$tabel])) {
+            $lokal->exec("DROP TABLE IF EXISTS `{$namaLama[$tabel]}`");
         }
 
         tulis(sprintf('OK  `%s`: %d baris disalin', $tabel, count($rows)));

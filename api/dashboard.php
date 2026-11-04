@@ -797,7 +797,7 @@ $buka_lampiran = (int) ($_GET['lampiran'] ?? 0);
 //  $kirim_terakhir[id]   = pengiriman terakhir (manual/otomatis) yang berhasil/sebagian (kolom Terkirim Tgl)
 $bukti_pengingat = $kirim_terakhir = [];
 $cariKirim = $pdo->prepare(
-    "SELECT waktu, jenis, status FROM wa_log
+    "SELECT waktu, jenis, status FROM log_pengiriman
      WHERE ringkasan = ? OR ringkasan LIKE ? OR ringkasan LIKE ? OR ringkasan LIKE ?
      ORDER BY id DESC LIMIT 30"
 );
@@ -866,12 +866,12 @@ if ($tgl_wa !== '') {
 $where_wa_sql      = $where_wa ? 'WHERE ' . implode(' AND ', $where_wa) : '';
 $menyaring_riwayat = (bool) $where_wa;
 
-$stmtWa = $pdo->prepare("SELECT COUNT(*) FROM wa_log $where_wa_sql");
+$stmtWa = $pdo->prepare("SELECT COUNT(*) FROM log_pengiriman $where_wa_sql");
 $stmtWa->execute($params_wa);
 $total_wa      = (int) $stmtWa->fetchColumn();
 $jumlah_hal_wa = max(1, (int) ceil($total_wa / DATA_PER_HALAMAN));
 $hal_wa        = min($jumlah_hal_wa, max(1, (int) ($_GET['hal_wa'] ?? 1)));
-$stmtWa = $pdo->prepare("SELECT * FROM wa_log $where_wa_sql ORDER BY id DESC LIMIT " . DATA_PER_HALAMAN . " OFFSET " . (($hal_wa - 1) * DATA_PER_HALAMAN));
+$stmtWa = $pdo->prepare("SELECT * FROM log_pengiriman $where_wa_sql ORDER BY id DESC LIMIT " . DATA_PER_HALAMAN . " OFFSET " . (($hal_wa - 1) * DATA_PER_HALAMAN));
 $stmtWa->execute($params_wa);
 $riwayat_wa = $stmtWa->fetchAll();
 // Nomor -> nama penerima, agar kolom Penerima di riwayat menampilkan nama (bukan hanya nomor).
@@ -916,7 +916,7 @@ $tab_status = [
 ];
 
 // --- PENGINGAT OTOMATIS TERAKHIR (bilah info di bawah tabel unit) ---
-$pengingat_terakhir = $pdo->query("SELECT waktu, ringkasan, penerima, status FROM wa_log WHERE jenis = 'otomatis' ORDER BY id DESC LIMIT 1")->fetch() ?: null;
+$pengingat_terakhir = $pdo->query("SELECT waktu, ringkasan, penerima, status FROM log_pengiriman WHERE jenis = 'otomatis' ORDER BY id DESC LIMIT 1")->fetch() ?: null;
 
 // --- TANGGAL HARI INI dalam bahasa Indonesia, contoh: Kamis, 02 Oktober 2026 ---
 $nama_hari  = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];

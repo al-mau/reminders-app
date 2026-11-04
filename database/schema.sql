@@ -87,8 +87,8 @@ CREATE TABLE IF NOT EXISTS lampiran_bagian (
     UNIQUE KEY uk_lampiran_urutan (lampiran_id, urutan)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Riwayat pengiriman WA
-CREATE TABLE IF NOT EXISTS wa_log (
+-- Riwayat pengiriman WhatsApp/Telegram/Email (dulu bernama wa_log)
+CREATE TABLE IF NOT EXISTS log_pengiriman (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     waktu      DATETIME     NOT NULL,
     jenis      VARCHAR(10)  NOT NULL,
