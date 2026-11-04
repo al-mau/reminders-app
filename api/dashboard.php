@@ -760,10 +760,13 @@ $hal        = min($jumlah_hal, max(1, (int) ($_GET['hal'] ?? 1)));
 $offset     = ($hal - 1) * DATA_PER_HALAMAN;
 
 // LIMIT/OFFSET berupa integer -> aman disisipkan langsung
-// Urutan: unit yang belum selesai dulu, deadline terdekat di atas (terlewat paling atas); unit selesai di bawah
+// Urutan: unit yang belum selesai dulu, deadline terdekat di atas (terlewat paling atas);
+// unit selesai di bawah, yang paling baru diselesaikan di atas
 $stmtData = $pdo->prepare(
     "SELECT * FROM deadline $where_sql
-     ORDER BY (selesai_tanggal IS NOT NULL), tanggal_akhir, id DESC
+     ORDER BY (selesai_tanggal IS NOT NULL),
+              CASE WHEN selesai_tanggal IS NULL THEN tanggal_akhir END,
+              selesai_tanggal DESC, id DESC
      LIMIT " . DATA_PER_HALAMAN . " OFFSET $offset"
 );
 $stmtData->execute($params);
@@ -1082,7 +1085,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <?php if ($sedang_menyaring): ?>
                 <a href="dashboard.php" class="btn btn-teks">Hapus filter</a>
             <?php endif; ?>
-            <span class="bar-ket"><?= (int) $total_rows; ?> unit · deadline terdekat di atas</span>
+            <span class="bar-ket"><?= (int) $total_rows; ?> unit · <?= $filter === 'selesai' ? 'terakhir diselesaikan di atas' : 'deadline terdekat di atas'; ?></span>
         </form>
 
         <div class="table-responsive">
