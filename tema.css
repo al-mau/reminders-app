@@ -132,6 +132,8 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .tabel-a .kode, .baris-penerima .kode { font-size: 13px; color: var(--tinta3); margin-top: 2px; }
 .input-group-text { background: var(--kertas); border-color: var(--garis); color: var(--tinta2); font-size: 15px; }
 .input-email.lengkap .input-group-text { display: none; }
+.form-check-input:checked { background-color: var(--aksen); border-color: var(--aksen); }
+.form-check-input:focus { border-color: var(--aksen); box-shadow: none; outline: 2px solid #7fb7a8; outline-offset: 1px; }
 .input-email.lengkap .form-control { border-radius: 4px !important; }
 .tabel-a td.kontak { font-size: 13.5px; color: var(--tinta2); line-height: 1.5; overflow-wrap: break-word; }
 .tabel-a td.mono { font-size: 13.5px; color: var(--tinta2); white-space: nowrap; }

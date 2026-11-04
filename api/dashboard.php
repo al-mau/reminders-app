@@ -379,13 +379,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pesan .= "Mohon segera update kembali usernya sebelum tanggal " . date('d-m-Y', strtotime($data_wa['tanggal_akhir']));
 
         $label = '(' . $data_wa['kode_unit'] . ') ' . $data_wa['nama_unit'];
-        // Saluran dipilih dari menu tombol kirim: WhatsApp, Telegram, Email, atau semua yang sudah diatur
-        $via = [
-            'wa'       => ['wa'],
-            'telegram' => ['telegram'],
-            'email'    => ['email'],
-            'semua'    => saluranSiap(),
-        ][(string) ($_POST['via'] ?? '')] ?? null;
+        // Saluran dicentang di popup "Kirim pengingat sekarang" (boleh lebih dari satu);
+        // hanya saluran yang pengaturannya sudah lengkap yang dipakai
+        $via = array_values(array_intersect(saluranSiap(), (array) ($_POST['via'] ?? [])));
+        if (!$via) {
+            flash('warning', 'Pilih minimal satu saluran pengiriman yang sudah diatur.');
+            header('Location: ' . kembaliKe('unit'));
+            exit;
+        }
 
         // Kirim manual tidak mengubah status pengingat unit (pengingat otomatis tetap berjalan sesuai jadwal)
         $hasil = kirimWhatsApp($pesan, 'manual', $label, $via);
@@ -759,10 +760,13 @@ $hal        = min($jumlah_hal, max(1, (int) ($_GET['hal'] ?? 1)));
 $offset     = ($hal - 1) * DATA_PER_HALAMAN;
 
 // LIMIT/OFFSET berupa integer -> aman disisipkan langsung
-// Urutan: unit yang belum selesai dulu, deadline terdekat di atas (terlewat paling atas); unit selesai di bawah
+// Urutan: unit yang belum selesai dulu, deadline terdekat di atas (terlewat paling atas);
+// unit selesai di bawah, yang paling baru diselesaikan di atas
 $stmtData = $pdo->prepare(
     "SELECT * FROM deadline $where_sql
-     ORDER BY (selesai_tanggal IS NOT NULL), tanggal_akhir, id DESC
+     ORDER BY (selesai_tanggal IS NOT NULL),
+              CASE WHEN selesai_tanggal IS NULL THEN tanggal_akhir END,
+              selesai_tanggal DESC, id DESC
      LIMIT " . DATA_PER_HALAMAN . " OFFSET $offset"
 );
 $stmtData->execute($params);
@@ -951,13 +955,11 @@ function selStatus(array $row, ?array $bukti): string
 }
 
 /** Tombol aksi satu unit: "Tandai selesai" / "Batalkan" + menu ⋯ (edit, lampiran, kirim sekarang, hapus) */
-function aksiUnit(array $row, int $jmlLampiran, array $siap): string
+function aksiUnit(array $row, int $jmlLampiran): string
 {
     $id      = (int) $row['id'];
     $selesai = $row['selesai_tanggal'] !== null;
     $tanya   = $selesai ? 'Batalkan status selesai unit ini?' : 'Tandai unit ini selesai (user sudah di-update)? Pengingat otomatis untuk unit ini dihentikan.';
-    $kirim   = static fn(string $via, string $label, bool $bisa) => '<button type="submit" name="via" value="' . $via . '" data-label="' . $label . '" class="dropdown-item"' . ($bisa ? '' : ' disabled') . '>'
-        . $label . ($bisa ? '' : ' <small>(belum diatur)</small>') . '</button>';
     $kelola  = boleh('kelola_unit');
     $hapus   = boleh('hapus_data');
     ob_start(); ?>
@@ -979,17 +981,8 @@ function aksiUnit(array $row, int $jmlLampiran, array $siap): string
                 <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalLampiran<?= $id; ?>">Lampiran<?= $jmlLampiran ? ' <span class="angka">' . $jmlLampiran . '</span>' : ''; ?></button></li>
                 <?php if ($kelola): ?>
                 <li><hr class="dropdown-divider"></li>
-                <li><h6 class="dropdown-header">Kirim pengingat sekarang</h6></li>
-                <li>
-                    <form method="POST" action="dashboard.php" data-unit="<?= e($row['nama_unit']); ?>"
-                          onsubmit="return confirm('Kirim pengingat lewat ' + (event.submitter ? event.submitter.dataset.label : 'saluran pilihan') + ' sekarang untuk unit ' + this.dataset.unit + '?')">
-                        <?= csrf_field(); ?>
-                        <input type="hidden" name="aksi" value="kirim_wa">
-                        <input type="hidden" name="id" value="<?= $id; ?>">
-                        <?= $kirim('wa', 'WhatsApp', in_array('wa', $siap, true)) . $kirim('telegram', 'Telegram', in_array('telegram', $siap, true))
-                            . $kirim('email', 'Email', in_array('email', $siap, true)) . $kirim('semua', 'Semua saluran', count($siap) > 1); ?>
-                    </form>
-                </li>
+                <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalKirim"
+                            data-id="<?= $id; ?>" data-unit="<?= e('(' . $row['kode_unit'] . ') ' . $row['nama_unit']); ?>">Kirim pengingat sekarang&hellip;</button></li>
                 <?php endif; ?>
                 <?php if ($hapus): ?>
                 <li><hr class="dropdown-divider"></li>
@@ -1092,7 +1085,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <?php if ($sedang_menyaring): ?>
                 <a href="dashboard.php" class="btn btn-teks">Hapus filter</a>
             <?php endif; ?>
-            <span class="bar-ket"><?= (int) $total_rows; ?> unit · deadline terdekat di atas</span>
+            <span class="bar-ket"><?= (int) $total_rows; ?> unit · <?= $filter === 'selesai' ? 'terakhir diselesaikan di atas' : 'deadline terdekat di atas'; ?></span>
         </form>
 
         <div class="table-responsive">
@@ -1146,7 +1139,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                                 <span title="Pengingat terakhir terkirim (detail saluran & jenis ada di Riwayat Kirim)"><?= tglPendek($kirim['waktu']); ?></span>
                             <?php endif; ?>
                         </td>
-                        <td class="text-end"><?= aksiUnit($row, count($lampiran_per_unit[$id] ?? []), $saluran_siap); ?></td>
+                        <td class="text-end"><?= aksiUnit($row, count($lampiran_per_unit[$id] ?? [])); ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -1606,6 +1599,43 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 
 <?php if ($menu === 'unit'): ?>
     <?php if (boleh('kelola_unit')): // Popup tambah & edit hanya untuk Admin dan Staf ?>
+    <?php
+    // Saluran yang tercentang saat popup dibuka: saluran pengingat otomatis (NOTIF_VIA) yang sudah diatur,
+    // atau semua saluran yang sudah diatur bila tidak ada yang cocok
+    $centang_awal = array_intersect($saluran_notif, $saluran_siap) ?: $saluran_siap;
+    ?>
+    <!-- Popup Kirim Pengingat Sekarang: pilih satu atau beberapa saluran. Unit diisi dari tombol yang diklik. -->
+    <div class="modal fade" id="modalKirim" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST" action="dashboard.php">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Kirim pengingat sekarang</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                    </div>
+                    <div class="modal-body">
+                        <?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="kirim_wa">
+                        <input type="hidden" name="id" value="">
+                        <div class="nama mb-3" data-unit></div>
+                        <div class="label-kecil mb-2">Kirim lewat</div>
+                        <?php foreach (['wa' => 'WhatsApp', 'telegram' => 'Telegram', 'email' => 'Email'] as $kode => $nama): $bisa = in_array($kode, $saluran_siap, true); ?>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="via[]" value="<?= $kode; ?>" id="kirimVia_<?= $kode; ?>"
+                                    <?= $bisa ? (in_array($kode, $centang_awal, true) ? 'checked' : '') : 'disabled'; ?>>
+                                <label class="form-check-label" for="kirimVia_<?= $kode; ?>"><?= $nama; ?><?= $bisa ? '' : ' <small class="redup">(belum diatur)</small>'; ?></label>
+                            </div>
+                        <?php endforeach; ?>
+                        <div class="form-text">Pesan dikirim ke semua penerima aktif pada saluran yang dicentang (lihat menu Penerima).</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-gelap" data-tombol-kirim>Kirim</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
     <!-- Popup Tambah Unit (lampiran diunggah per potongan oleh JavaScript di bawah) -->
     <div class="modal fade" id="modalTambah" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -1810,6 +1840,24 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+        // Popup "Kirim pengingat sekarang": isi unit dari tombol yang diklik; tombol Kirim aktif bila ada saluran dicentang
+        const modalKirim = document.getElementById('modalKirim');
+        if (modalKirim) {
+            const formKirim = modalKirim.querySelector('form');
+            const tombolKirim = formKirim.querySelector('[data-tombol-kirim]');
+            const aturTombolKirim = () => { tombolKirim.disabled = !formKirim.querySelector('input[name="via[]"]:checked'); };
+            formKirim.addEventListener('change', aturTombolKirim);
+            modalKirim.addEventListener('show.bs.modal', (ev) => {
+                const tombol = ev.relatedTarget;
+                if (!tombol) return;
+                formKirim.elements['id'].value = tombol.dataset.id;
+                modalKirim.querySelector('[data-unit]').textContent = tombol.dataset.unit;
+                aturTombolKirim();
+            });
+            // Cegah klik ganda saat pesan sedang dikirim
+            formKirim.addEventListener('submit', () => { tombolKirim.disabled = true; tombolKirim.textContent = 'Mengirim…'; });
+        }
+
         // Akhiran @gmail.com disembunyikan bila pengguna mengetik alamat email lengkap
         document.querySelectorAll('.input-email').forEach((grup) => {
             const isian = grup.querySelector('input');
