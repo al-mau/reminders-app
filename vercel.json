@@ -1,17 +1,16 @@
 {
   "functions": {
     "api/*.php": {
-      "runtime": "vercel-php@0.8.0",
-      "maxDuration": 60
+      "runtime": "vercel-php@0.8.0"
     }
   },
   "routes": [
     {
-      "src": "/(api/)?lib/.*",
+      "src": "/(api/)?(lib/.*|koneksi\\.php|session_handler\\.php|fonnte\\.php|skema\\.php)",
       "status": 404
     },
     {
-      "src": "/(\\.env.*|\\.git.*|database/.*|xampp/.*|[^/]+\\.(md|txt))",
+      "src": "/(\\.env.*|database/.*|xampp/.*)",
       "status": 404
     },
     {

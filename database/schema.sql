@@ -1,41 +1,41 @@
--- =====================================================================
--- Database Aplikasi Pengingat Hari Jadi (MySQL / MariaDB XAMPP)
--- Dijalankan oleh import_database.bat (versi XAMPP). Versi online (Aiven) tidak perlu file ini:
--- semua tabel dibuat otomatis oleh aplikasi (api/lib/skema.php, api/lib/sesi.php) jika belum ada.
--- Aman dijalankan ulang.
--- =====================================================================
-CREATE DATABASE IF NOT EXISTS pengingat_hari_jadi CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE pengingat_hari_jadi;
-
--- Session login (disimpan di database agar tetap login di Vercel)
-CREATE TABLE IF NOT EXISTS sessions (
-    id            VARCHAR(128) NOT NULL PRIMARY KEY,
-    data          MEDIUMTEXT   NOT NULL,
-    last_accessed INT UNSIGNED NOT NULL,
-    INDEX idx_akses (last_accessed)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Skema database Reminders App (MySQL 8 / Aiven)
+-- Jalankan sekali di database `defaultdb`. Aman dijalankan ulang (IF NOT EXISTS).
 
 CREATE TABLE IF NOT EXISTS users (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     username       VARCHAR(50)  NOT NULL UNIQUE,
-    nama           VARCHAR(100) NOT NULL DEFAULT '',
     password       VARCHAR(255) NOT NULL,
+    nama_lengkap   VARCHAR(100) NOT NULL,
     peran          VARCHAR(20)  NOT NULL DEFAULT 'pemantau',
     dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Cukup diisi sekali; pengingat berulang setiap tahun pada tanggal & bulan yang sama.
--- tanggal             = tanggal hari jadi (yang dipakai hanya tanggal & bulannya, tahunnya bebas)
--- terakhir_diingatkan = tanggal hari jadi yang pengingatnya sudah terkirim (mencegah kirim ganda)
-CREATE TABLE IF NOT EXISTS hari_jadi (
-    id                  INT AUTO_INCREMENT PRIMARY KEY,
-    nama_daerah         VARCHAR(150) NOT NULL UNIQUE,
-    tanggal             DATE         NOT NULL,
-    terakhir_diingatkan DATE         NULL,
-    dibuat_oleh         VARCHAR(50)  NULL,
-    dibuat_tanggal      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS deadline (
+    id               INT AUTO_INCREMENT PRIMARY KEY,
+    kode_unit        VARCHAR(50)  NOT NULL,
+    nama_unit        VARCHAR(150) NOT NULL,
+    tanggal_awal     DATE         NOT NULL,
+    tanggal_akhir    DATE         NOT NULL,
+    pengingat        VARCHAR(20)  NOT NULL DEFAULT 'pending',
+    terakhir_dikirim DATE         NULL,
+    selesai_tanggal  DATETIME     NULL,  -- diisi saat unit ditandai selesai di dashboard
+    selesai_oleh     VARCHAR(100) NULL,
+    jabatan          VARCHAR(100) NULL,  -- kontak penanggung jawab unit (opsional)
+    email            VARCHAR(150) NULL,
+    no_hp            VARCHAR(20)  NULL,
+    no_surat         VARCHAR(100) NULL,  -- nomor surat, ditulis di pesan pengingat
+    INDEX idx_tanggal_akhir (tanggal_akhir)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Session disimpan di database karena Vercel (serverless) tidak menyimpan file session
+CREATE TABLE IF NOT EXISTS sessions (
+    id            VARCHAR(128) NOT NULL PRIMARY KEY,
+    data          MEDIUMTEXT   NOT NULL,
+    last_accessed INT UNSIGNED NOT NULL,
+    INDEX idx_last_accessed (last_accessed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Daftar nomor penerima notifikasi WA (dikelola dari dashboard)
 CREATE TABLE IF NOT EXISTS wa_penerima (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     nama           VARCHAR(100) NOT NULL,
@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS wa_penerima (
     dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Daftar chat Telegram penerima notifikasi (dikelola dari dashboard).
+-- chat_id: angka dari Telegram; grup diawali tanda minus (contoh -1001234567890)
 CREATE TABLE IF NOT EXISTS telegram_penerima (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     nama           VARCHAR(100) NOT NULL,
@@ -52,6 +54,7 @@ CREATE TABLE IF NOT EXISTS telegram_penerima (
     dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Daftar alamat email penerima notifikasi (dikelola dari dashboard)
 CREATE TABLE IF NOT EXISTS email_penerima (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     nama           VARCHAR(100) NOT NULL,
@@ -60,23 +63,52 @@ CREATE TABLE IF NOT EXISTS email_penerima (
     dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS kirim_log (
+-- Lampiran dokumen per unit (file disimpan di database, maks 5 MB per file)
+CREATE TABLE IF NOT EXISTS lampiran (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    deadline_id    INT          NOT NULL,
+    nama_file      VARCHAR(255) NOT NULL,
+    ekstensi       VARCHAR(10)  NOT NULL,
+    ukuran         INT UNSIGNED NOT NULL,
+    isi            MEDIUMBLOB   NOT NULL,
+    jumlah_bagian  INT          NOT NULL DEFAULT 0,
+    selesai        TINYINT(1)   NOT NULL DEFAULT 1,
+    diunggah_oleh  VARCHAR(50)  NULL,
+    dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_deadline_id (deadline_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Potongan isi lampiran (file besar disimpan per 768 KB)
+CREATE TABLE IF NOT EXISTS lampiran_bagian (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    lampiran_id INT        NOT NULL,
+    urutan      INT        NOT NULL,
+    isi         MEDIUMBLOB NOT NULL,
+    UNIQUE KEY uk_lampiran_urutan (lampiran_id, urutan)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Riwayat pengiriman WhatsApp/Telegram/Email (dulu bernama wa_log)
+CREATE TABLE IF NOT EXISTS log_pengiriman (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     waktu      DATETIME     NOT NULL,
-    jenis      VARCHAR(20)  NOT NULL,
-    saluran    VARCHAR(20)  NOT NULL,
-    ringkasan  TEXT         NOT NULL,
-    penerima   TEXT         NOT NULL,
-    berhasil   TINYINT(1)   NOT NULL,
-    keterangan VARCHAR(500) NOT NULL DEFAULT '',
+    jenis      VARCHAR(10)  NOT NULL,
+    ringkasan  VARCHAR(500) NOT NULL,
+    penerima   VARCHAR(500) NOT NULL,
+    status     VARCHAR(10)  NOT NULL,
+    keterangan VARCHAR(255) NULL,
+    detail     VARCHAR(1000) NULL,  -- hasil per saluran (JSON), jika dikirim lewat WA & Telegram sekaligus
     INDEX idx_waktu (waktu)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Percobaan login gagal (pembatasan brute force)
 CREATE TABLE IF NOT EXISTS login_gagal (
     id       INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL,
     ip       VARCHAR(45) NOT NULL,
     waktu    DATETIME    NOT NULL,
-    INDEX idx_username (username, waktu),
-    INDEX idx_ip (ip, waktu)
+    INDEX idx_ip_waktu (ip, waktu),
+    INDEX idx_user_waktu (username, waktu)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Jika tabel sudah ada tapi kolom terakhir_dikirim belum ada, jalankan:
+-- ALTER TABLE deadline ADD COLUMN terakhir_dikirim DATE NULL;
