@@ -1,9 +1,10 @@
-# Pengaturan Apache (XAMPP) untuk Aplikasi Pengingat Jadwal.
+# Pengaturan Apache (XAMPP) untuk Aplikasi Pengingat Hari Jadi.
 # Halaman utama = index.php, daftar isi folder tidak ditampilkan,
 # dan file rahasia/teknis tidak bisa dibuka dari browser.
 DirectoryIndex index.php
 Options -Indexes
 
-<FilesMatch "^(\.env.*|cron_lokal\.php|.*\.bat|.*\.txt|.*\.sql|.*\.md)$">
+<FilesMatch "^(\.env.*|\.git.*|.*\.bat|.*\.ps1|.*\.txt|.*\.log|.*\.sql|.*\.md)$">
     Require all denied
 </FilesMatch>
+RedirectMatch 404 /\.git

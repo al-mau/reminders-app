@@ -1,0 +1,227 @@
+=====================================================================
+  APLIKASI PENGINGAT HARI JADI - VERSI ONLINE
+  (GitHub + Vercel + Aiven/TiDB Cloud + cron-job.org)
+=====================================================================
+
+Versi online bisa dibuka dari mana saja (laptop & HP) dan pengingat
+H-7 tetap terkirim walaupun semua komputer kantor mati.
+
+  GitHub       : tempat menyimpan kode
+  Vercel       : menjalankan aplikasi (alamat xxx.vercel.app)
+  Aiven atau   : database MySQL online (pilih SALAH SATU:
+  TiDB Cloud     bagian 2 untuk Aiven, bagian 2B untuk TiDB Cloud)
+  cron-job.org : memanggil pengingat setiap hari jam 07.00
+
+Siapkan dulu: akun GitHub, Vercel, Aiven (bisa memakai akun yang sama
+dengan aplikasi Pengingat Deadline), token Fonnte, token bot Telegram,
+dan App Password Gmail (lihat bagian 5).
+
+---------------------------------------------------------------------
+1. SIMPAN KODE DI GITHUB
+---------------------------------------------------------------------
+1) Buka github.com -> login -> tombol "+" (kanan atas) -> New repository
+2) Repository name: pengingat-hari-jadi
+   Pilih: Private. JANGAN centang "Add a README file".
+   Klik "Create repository".
+3) Di halaman repo yang masih kosong, klik tautan
+   "uploading an existing file".
+4) Extract zip pengingat-hari-jadi-online.zip di laptop. Buka folder
+   hasil extract, pilih SEMUA isinya (Ctrl+A: folder api, database,
+   xampp, file vercel.json, tema.css, dst), lalu seret (drag) ke
+   halaman GitHub tersebut.
+   PENTING: yang diseret adalah ISI folder, bukan folder
+   "pengingat-hari-jadi" itu sendiri. Di GitHub, vercel.json harus
+   terlihat langsung di halaman utama repo.
+5) Tunggu semua file selesai terunggah -> klik "Commit changes".
+
+---------------------------------------------------------------------
+2. SIAPKAN DATABASE DI AIVEN
+---------------------------------------------------------------------
+1) Buka console.aiven.io -> login.
+2) Pakai service MySQL yang sudah ada (aplikasi Pengingat Deadline)
+   ATAU buat baru: Create service -> MySQL -> Free plan -> Create.
+3) Klik nama service MySQL -> menu "Databases" -> "Create database"
+   (atau "Add database") -> nama: hari_jadi -> Create.
+   JANGAN memakai "defaultdb" milik aplikasi lama: beberapa nama tabel
+   sama (users, sessions, wa_penerima) sehingga data bisa tercampur.
+4) Buka menu "Overview" -> bagian "Connection information", catat:
+     Host      (contoh mysql-xxxx-namaproject.j.aivencloud.com)
+     Port      (contoh 22147)
+     User      (biasanya avnadmin)
+     Password  (klik ikon mata untuk melihat)
+   Tabel-tabel aplikasi dibuat OTOMATIS saat aplikasi pertama dibuka.
+
+---------------------------------------------------------------------
+2B. ATAU: SIAPKAN DATABASE DI TiDB CLOUD STARTER (pengganti Aiven)
+---------------------------------------------------------------------
+TiDB Cloud Starter = database online gratis yang kompatibel MySQL.
+Kode aplikasi tidak perlu diubah. Lewati bagian 2 jika memakai ini.
+
+1) Buka tidbcloud.com -> "Sign Up" / "Log In" (bisa dengan akun
+   Google atau GitHub).
+2) Buat database server:
+   "Create Resource" / "Create Cluster" -> pilih "Starter" (Free)
+   - Cloud Provider: AWS
+   - Region: Singapore (ap-southeast-1) bila tersedia, karena paling
+     dekat dengan Indonesia
+   - Name: pengingat-hari-jadi
+   - Spending limit (bila ditanya): biarkan 0 / Free agar tidak pernah
+     ditagih
+   Klik "Create". Tunggu sampai status "Available" (1-2 menit).
+3) Buat database "hari_jadi":
+   Di halaman cluster -> menu "SQL Editor" (kadang bernama
+   "Chat2Query") -> ketik:
+       CREATE DATABASE hari_jadi;
+   lalu klik Run (atau Ctrl+Enter).
+   Tidak menemukan SQL Editor? Lewati langkah ini dan pakai database
+   bawaan bernama "test" (isi DB_NAME=test di Vercel).
+4) Ambil data koneksi:
+   Klik tombol "Connect" (kanan atas halaman cluster)
+   - Connect With: General (atau "MySQL CLI")
+   - Klik "Generate Password" -> SALIN dan simpan password-nya
+     (hanya ditampilkan sekali; jika lupa, klik "Reset Password")
+   Catat 4 nilai berikut:
+     HOST      contoh gateway01.ap-southeast-1.prod.aws.tidbcloud.com
+     PORT      4000
+     USERNAME  contoh 2aBcD3eFgHiJkLm.root   (salin persis, termasuk
+               kode di depan ".root")
+     PASSWORD  hasil Generate Password
+5) Di Vercel (bagian 3 langkah 5), isi:
+     DB_HOST      = HOST dari TiDB
+     DB_PORT      = 4000
+     DB_NAME      = hari_jadi   (atau test, lihat langkah 3)
+     DB_USER      = USERNAME dari TiDB (xxxx.root)
+     DB_PASSWORD  = PASSWORD dari TiDB
+   Koneksi aman (SSL) yang diwajibkan TiDB sudah otomatis aktif.
+6) PENTING agar aplikasi cepat: samakan lokasi server Vercel dengan
+   database. Setelah deploy (bagian 3): Vercel -> project ->
+   Settings -> Functions -> "Function Region" -> pilih
+   Singapore (sin1) -> Save -> Deployments -> Redeploy.
+   (Bawaan Vercel di Amerika; tanpa ini setiap halaman terasa lambat
+   karena data bolak-balik Amerika-Singapura.)
+
+Catatan TiDB Starter:
+- Gratis selama pemakaian di bawah kuota bulanan (aplikasi ini memakai
+  sangat sedikit). Pemakaian bisa dicek di menu "Usage"/"Billing".
+- Bila lama tidak dipakai, server "tidur" lalu bangun sendiri saat ada
+  akses; akses pertama bisa terasa 1-3 detik lebih lambat. Jadwal
+  cron-job.org tetap berjalan normal.
+
+---------------------------------------------------------------------
+3. PASANG DI VERCEL
+---------------------------------------------------------------------
+1) Buka vercel.com -> login (pilih "Continue with GitHub").
+2) Klik "Add New..." -> "Project".
+3) Pada daftar repository, cari "pengingat-hari-jadi" -> klik "Import".
+   Repo tidak muncul? Klik "Adjust GitHub App Permissions" -> beri
+   akses ke repo pengingat-hari-jadi -> Save, lalu kembali ke Vercel.
+4) Framework Preset: Other. Root Directory: biarkan ./
+5) Buka bagian "Environment Variables", isi satu per satu
+   (Key di kiri, Value di kanan, klik Add):
+
+   Key                  Value
+   -------------------  ------------------------------------------
+   DB_HOST              Host dari Aiven
+   DB_PORT              Port dari Aiven
+   DB_NAME              hari_jadi
+   DB_USER              avnadmin
+   DB_PASSWORD          Password dari Aiven
+   NOTIF_VIA            wa,telegram,email
+   FONNTE_TOKEN         token device fonnte.com
+   TELEGRAM_BOT_TOKEN   token dari @BotFather
+   SMTP_HOST            smtp.gmail.com
+   SMTP_PORT            587
+   SMTP_USER            alamat Gmail pengirim
+   SMTP_PASS            App Password Gmail (16 huruf, tanpa spasi)
+   CRON_SECRET          kata acak panjang, min. 16 karakter, contoh
+                        hj7Kq29xLmP4vR8sWz3N (huruf & angka saja)
+   APP_TIMEZONE         Asia/Jakarta
+   PENGINGAT_HARI       7
+
+   Tips: Vercel bisa menerima tempelan banyak baris sekaligus. Salin
+   isi file .env.example, ganti nilainya, lalu tempel ke kolom Key
+   pertama; semua baris otomatis terisi.
+6) Klik "Deploy". Tunggu sampai muncul "Congratulations!".
+7) Klik "Continue to Dashboard" -> catat alamat di bagian "Domains",
+   contoh: pengingat-hari-jadi.vercel.app
+
+Mengubah Environment Variables nanti? Settings -> Environment
+Variables -> ubah -> lalu menu Deployments -> titik tiga pada deploy
+teratas -> "Redeploy". Perubahan baru berlaku setelah Redeploy.
+
+---------------------------------------------------------------------
+4. BUKA APLIKASI & BUAT AKUN ADMIN
+---------------------------------------------------------------------
+1) Buka https://pengingat-hari-jadi.vercel.app (alamat dari langkah 3).
+2) Pertama kali muncul halaman "Buat Akun Admin" -> isi -> Buat akun.
+   (Halaman ini otomatis tertutup setelah akun pertama dibuat.)
+3) Login. Akun rekan kerja dibuat lewat menu User.
+4) Isi data di menu Hari Jadi:
+   - "+ Tambah hari jadi": nama daerah dan tanggal hari jadi (contoh
+     23-06-2026; tahunnya bebas).
+   - "Tambah banyak": satu per baris  Kota Pekanbaru;23-06-2026
+   Sudah mengisi data di versi XAMPP? Di versi XAMPP klik "Ekspor CSV"
+   (di atas tabel), buka file CSV-nya dengan Notepad, salin semua isinya,
+   lalu tempel ke "Tambah banyak" di versi online.
+5) Menu Penerima: tambah nomor WA, chat Telegram, alamat email, lalu
+   klik "Kirim percobaan" di tiap kotak untuk mengecek.
+6) Di HP: buka alamat aplikasi di Chrome -> titik tiga -> "Tambahkan ke
+   Layar utama" agar bisa dibuka seperti aplikasi.
+
+---------------------------------------------------------------------
+5. CARA MENDAPATKAN TOKEN
+---------------------------------------------------------------------
+Fonnte (WhatsApp):
+  fonnte.com -> login -> menu Device -> pastikan status "connect"
+  (scan QR dengan HP bila belum) -> salin "Token".
+Telegram:
+  Di Telegram cari @BotFather -> kirim /newbot -> isi nama bot -> isi
+  username berakhiran "bot" -> salin token yang dikirim BotFather.
+  Penerima harus membuka bot lalu klik Start (di grup: masukkan bot
+  ke grup lalu kirim /start@username_bot), kemudian di aplikasi klik
+  "Cari chat yang sudah Start bot" -> Tambah.
+Gmail (Email):
+  myaccount.google.com -> Security -> aktifkan 2-Step Verification ->
+  buka myaccount.google.com/apppasswords -> nama: Pengingat Hari Jadi
+  -> Create -> salin 16 huruf (tanpa spasi) ke SMTP_PASS.
+
+---------------------------------------------------------------------
+6. JADWAL PENGINGAT OTOMATIS (cron-job.org)
+---------------------------------------------------------------------
+1) Buka cron-job.org -> Sign up / Login.
+2) Klik "CREATE CRONJOB".
+3) Title : Pengingat Hari Jadi
+   URL   : https://pengingat-hari-jadi.vercel.app/cron_pengingat.php?key=ISI_CRON_SECRET
+           (ganti alamat dan ISI_CRON_SECRET sesuai milik Anda)
+4) Execution schedule: Every day at 07:00.
+   Pastikan Time zone: Asia/Jakarta (di bagian bawah / Settings akun).
+5) Klik "CREATE". Untuk mencoba: buka cronjob tersebut -> "TEST RUN"
+   (atau "Run now").
+   Hasil yang benar:  {"status":true,...}
+     "total":0      = tidak ada hari jadi dalam 7 hari ke depan (normal)
+     "terkirim":2   = 2 daerah dikirimi pengingat
+   {"status":false,"pesan":"Unauthorized"} = key salah / CRON_SECRET
+   belum diisi di Vercel (ingat Redeploy setelah mengisi).
+Riwayat setiap pengiriman juga tampil di menu Riwayat Kirim.
+
+---------------------------------------------------------------------
+7. JIKA ADA MASALAH
+---------------------------------------------------------------------
+- "Koneksi database gagal"   -> cek DB_HOST, DB_PORT, DB_USER,
+                                DB_PASSWORD, DB_NAME di Vercel, pastikan
+                                database "hari_jadi" sudah dibuat dan
+                                service Aiven "Running" / cluster TiDB
+                                "Available". Setelah mengubah: Redeploy.
+                                TiDB: DB_PORT harus 4000 dan DB_USER
+                                harus lengkap (xxxx.root).
+- 404 NOT_FOUND di Vercel    -> vercel.json tidak berada di halaman
+                                utama repo (lihat langkah 1.4).
+- Selalu kembali ke login    -> buka lewat https:// (bukan http://).
+- WA / Telegram / Email gagal -> penyebab tertulis di Riwayat Kirim.
+- Kirim ulang satu daerah   -> klik "..." pada baris daerah -> pilih
+                                "Semua saluran" atau satu saluran saja.
+- Service Aiven "Powered off" -> paket gratis Aiven bisa dimatikan bila
+                                lama tidak dipakai. Buka console Aiven
+                                -> service -> "Power on".
+- JANGAN menjalankan versi XAMPP (Task Scheduler) dan versi online
+  untuk data yang sama sekaligus; pakai salah satu.

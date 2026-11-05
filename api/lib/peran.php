@@ -2,13 +2,13 @@
 /**
  * Peran (hak akses) pengguna. Dipakai oleh dashboard.php, users.php, dan sidebar.
  *
- *  admin    -> semua: kelola unit, hapus data, kelola penerima, kelola pengguna
- *  staf     -> kerja harian: tambah/edit unit, tandai selesai, kirim pengingat, unggah lampiran
- *  pemantau -> hanya melihat (Daftar Unit, lampiran, Penerima, Riwayat Kirim)
+ *  admin    -> semua: kelola hari jadi, hapus data, kelola penerima, kelola pengguna
+ *  staf     -> kerja harian: tambah/edit hari jadi, kirim pengingat manual
+ *  pemantau -> hanya melihat (Daftar Hari Jadi, Penerima, Riwayat Kirim)
  * Semua peran boleh mengubah nama, username, dan password akunnya sendiri.
  * Di tampilan, peran ditulis sebagai hak akses (lihat PERAN): admin = "Akses Penuh",
  * staf = "Akses Kerja", pemantau = "Akses Lihat". Kode di database tetap admin/staf/pemantau.
- * Penjelasan lengkap untuk pengguna ada di README.md (bagian "Peran pengguna").
+ * Penjelasan untuk pengguna ada di README.md (bagian "Hak akses user").
  *
  * Peran dibaca dari database setiap halaman dibuka (bukan dari sesi), sehingga
  * perubahan peran oleh Admin langsung berlaku tanpa perlu login ulang.
@@ -23,8 +23,8 @@ const PERAN = [
 
 /** Hak -> peran yang boleh. Hak yang tidak terdaftar di sini tidak diberikan ke siapa pun. */
 const HAK_PERAN = [
-    'kelola_unit'     => ['admin', 'staf'],   // tambah/edit unit, tandai selesai, kirim pengingat, unggah lampiran
-    'hapus_data'      => ['admin'],           // hapus unit dan lampiran (tidak bisa dibatalkan)
+    'kelola_data'     => ['admin', 'staf'],   // tambah/edit hari jadi, kirim pengingat manual
+    'hapus_data'      => ['admin'],           // hapus data hari jadi (tidak bisa dibatalkan)
     'kelola_penerima' => ['admin'],           // nomor WhatsApp & chat Telegram tujuan pengingat
     'kelola_pengguna' => ['admin'],           // tambah, ubah, hapus akun dan mengatur peran
 ];
@@ -37,7 +37,7 @@ function peranSaya(): string
     if ($peran !== null) {
         return $peran;
     }
-    pastikanTabelTambahan($pdo);
+    pastikanSkema($pdo);
     $stmt = $pdo->prepare("SELECT peran FROM users WHERE username = ?");
     $stmt->execute([(string) ($_SESSION['username'] ?? '')]);
     $hasil = $stmt->fetchColumn();
