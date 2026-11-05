@@ -1,9 +1,21 @@
 {
-  "name": "Pengingat Hari Jadi Daerah Pemegang Saham",
-  "short_name": "Hari Jadi",
-  "description": "Pengingat otomatis hari jadi daerah pemegang saham",
+  "name": "Aplikasi Pengingat Jadwal",
+  "short_name": "Pengingat Jadwal",
+  "description": "Aplikasi Pengingat Deadline Unit",
   "start_url": "dashboard.php",
   "display": "standalone",
   "background_color": "#0f3d34",
-  "theme_color": "#0f3d34"
+  "theme_color": "#0f3d34",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3602/3602145.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3602/3602145.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
