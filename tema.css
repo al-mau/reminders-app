@@ -1,26 +1,30 @@
 /*
  * TEMA TAMPILAN BERSAMA (Daftar Unit, Penerima, Riwayat Kirim, Pengguna)
- * Gaya "alat kerja internal": netral, padat, sedikit warna. Warna hanya dipakai untuk status.
+ * Gaya "alat kerja internal": latar abu netral, merah logo BRKS sebagai satu-satunya warna aksen.
+ * Status penting (Terlewat, Jatuh tempo) tampil sebagai lencana agar tetap menonjol di tema merah.
  * Setelah mengubah file ini, naikkan VERSI_TEMA di api/lib/tampilan.php agar browser memuat versi baru.
  */
 :root {
     --tinta: #1d2528;      /* teks utama & sidebar */
     --tinta2: #4b5559;     /* teks kedua */
     --tinta3: #7c8589;     /* teks redup, label */
-    --kertas: #f1f5f3;     /* latar halaman (abu kehijauan, senada sidebar) */
+    --kertas: #f3f3f3;     /* latar halaman (abu netral) */
     --putih: #ffffff;
-    --garis: #d8e2de;
-    --garis2: #e7eeeb;
-    --aksen: #1e5e52;      /* fokus & tautan */
-    --merah: #b42318;
+    --garis: #dedcdc;
+    --garis2: #ebeaea;
+    --aksen: #a3222a;      /* fokus, tautan, kotak centang */
+    --merah: #b0222a;      /* status & peringatan */
     --amber: #b45309;
     --hijau: #2f6f3a;
-    /* Sidebar hijau tua senada BRK Syariah + warna logo untuk garis di bawah logo */
-    --side: #0f3d34;
-    --side2: #15493f;    /* hover menu */
-    --side3: #1b5448;    /* menu aktif */
-    --side-garis: #22574c;
-    --side-redup: #9fbdb5;
+    /* Sidebar marun gelap dari merah logo BRKS (redup agar nyaman di mata) + warna logo untuk garis di bawah logo */
+    --side: #5a171c;
+    --side2: #691d23;    /* hover menu */
+    --side3: #78232a;    /* menu aktif */
+    --side-garis: #74292f;
+    --side-redup: #e3babd;
+    --side-teks: #f3e1e2;
+    --merek: #b42024;       /* merah logo: tombol utama */
+    --merek-gelap: #8f1a1f;
     --logo-oranye: #f0a818;
     --logo-merah: #c01830;
     --logo-hijau: #30a848;
@@ -39,7 +43,7 @@ code { color: var(--aksen); }
 /* ---------- Kerangka: sidebar + isi ---------- */
 body.app { display: flex; min-height: 100vh; }
 /* Latar sidebar selalu setinggi halaman; isinya menempel di layar saat halaman digulir */
-.side { width: 224px; flex: none; align-self: stretch; background: var(--side); color: #d3e2de; }
+.side { width: 224px; flex: none; align-self: stretch; background: var(--side); color: var(--side-teks); }
 .side-isi { display: flex; flex-direction: column; padding: 0 0 22px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .brand { display: block; padding: 0 0 26px; color: #fff; font-weight: 600; font-size: 19px; line-height: 1.3; text-decoration: none; }
 .brand:hover { color: #fff; }
@@ -51,14 +55,14 @@ body.app { display: flex; min-height: 100vh; }
     background: linear-gradient(90deg, var(--logo-oranye) 0 33.3%, var(--logo-merah) 33.3% 66.6%, var(--logo-hijau) 66.6%); }
 .brand-logo img { display: block; width: 100%; height: auto; }
 .brand-teks { display: block; padding: 0 22px; }
-.nav-side a { display: flex; justify-content: space-between; align-items: center; padding: 9px 22px; color: #d3e2de; text-decoration: none; border-left: 3px solid transparent; }
+.nav-side a { display: flex; justify-content: space-between; align-items: center; padding: 9px 22px; color: var(--side-teks); text-decoration: none; border-left: 3px solid transparent; }
 .nav-side a:hover { background: var(--side2); color: #fff; }
 .nav-side a.on { background: var(--side3); color: #fff; border-left-color: var(--logo-oranye); font-weight: 500; }
 .nav-side a span { color: var(--side-redup); font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
 .side-bawah { margin-top: auto; padding: 16px 22px 0; border-top: 1px solid var(--side-garis); font-size: 14px; }
 .side-bawah b { display: block; color: #fff; font-weight: 500; }
 .peran-saya { display: block; color: var(--side-redup); font-size: 13px; }
-.btn-keluar { display: block; margin-top: 10px; padding: 7px 12px; border: 1px solid #3d6f64; border-radius: 4px; color: #e6eeec; font-size: 14px; font-weight: 500; text-align: center; text-decoration: none; }
+.btn-keluar { display: block; margin-top: 10px; padding: 7px 12px; border: 1px solid #8e3b41; border-radius: 4px; color: #f5e6e7; font-size: 14px; font-weight: 500; text-align: center; text-decoration: none; }
 .btn-keluar i { font-size: 13px; margin-right: 4px; }
 .btn-keluar:hover, .btn-keluar:focus-visible { background: var(--side3); border-color: var(--side-redup); color: #fff; }
 
@@ -71,18 +75,21 @@ body.app .kaki { margin-top: auto; text-align: right; }
 
 /* ---------- Tombol ---------- */
 .btn { font-family: inherit; font-size: 14px; font-weight: 500; border-radius: 4px; padding: 7px 14px; line-height: 1.4; }
-/* Tombol utama hijau BRK, sama dengan warna sidebar */
-.btn-gelap { background: var(--side); border: 1px solid var(--side); color: #fff; }
-.btn-gelap:hover, .btn-gelap:focus { background: var(--side3); border-color: var(--side3); color: #fff; }
+/* Tombol utama merah logo BRKS */
+.btn-gelap { background: var(--merek); border: 1px solid var(--merek); color: #fff; }
+.btn-gelap:hover, .btn-gelap:focus { background: var(--merek-gelap); border-color: var(--merek-gelap); color: #fff; }
 .btn-garis { background: var(--putih); border: 1px solid var(--garis); color: var(--tinta); }
-.btn-garis:hover { background: #f3f7f5; border-color: #b9cbc4; color: var(--tinta); }
+.btn-garis:hover { background: #f5f5f5; border-color: #c3c1c1; color: var(--tinta); }
 .btn-teks { background: none; border: 1px solid transparent; color: var(--tinta2); }
-.btn-teks:hover { background: #eaf1ee; color: var(--tinta); }
+.btn-teks:hover { background: #eeeded; color: var(--tinta); }
+/* Tombol hapus bergaris tepi merah tipis agar tidak mirip tombol utama */
+.btn.teks-merah { border-color: #e9b9bb; }
+.btn.teks-merah:hover { background: #fdecec; border-color: var(--merah); }
 .btn-kecil { padding: 4px 10px; font-size: 13.5px; }
 .btn-titik { width: 30px; padding-left: 0; padding-right: 0; text-align: center; font-weight: 600; }
 .btn-tautan { background: none; border: 0; padding: 0; color: var(--aksen); font-size: 13px; font-family: 'IBM Plex Sans', sans-serif; }
 .btn-tautan:hover { text-decoration: underline; }
-.btn:focus-visible, .form-control:focus, .form-select:focus { outline: 2px solid #7fb7a8; outline-offset: 1px; box-shadow: none; border-color: var(--aksen); }
+.btn:focus-visible, .form-control:focus, .form-select:focus { outline: 2px solid #e9aeb1; outline-offset: 1px; box-shadow: none; border-color: var(--aksen); }
 
 /* ---------- Panel ---------- */
 .panel { background: var(--putih); border: 1px solid var(--garis); border-radius: 6px; }
@@ -99,8 +106,8 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .kolom-pengguna { grid-template-columns: 2fr 1fr; }
 /* Label peran pengguna: Admin / Staf / Pemantau */
 .peran { display: inline-block; font-size: 12.5px; font-weight: 500; border-radius: 3px; padding: 1px 7px; border: 1px solid; white-space: nowrap; }
-.peran-admin { color: var(--aksen); border-color: #b9d3cc; background: #eef5f3; }
-.peran-staf { color: var(--tinta2); border-color: var(--garis); background: #f3f7f5; }
+.peran-admin { color: var(--aksen); border-color: #c8c4c5; background: #f2f1f1; }
+.peran-staf { color: var(--tinta2); border-color: var(--garis); background: #f5f5f5; }
 .peran-pemantau { color: var(--tinta3); border-color: var(--garis); background: #fff; }
 .input-group .btn[data-mata] { border-color: var(--garis); color: var(--tinta3); border-radius: 0 4px 4px 0; }
 
@@ -108,7 +115,7 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .tabs { display: flex; gap: 26px; padding: 0 20px; border-bottom: 1px solid var(--garis); overflow-x: auto; }
 .tabs a { padding: 14px 0 12px; font-size: 14.5px; color: var(--tinta2); text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; display: flex; gap: 7px; align-items: baseline; }
 .tabs a:hover { color: var(--tinta); }
-.tabs a.on { color: var(--side); border-bottom-color: var(--logo-oranye); font-weight: 600; }
+.tabs a.on { color: var(--merek-gelap); border-bottom-color: var(--logo-oranye); font-weight: 600; }
 .tabs a i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--tinta3); }
 .tabs a.penting i { color: var(--merah); font-weight: 500; }
 
@@ -127,26 +134,30 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .tabel-a th { text-align: left; font-size: 12.5px; font-weight: 600; color: var(--tinta3); text-transform: uppercase; letter-spacing: .6px; padding: 10px 20px; border-bottom: 1px solid var(--garis); white-space: nowrap; }
 .tabel-a td { padding: 13px 20px; border-bottom: 1px solid var(--garis2); vertical-align: top; }
 .tabel-a tbody tr:last-child td { border-bottom: 0; }
-.tabel-a tbody tr:hover { background: #f8fbfa; }
+.tabel-a tbody tr:hover { background: #faf9f9; }
 .tabel-a .nama, .baris-penerima .nama { font-weight: 500; }
 .tabel-a .kode, .baris-penerima .kode { font-size: 13px; color: var(--tinta3); margin-top: 2px; }
 .input-group-text { background: var(--kertas); border-color: var(--garis); color: var(--tinta2); font-size: 15px; }
 .input-email.lengkap .input-group-text { display: none; }
-.form-check-input:checked { background-color: var(--aksen); border-color: var(--aksen); }
-.form-check-input:focus { border-color: var(--aksen); box-shadow: none; outline: 2px solid #7fb7a8; outline-offset: 1px; }
+.form-check-input:checked { background-color: var(--merek); border-color: var(--merek); }
+.form-check-input:focus { border-color: var(--aksen); box-shadow: none; outline: 2px solid #e9aeb1; outline-offset: 1px; }
 .input-email.lengkap .form-control { border-radius: 4px !important; }
 .tabel-a td.kontak { font-size: 13.5px; color: var(--tinta2); line-height: 1.5; overflow-wrap: break-word; }
 .tabel-a td.mono { font-size: 13.5px; color: var(--tinta2); white-space: nowrap; }
 .tabel-a td.mono b { color: var(--tinta); font-weight: 500; }
 .tabel-a td.mono form { margin: 2px 0 0; }
-.baris-selesai { background: #f7faf8; }
+.baris-selesai { background: #f9f8f8; }
 .baris-selesai .nama { color: var(--tinta2); }
 .kosong { text-align: center; padding: 36px 16px; color: var(--tinta3); }
 
 /* Status: titik warna + teks */
 .st { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .st::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c, #9aa3a6); flex: none; }
-.st.merah { --c: var(--merah); color: var(--merah); font-weight: 500; }
+/* Status penting sebagai lencana (kotak merah muda + ikon !) agar tetap paling menonjol di tema merah */
+.st.merah { display: inline-flex; align-items: flex-start; gap: 6px; background: #fdecec; border: 1px solid #f1c2c4; color: #9f1c22;
+    padding: 3px 8px 3px 5px; border-radius: 6px; font-weight: 600; line-height: 1.35; }
+.st.merah::before { content: "!"; width: 16px; height: 16px; margin-top: 1px; border-radius: 50%; background: var(--merek); color: #fff;
+    font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .st.amber { --c: var(--amber); color: var(--amber); font-weight: 500; }
 .st.hijau { --c: var(--hijau); color: var(--hijau); }
 .st.abu { --c: #b8bfc1; color: var(--tinta2); }
@@ -167,9 +178,9 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .baris-penerima { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 20px; border-bottom: 1px solid var(--garis2); }
 .modal .baris-penerima { padding: 10px 0; }
 .baris-penerima.nonaktif .nama, .baris-penerima.nonaktif .kode { opacity: .55; }
-.baris-penerima.ditemukan { background: #f6faf8; }
+.baris-penerima.ditemukan { background: #f8f8f8; }
 .tanda { font-size: 12px; font-weight: 500; color: var(--tinta3); border: 1px solid var(--garis); border-radius: 3px; padding: 0 5px; margin-left: 4px; }
-.catatan { margin: 12px 20px 0; padding: 10px 12px; background: #f3f7f5; border-radius: 4px; color: var(--tinta2); font-size: 14px; }
+.catatan { margin: 12px 20px 0; padding: 10px 12px; background: #f5f5f5; border-radius: 4px; color: var(--tinta2); font-size: 14px; }
 .form-tambah { padding: 16px 20px 18px; }
 .modal .form-tambah { padding: 16px 0 0; border-top: 1px solid var(--garis2); margin-top: 8px; }
 .label-kecil { font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--tinta3); margin-bottom: 8px; }
@@ -195,7 +206,7 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .alert { border-radius: 4px; border: 1px solid; font-size: 14.5px; padding: 10px 40px 10px 14px; margin: 0; }
 .alert .btn-close { padding: 12px; }
 .alert-success { background: #eef6ef; border-color: #cfe3d2; color: #24532c; }
-.alert-info { background: #eef3f2; border-color: #cfe0db; color: #1e4a42; }
+.alert-info { background: #f1f0f0; border-color: #d9d6d7; color: #3f3638; }
 .alert-warning { background: #fbf4e8; border-color: #ecd9b3; color: #7a4a0c; }
 .alert-danger { background: #fbeeec; border-color: #efcdc8; color: #8a1c12; }
 .progress-bar { background: var(--aksen); }

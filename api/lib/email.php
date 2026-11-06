@@ -87,11 +87,11 @@ function pesanKeHtmlEmail(string $pesan, string $judul): string
     $judul = htmlspecialchars($judul, ENT_QUOTES, 'UTF-8');
 
     return '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>' . $judul . '</title></head>'
-        . '<body style="margin:0;padding:24px 12px;background:#f1f5f3;font-family:Arial,Helvetica,sans-serif;color:#1c2b27">'
-        . '<div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #d8e2de;border-radius:6px;overflow:hidden">'
-        . '<div style="background:#0f3d34;color:#ffffff;padding:16px 20px;font-size:16px;font-weight:bold;border-bottom:4px solid #f0a818">Pengingat Deadline</div>'
+        . '<body style="margin:0;padding:24px 12px;background:#f3f3f3;font-family:Arial,Helvetica,sans-serif;color:#1c2b27">'
+        . '<div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #dedcdc;border-radius:6px;overflow:hidden">'
+        . '<div style="background:#5a171c;color:#ffffff;padding:16px 20px;font-size:16px;font-weight:bold;border-bottom:4px solid #f0a818">Pengingat Deadline</div>'
         . '<div style="padding:20px;font-size:14px;line-height:1.6">' . $isi . '</div>'
-        . '<div style="padding:12px 20px;border-top:1px solid #e7eeeb;font-size:12px;color:#5c6b66">'
+        . '<div style="padding:12px 20px;border-top:1px solid #ebeaea;font-size:12px;color:#5c6b66">'
         . 'Email ini dikirim otomatis oleh Aplikasi Pengingat Jadwal. Mohon tidak membalas email ini.</div>'
         . '</div></body></html>';
 }
