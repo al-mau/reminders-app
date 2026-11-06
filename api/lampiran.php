@@ -109,18 +109,18 @@ header('Content-Type: text/html; charset=utf-8');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($file['nama_file']); ?></title>
     <style>
-        body { font-family: system-ui, sans-serif; background: #f1f5f3; color: #1d2528; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        body { font-family: system-ui, sans-serif; background: #f3f3f3; color: #1d2528; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         .kotak { background: #fff; padding: 24px 28px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.08); width: min(420px, 90vw); }
-        .bar { height: 8px; background: #d8e2de; border-radius: 4px; overflow: hidden; margin: 12px 0; }
-        .isi { height: 100%; width: 0; background: #1e5e52; transition: width .2s; }
+        .bar { height: 8px; background: #dedcdc; border-radius: 4px; overflow: hidden; margin: 12px 0; }
+        .isi { height: 100%; width: 0; background: #a3222a; transition: width .2s; }
         .kecil { font-size: .85rem; color: #7c8589; word-break: break-all; }
-        a { color: #1e5e52; }
+        a { color: #a3222a; }
         /* Mode pratinjau Word/Excel/CSV/TXT: bilah judul di atas + isi file memenuhi layar */
-        body.pratinjau { display: block; background: #d8e2de; }
-        .bilah { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #0f3d34; color: #fff; }  /* hijau sidebar */
+        body.pratinjau { display: block; background: #dedcdc; }
+        .bilah { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #5a171c; color: #fff; }  /* marun sidebar */
         .bilah .nama { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-        .bilah .kecil { color: #9fbdb5; }
-        .bilah a { color: #fff; background: #1b5448; border: 1px solid #3d6f64; padding: 6px 14px; border-radius: 6px; text-decoration: none; white-space: nowrap; }
+        .bilah .kecil { color: #e3babd; }
+        .bilah a { color: #fff; background: #78232a; border: 1px solid #8e3b41; padding: 6px 14px; border-radius: 6px; text-decoration: none; white-space: nowrap; }
         iframe { display: block; width: 100%; height: calc(100vh - 52px); border: 0; background: #fff; }
     </style>
 </head>
