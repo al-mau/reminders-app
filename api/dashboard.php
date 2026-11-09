@@ -72,6 +72,20 @@ function bolehPatah(string $teks): string
     return str_replace(['/', '@'], ['/<wbr>', '<wbr>@'], e($teks));
 }
 
+/** No HP tersimpan 628xxx -> ditampilkan 08xxx */
+function nomorHpTampil(?string $nomor): string
+{
+    $nomor = (string) $nomor;
+    return substr($nomor, 0, 2) === '62' ? '0' . substr($nomor, 2) : $nomor;
+}
+
+/** No HP untuk kolom isian berawalan +62: 628xxx -> 8xxx */
+function nomorHpForm(?string $nomor): string
+{
+    $nomor = (string) $nomor;
+    return substr($nomor, 0, 2) === '62' ? substr($nomor, 2) : $nomor;
+}
+
 /** Email untuk kolom isian berakhiran @gmail.com: nama@gmail.com -> nama */
 function emailTampil(?string $email): string
 {
@@ -235,12 +249,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tanggal_akhir = $_POST['tanggal_akhir'] ?? '';
         // Nomor surat (opsional) -> ditulis di pesan pengingat sebagai "Berdasarkan Nomor Surat"
         $no_surat      = trim($_POST['no_surat'] ?? '');
-        // Keterangan unit (opsional), contoh jabatan Pgs. Email & No HP tidak lagi diisi di form unit;
-        // kolomnya tetap ada di database dan nilainya yang lama tidak diubah.
+        // Kontak penanggung jawab unit (opsional)
         $jabatan       = trim($_POST['jabatan'] ?? '');
+        // Form hanya meminta bagian depan email; tanpa "@" dianggap akun Gmail
+        $email         = lengkapiEmail((string) ($_POST['email'] ?? ''));
+        $no_hp         = trim($_POST['no_hp'] ?? '');
+        // Form sudah menampilkan +62, jadi nomor boleh diketik mulai dari 8
+        if (substr(preg_replace('/\D/', '', $no_hp), 0, 1) === '8') {
+            $no_hp = '0' . $no_hp;
+        }
 
         $salahKontak = null;
-        if (mb_strlen($jabatan) > 100) {
+        if ($email !== '' && (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 150)) {
+            $salahKontak = 'Format email tidak valid (contoh: nama@gmail.com).';
+        } elseif ($no_hp !== '') {
+            [$no_hp, $salahNomor] = periksaNomorWaBaru($no_hp);
+            if ($salahNomor) {
+                $salahKontak = str_replace('Nomor WA', 'No HP', $salahNomor);
+            }
+        }
+        if ($salahKontak === null && mb_strlen($jabatan) > 100) {
             $salahKontak = 'Keterangan maksimal 100 karakter.';
         }
         if ($salahKontak === null && mb_strlen($no_surat) > 100) {
@@ -256,6 +284,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $no_surat = $no_surat === '' ? null : $no_surat;
         $jabatan = $jabatan === '' ? null : $jabatan;
+        $email   = $email === '' ? null : $email;
+        $no_hp   = $no_hp === '' ? null : $no_hp;
 
         if ($kode_unit === '' || $nama_unit === '' || !tanggal_valid($tanggal_awal) || !tanggal_valid($tanggal_akhir)) {
             if ($ajax) {
@@ -273,8 +303,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($aksi === 'simpan') {
-            $stmt = $pdo->prepare("INSERT INTO deadline (kode_unit, nama_unit, no_surat, jabatan, tanggal_awal, tanggal_akhir, pengingat) VALUES (?, ?, ?, ?, ?, ?, 'pending')");
-            $stmt->execute([$kode_unit, $nama_unit, $no_surat, $jabatan, $tanggal_awal, $tanggal_akhir]);
+            $stmt = $pdo->prepare("INSERT INTO deadline (kode_unit, nama_unit, no_surat, jabatan, email, no_hp, tanggal_awal, tanggal_akhir, pengingat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
+            $stmt->execute([$kode_unit, $nama_unit, $no_surat, $jabatan, $email, $no_hp, $tanggal_awal, $tanggal_akhir]);
             $idBaru = (int) $pdo->lastInsertId();
 
             // Dari JavaScript: lampiran diunggah per potongan setelah unit dibuat
@@ -297,7 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // masih membandingkan dengan tanggal akhir yang lama.
             $stmt = $pdo->prepare(
                 "UPDATE deadline
-                 SET kode_unit = ?, nama_unit = ?, no_surat = ?, jabatan = ?, tanggal_awal = ?,
+                 SET kode_unit = ?, nama_unit = ?, no_surat = ?, jabatan = ?, email = ?, no_hp = ?, tanggal_awal = ?,
                      pengingat = IF(tanggal_akhir <> ?, 'pending', pengingat),
                      terakhir_dikirim = IF(tanggal_akhir <> ?, NULL, terakhir_dikirim),
                      selesai_oleh = IF(tanggal_akhir <> ?, NULL, selesai_oleh),
@@ -305,7 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                      tanggal_akhir = ?
                  WHERE id = ?"
             );
-            $stmt->execute([$kode_unit, $nama_unit, $no_surat, $jabatan, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
+            $stmt->execute([$kode_unit, $nama_unit, $no_surat, $jabatan, $email, $no_hp, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
             header('Location: ' . kembaliKe('unit', ['status' => 'success_update']));
         }
         exit;
@@ -679,8 +709,8 @@ $where  = [];
 $params = [];
 
 if ($search !== '') {
-    $where[]            = "(kode_unit LIKE :s1 OR nama_unit LIKE :s2 OR jabatan LIKE :s3 OR no_surat LIKE :s4)";
-    foreach ([':s1', ':s2', ':s3', ':s4'] as $k) {
+    $where[]            = "(kode_unit LIKE :s1 OR nama_unit LIKE :s2 OR jabatan LIKE :s3 OR email LIKE :s4 OR no_hp LIKE :s5 OR no_surat LIKE :s6)";
+    foreach ([':s1', ':s2', ':s3', ':s4', ':s5', ':s6'] as $k) {
         $params[$k] = "%$search%";
     }
 }
@@ -1044,7 +1074,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
         <?php // Pencarian: nama / kode unit + rentang tanggal ?>
         <form method="GET" action="dashboard.php" class="bar">
             <?php if ($filter !== 'semua'): ?><input type="hidden" name="filter" value="<?= e($filter); ?>"><?php endif; ?>
-            <input type="text" name="search" class="form-control bar-cari" placeholder="Cari unit, no. surat, atau detail" value="<?= e($search); ?>" aria-label="Cari unit, no. surat, atau keterangan">
+            <input type="text" name="search" class="form-control bar-cari" placeholder="Cari unit, no. surat, atau detail" value="<?= e($search); ?>" aria-label="Cari unit, no. surat, keterangan, email, atau No HP">
             <label class="bar-tgl" title="Tampilkan unit dengan tanggal awal mulai tanggal ini">
                 <span>Awal</span><input type="date" name="dari" class="form-control" value="<?= e($tgl_dari); ?>" aria-label="Tanggal awal">
             </label>
@@ -1085,7 +1115,13 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <?= !empty($row['no_surat']) ? bolehPatah($row['no_surat']) : '<span class="redup">–</span>'; ?>
                         </td>
                         <td data-label="Detail" class="kontak">
-                            <?= !empty($row['jabatan']) ? e($row['jabatan']) : '<span class="redup">–</span>'; ?>
+                            <?php if (empty($row['jabatan']) && empty($row['email']) && empty($row['no_hp'])): ?>
+                                <span class="redup">–</span>
+                            <?php else: ?>
+                                <?php if (!empty($row['jabatan'])): ?><div><?= e($row['jabatan']); ?></div><?php endif; ?>
+                                <?php if (!empty($row['email'])): ?><div><?= bolehPatah($row['email']); ?></div><?php endif; ?>
+                                <?php if (!empty($row['no_hp'])): ?><div class="mono"><?= e(nomorHpTampil($row['no_hp'])); ?></div><?php endif; ?>
+                            <?php endif; ?>
                         </td>
                         <td data-label="Periode" class="mono" title="Tanggal awal s/d tanggal akhir">
                             <?= tglPendek($row['tanggal_awal']); ?> &rarr; <br><b><?= tglPendek($row['tanggal_akhir']); ?></b>
@@ -1630,6 +1666,23 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <input type="text" name="jabatan" class="form-control" placeholder="contoh: Pgs SPV Operasional" maxlength="100">
                         </div>
                         <div class="row g-3 mb-3">
+                            <div class="col-sm-6">
+                                <label class="form-label">Email <span class="redup fw-normal">(opsional)</span></label>
+                                <div class="input-group input-email">
+                                    <input type="text" name="email" class="form-control" placeholder="nama" maxlength="150" autocomplete="off" autocapitalize="off" spellcheck="false">
+                                    <span class="input-group-text">@gmail.com</span>
+                                </div>
+                                <div class="form-text">Email selain Gmail: ketik alamat lengkapnya.</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label">No HP <span class="redup fw-normal">(opsional)</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">+62</span>
+                                    <input type="tel" name="no_hp" class="form-control" placeholder="81234567890" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-3 mb-3">
                             <div class="col-6">
                                 <label class="form-label">Tanggal awal</label>
                                 <input type="date" name="tanggal_awal" class="form-control" required>
@@ -1683,6 +1736,22 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="mb-3">
                             <label class="form-label">Keterangan <span class="redup fw-normal">(opsional)</span></label>
                             <input type="text" name="jabatan" class="form-control" value="<?= e($row['jabatan'] ?? ''); ?>" maxlength="100">
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-sm-6">
+                                <label class="form-label">Email <span class="redup fw-normal">(opsional)</span></label>
+                                <div class="input-group input-email">
+                                    <input type="text" name="email" class="form-control" value="<?= e(emailTampil($row['email'] ?? '')); ?>" placeholder="nama" maxlength="150" autocomplete="off" autocapitalize="off" spellcheck="false">
+                                    <span class="input-group-text">@gmail.com</span>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label">No HP <span class="redup fw-normal">(opsional)</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">+62</span>
+                                    <input type="tel" name="no_hp" class="form-control" value="<?= e(nomorHpForm($row['no_hp'] ?? '')); ?>" placeholder="81234567890" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +">
+                                </div>
+                            </div>
                         </div>
                         <div class="row g-3">
                             <div class="col-6">
