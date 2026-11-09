@@ -67,6 +67,10 @@ if ($rows) {
         }
         $pesan .= "*Kode Unit:* " . $row['kode_unit'] . "\n";
         $pesan .= "*Nama Unit:* " . $row['nama_unit'] . "\n";
+        // Keterangan unit (contoh "Menggantikan SPV Operasional"); email & No HP unit sengaja tidak ditulis di pesan
+        if (trim((string) ($row['jabatan'] ?? '')) !== '') {
+            $pesan .= "*Keterangan:* " . trim($row['jabatan']) . "\n";
+        }
         $pesan .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($row['tanggal_awal'])) . "\n";
         $pesan .= "*Tanggal Akhir:* " . date('d-m-Y', strtotime($row['tanggal_akhir'])) . "\n";
         $pesan .= "*Sisa Waktu:* " . keteranganSisaHari(hitungSisaHari($row['tanggal_akhir'])) . "\n";

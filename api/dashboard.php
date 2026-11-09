@@ -372,6 +372,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $pesan .= "*Kode Unit:* " . $data_wa['kode_unit'] . "\n";
         $pesan .= "*Nama Unit:* " . $data_wa['nama_unit'] . "\n";
+        // Keterangan unit (contoh "Menggantikan SPV Operasional"); email & No HP unit sengaja tidak ditulis di pesan
+        if (trim((string) ($data_wa['jabatan'] ?? '')) !== '') {
+            $pesan .= "*Keterangan:* " . trim($data_wa['jabatan']) . "\n";
+        }
         $pesan .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($data_wa['tanggal_awal'])) . "\n";
         $pesan .= "*Tanggal Akhir:* " . date('d-m-Y', strtotime($data_wa['tanggal_akhir'])) . "\n";
         $pesan .= "*Sisa Waktu:* " . $ket_sisa . "\n\n";
