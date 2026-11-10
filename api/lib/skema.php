@@ -45,7 +45,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v12'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v13'])) {
         return;
     }
 
@@ -151,9 +151,21 @@ function pastikanTabelTambahan(PDO $pdo): void
     if (!in_array('selesai_tanggal', $kolomDeadline, true)) {
         $pdo->exec("ALTER TABLE deadline ADD COLUMN selesai_tanggal DATETIME NULL, ADD COLUMN selesai_oleh VARCHAR(100) NULL");
     }
-    // Kontak penanggung jawab unit (opsional): jabatan, email, no HP
-    if (!in_array('jabatan', $kolomDeadline, true)) {
-        $pdo->exec("ALTER TABLE deadline ADD COLUMN jabatan VARCHAR(100) NULL, ADD COLUMN email VARCHAR(150) NULL, ADD COLUMN no_hp VARCHAR(20) NULL");
+    // Keterangan unit (opsional, mis. "Menggantikan SPV Operasional"), email, dan No HP unit.
+    // Database lama menyimpan keterangan di kolom `jabatan` -> diganti nama menjadi `keterangan` (data tetap utuh).
+    if (in_array('jabatan', $kolomDeadline, true) && !in_array('keterangan', $kolomDeadline, true)) {
+        try {
+            $pdo->exec("ALTER TABLE deadline CHANGE jabatan keterangan VARCHAR(100) NULL");
+        } catch (PDOException $e) {
+            // Bisa terjadi bila dua request bersamaan mengganti nama; request lain sudah menyelesaikannya
+            error_log('Ganti nama kolom deadline.jabatan -> keterangan: ' . $e->getMessage());
+        }
+        $kolomDeadline = $pdo->query("SHOW COLUMNS FROM deadline")->fetchAll(PDO::FETCH_COLUMN);
+    }
+    foreach (['keterangan' => 'VARCHAR(100)', 'email' => 'VARCHAR(150)', 'no_hp' => 'VARCHAR(20)'] as $kolom => $tipe) {
+        if (!in_array($kolom, $kolomDeadline, true)) {
+            $pdo->exec("ALTER TABLE deadline ADD COLUMN $kolom $tipe NULL");
+        }
     }
     // Nomor surat per unit (opsional), ditulis di pesan pengingat
     if (!in_array('no_surat', $kolomDeadline, true)) {
@@ -180,7 +192,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v12'] = true;
+        $_SESSION['skema_tambahan_v13'] = true;
     }
 }
 
