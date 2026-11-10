@@ -250,7 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Nomor surat (opsional) -> ditulis di pesan pengingat sebagai "Berdasarkan Nomor Surat"
         $no_surat      = trim($_POST['no_surat'] ?? '');
         // Kontak penanggung jawab unit (opsional)
-        $jabatan       = trim($_POST['jabatan'] ?? '');
+        $keterangan       = trim($_POST['keterangan'] ?? '');
         // Form hanya meminta bagian depan email; tanpa "@" dianggap akun Gmail
         $email         = lengkapiEmail((string) ($_POST['email'] ?? ''));
         $no_hp         = trim($_POST['no_hp'] ?? '');
@@ -268,7 +268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $salahKontak = str_replace('Nomor WA', 'No HP', $salahNomor);
             }
         }
-        if ($salahKontak === null && mb_strlen($jabatan) > 100) {
+        if ($salahKontak === null && mb_strlen($keterangan) > 100) {
             $salahKontak = 'Keterangan maksimal 100 karakter.';
         }
         if ($salahKontak === null && mb_strlen($no_surat) > 100) {
@@ -283,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         $no_surat = $no_surat === '' ? null : $no_surat;
-        $jabatan = $jabatan === '' ? null : $jabatan;
+        $keterangan = $keterangan === '' ? null : $keterangan;
         $email   = $email === '' ? null : $email;
         $no_hp   = $no_hp === '' ? null : $no_hp;
 
@@ -303,8 +303,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($aksi === 'simpan') {
-            $stmt = $pdo->prepare("INSERT INTO deadline (kode_unit, nama_unit, no_surat, jabatan, email, no_hp, tanggal_awal, tanggal_akhir, pengingat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
-            $stmt->execute([$kode_unit, $nama_unit, $no_surat, $jabatan, $email, $no_hp, $tanggal_awal, $tanggal_akhir]);
+            $stmt = $pdo->prepare("INSERT INTO deadline (kode_unit, nama_unit, no_surat, keterangan, email, no_hp, tanggal_awal, tanggal_akhir, pengingat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
+            $stmt->execute([$kode_unit, $nama_unit, $no_surat, $keterangan, $email, $no_hp, $tanggal_awal, $tanggal_akhir]);
             $idBaru = (int) $pdo->lastInsertId();
 
             // Dari JavaScript: lampiran diunggah per potongan setelah unit dibuat
@@ -327,7 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // masih membandingkan dengan tanggal akhir yang lama.
             $stmt = $pdo->prepare(
                 "UPDATE deadline
-                 SET kode_unit = ?, nama_unit = ?, no_surat = ?, jabatan = ?, email = ?, no_hp = ?, tanggal_awal = ?,
+                 SET kode_unit = ?, nama_unit = ?, no_surat = ?, keterangan = ?, email = ?, no_hp = ?, tanggal_awal = ?,
                      pengingat = IF(tanggal_akhir <> ?, 'pending', pengingat),
                      terakhir_dikirim = IF(tanggal_akhir <> ?, NULL, terakhir_dikirim),
                      selesai_oleh = IF(tanggal_akhir <> ?, NULL, selesai_oleh),
@@ -335,7 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                      tanggal_akhir = ?
                  WHERE id = ?"
             );
-            $stmt->execute([$kode_unit, $nama_unit, $no_surat, $jabatan, $email, $no_hp, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
+            $stmt->execute([$kode_unit, $nama_unit, $no_surat, $keterangan, $email, $no_hp, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
             header('Location: ' . kembaliKe('unit', ['status' => 'success_update']));
         }
         exit;
@@ -373,8 +373,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pesan .= "*Kode Unit:* " . $data_wa['kode_unit'] . "\n";
         $pesan .= "*Nama Unit:* " . $data_wa['nama_unit'] . "\n";
         // Keterangan unit (contoh "Menggantikan SPV Operasional"); email & No HP unit sengaja tidak ditulis di pesan
-        if (trim((string) ($data_wa['jabatan'] ?? '')) !== '') {
-            $pesan .= "*Keterangan:* " . trim($data_wa['jabatan']) . "\n";
+        if (trim((string) ($data_wa['keterangan'] ?? '')) !== '') {
+            $pesan .= "*Keterangan:* " . trim($data_wa['keterangan']) . "\n";
         }
         $pesan .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($data_wa['tanggal_awal'])) . "\n";
         $pesan .= "*Tanggal Akhir:* " . date('d-m-Y', strtotime($data_wa['tanggal_akhir'])) . "\n";
@@ -713,7 +713,7 @@ $where  = [];
 $params = [];
 
 if ($search !== '') {
-    $where[]            = "(kode_unit LIKE :s1 OR nama_unit LIKE :s2 OR jabatan LIKE :s3 OR email LIKE :s4 OR no_hp LIKE :s5 OR no_surat LIKE :s6)";
+    $where[]            = "(kode_unit LIKE :s1 OR nama_unit LIKE :s2 OR keterangan LIKE :s3 OR email LIKE :s4 OR no_hp LIKE :s5 OR no_surat LIKE :s6)";
     foreach ([':s1', ':s2', ':s3', ':s4', ':s5', ':s6'] as $k) {
         $params[$k] = "%$search%";
     }
@@ -1119,10 +1119,10 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <?= !empty($row['no_surat']) ? bolehPatah($row['no_surat']) : '<span class="redup">–</span>'; ?>
                         </td>
                         <td data-label="Detail" class="kontak">
-                            <?php if (empty($row['jabatan']) && empty($row['email']) && empty($row['no_hp'])): ?>
+                            <?php if (empty($row['keterangan']) && empty($row['email']) && empty($row['no_hp'])): ?>
                                 <span class="redup">–</span>
                             <?php else: ?>
-                                <?php if (!empty($row['jabatan'])): ?><div><?= e($row['jabatan']); ?></div><?php endif; ?>
+                                <?php if (!empty($row['keterangan'])): ?><div><?= e($row['keterangan']); ?></div><?php endif; ?>
                                 <?php if (!empty($row['email'])): ?><div><?= bolehPatah($row['email']); ?></div><?php endif; ?>
                                 <?php if (!empty($row['no_hp'])): ?><div class="mono"><?= e(nomorHpTampil($row['no_hp'])); ?></div><?php endif; ?>
                             <?php endif; ?>
@@ -1667,7 +1667,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Keterangan <span class="redup fw-normal">(opsional)</span></label>
-                            <input type="text" name="jabatan" class="form-control" placeholder="contoh: Pgs SPV Operasional" maxlength="100">
+                            <input type="text" name="keterangan" class="form-control" placeholder="contoh: Pgs SPV Operasional" maxlength="100">
                         </div>
                         <div class="row g-3 mb-3">
                             <div class="col-sm-6">
@@ -1739,7 +1739,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Keterangan <span class="redup fw-normal">(opsional)</span></label>
-                            <input type="text" name="jabatan" class="form-control" value="<?= e($row['jabatan'] ?? ''); ?>" maxlength="100">
+                            <input type="text" name="keterangan" class="form-control" value="<?= e($row['keterangan'] ?? ''); ?>" maxlength="100">
                         </div>
                         <div class="row g-3 mb-3">
                             <div class="col-sm-6">

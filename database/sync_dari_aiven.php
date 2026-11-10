@@ -239,6 +239,14 @@ foreach ($tabelDisalin as $tabel) {
             $lokal->exec("DROP TABLE IF EXISTS `{$namaLama[$tabel]}`");
         }
 
+        // Aplikasi online yang belum diperbarui masih memakai kolom `jabatan`; samakan dengan kode terbaru
+        if ($tabel === 'deadline') {
+            $kolomLokal = $lokal->query('SHOW COLUMNS FROM `deadline`')->fetchAll(PDO::FETCH_COLUMN);
+            if (in_array('jabatan', $kolomLokal, true) && !in_array('keterangan', $kolomLokal, true)) {
+                $lokal->exec('ALTER TABLE `deadline` CHANGE `jabatan` `keterangan` VARCHAR(100) NULL');
+            }
+        }
+
         tulis(sprintf('OK  `%s`: %d baris disalin', $tabel, count($rows)));
         $total += count($rows);
     } catch (PDOException $e) {
