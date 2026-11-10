@@ -3,6 +3,10 @@
  * Gaya "alat kerja internal": latar abu netral, merah logo BRKS sebagai satu-satunya warna aksen.
  * Status penting (Terlewat, Jatuh tempo) tampil sebagai lencana agar tetap menonjol di tema merah.
  * Setelah mengubah file ini, naikkan VERSI_TEMA di api/lib/tampilan.php agar browser memuat versi baru.
+ *
+ * Komponen memakai class Bootstrap 5.3 (btn-primary, card, nav-underline, row/col, badge, modal, dropdown, alert).
+ * Warna & ukurannya diatur lewat variabel CSS Bootstrap (--bs-*) di bawah, sehingga tampilan tetap sesuai tema.
+ * Yang tidak ada padanannya di Bootstrap (sidebar, lencana status, tabel yang berubah jadi kartu di HP) tetap ditulis sendiri.
  */
 :root {
     --tinta: #1d2528;      /* teks utama & sidebar */
@@ -28,12 +32,16 @@
     --logo-oranye: #f0a818;
     --logo-merah: #c01830;
     --logo-hijau: #30a848;
+
+    /* Variabel Bootstrap: font, ukuran teks, warna tautan & kode */
+    --bs-body-font-family: 'IBM Plex Sans', Arial, sans-serif;
+    --bs-body-font-size: 15px;
+    --bs-link-color-rgb: 163, 34, 42;        /* = --aksen */
+    --bs-link-hover-color-rgb: 163, 34, 42;
+    --bs-code-color: var(--aksen);
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; font-family: 'IBM Plex Sans', Arial, sans-serif; font-size: 15px; color: var(--tinta); background: var(--kertas); -webkit-font-smoothing: antialiased; }
-a { color: var(--aksen); }
-code { color: var(--aksen); }
+body { color: var(--tinta); background: var(--kertas); -webkit-font-smoothing: antialiased; }
 .mono, .kode { font-family: 'IBM Plex Mono', ui-monospace, Consolas, monospace; }
 .redup { color: var(--tinta3); }
 .teks-merah { color: var(--merah) !important; }
@@ -67,57 +75,71 @@ body.app { display: flex; min-height: 100vh; }
 .btn-keluar:hover, .btn-keluar:focus-visible { background: var(--side3); border-color: var(--side-redup); color: #fff; }
 
 .isi { flex: 1; min-width: 0; padding: 28px 36px 0; display: flex; flex-direction: column; gap: 18px; }
-.kepala { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .kepala h1 { font-size: 26px; font-weight: 600; letter-spacing: -.2px; margin: 0; }
 .kepala-sub { color: var(--tinta3); font-size: 14px; margin-top: 3px; }
 .kaki { color: var(--tinta3); font-size: 13px; padding: 8px 0 24px; }
 body.app .kaki { margin-top: auto; text-align: right; }
 
-/* ---------- Tombol ---------- */
-.btn { font-family: inherit; font-size: 14px; font-weight: 500; border-radius: 4px; padding: 7px 14px; line-height: 1.4; }
+/* ---------- Tombol (class Bootstrap: btn, btn-sm, btn-primary, btn-outline-secondary, btn-link, btn-outline-danger) ---------- */
+.btn { --bs-btn-padding-x: 14px; --bs-btn-padding-y: 7px; --bs-btn-font-size: 14px; --bs-btn-font-weight: 500;
+    --bs-btn-line-height: 1.4; --bs-btn-border-radius: 4px; }
+.btn-sm { --bs-btn-padding-x: 10px; --bs-btn-padding-y: 4px; --bs-btn-font-size: 13.5px; --bs-btn-border-radius: 4px; }
 /* Tombol utama merah logo BRKS */
-.btn-gelap { background: var(--merek); border: 1px solid var(--merek); color: #fff; }
-.btn-gelap:hover, .btn-gelap:focus { background: var(--merek-gelap); border-color: var(--merek-gelap); color: #fff; }
-.btn-garis { background: var(--putih); border: 1px solid var(--garis); color: var(--tinta); }
-.btn-garis:hover { background: #f5f5f5; border-color: #c3c1c1; color: var(--tinta); }
-.btn-teks { background: none; border: 1px solid transparent; color: var(--tinta2); }
-.btn-teks:hover { background: #eeeded; color: var(--tinta); }
+.btn-primary { --bs-btn-color: #fff; --bs-btn-bg: var(--merek); --bs-btn-border-color: var(--merek);
+    --bs-btn-hover-color: #fff; --bs-btn-hover-bg: var(--merek-gelap); --bs-btn-hover-border-color: var(--merek-gelap);
+    --bs-btn-active-color: #fff; --bs-btn-active-bg: var(--merek-gelap); --bs-btn-active-border-color: var(--merek-gelap);
+    --bs-btn-disabled-color: #fff; --bs-btn-disabled-bg: var(--merek); --bs-btn-disabled-border-color: var(--merek); }
+.btn-primary:focus { background-color: var(--merek-gelap); border-color: var(--merek-gelap); }
+/* Tombol bergaris abu */
+.btn-outline-secondary { --bs-btn-color: var(--tinta); --bs-btn-bg: var(--putih); --bs-btn-border-color: var(--garis);
+    --bs-btn-hover-color: var(--tinta); --bs-btn-hover-bg: #f5f5f5; --bs-btn-hover-border-color: #c3c1c1;
+    --bs-btn-active-color: var(--tinta); --bs-btn-active-bg: #f5f5f5; --bs-btn-active-border-color: #c3c1c1;
+    --bs-btn-disabled-color: currentcolor; --bs-btn-disabled-bg: transparent; --bs-btn-disabled-border-color: currentcolor; }
+/* Tombol teks tanpa garis (Batal, Ubah, dll.) */
+.btn-link { --bs-btn-color: var(--tinta2); --bs-btn-hover-color: var(--tinta); --bs-btn-hover-bg: #eeeded;
+    --bs-btn-active-color: var(--tinta); --bs-btn-active-bg: #eeeded; text-decoration: none; }
 /* Tombol hapus bergaris tepi merah tipis agar tidak mirip tombol utama */
-.btn.teks-merah { border-color: #e9b9bb; }
-.btn.teks-merah:hover { background: #fdecec; border-color: var(--merah); }
-.btn-kecil { padding: 4px 10px; font-size: 13.5px; }
+.btn-outline-danger { --bs-btn-color: var(--merah); --bs-btn-bg: transparent; --bs-btn-border-color: #e9b9bb;
+    --bs-btn-hover-color: var(--merah); --bs-btn-hover-bg: #fdecec; --bs-btn-hover-border-color: var(--merah);
+    --bs-btn-active-color: var(--merah); --bs-btn-active-bg: #fdecec; --bs-btn-active-border-color: var(--merah); }
 .btn-titik { width: 30px; padding-left: 0; padding-right: 0; text-align: center; font-weight: 600; }
 .btn-tautan { background: none; border: 0; padding: 0; color: var(--aksen); font-size: 13px; font-family: 'IBM Plex Sans', sans-serif; }
 .btn-tautan:hover { text-decoration: underline; }
 .btn:focus-visible, .form-control:focus, .form-select:focus { outline: 2px solid #e9aeb1; outline-offset: 1px; box-shadow: none; border-color: var(--aksen); }
 
-/* ---------- Panel ---------- */
-.panel { background: var(--putih); border: 1px solid var(--garis); border-radius: 6px; }
-.panel-judul { display: flex; justify-content: space-between; align-items: baseline; padding: 16px 20px 12px; border-bottom: 1px solid var(--garis2); }
-.panel-judul h2 { font-size: 17px; font-weight: 600; margin: 0; }
-.panel-judul span { color: var(--tinta3); font-size: 13.5px; font-family: 'IBM Plex Mono', monospace; }
-.panel-kaki { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 20px; border-top: 1px solid var(--garis2); color: var(--tinta3); font-size: 13.5px; }
-.halaman { display: flex; align-items: center; gap: 8px; }
+/* ---------- Panel (class Bootstrap: card, card-header, card-footer) ---------- */
+.card { --bs-card-bg: var(--putih); --bs-card-border-color: var(--garis); --bs-card-border-radius: 6px;
+    --bs-card-inner-border-radius: 5px; --bs-card-cap-bg: transparent; position: static; color: inherit; }
+.card-header { padding: 16px 20px 12px; border-bottom-color: var(--garis2); }
+.card-header h2 { font-size: 17px; font-weight: 600; margin: 0; }
+.card-header span { color: var(--tinta3); font-size: 13.5px; font-family: 'IBM Plex Mono', monospace; }
+.card-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 20px;
+    border-top-color: var(--garis2); color: var(--tinta3); font-size: 13.5px; }
 .halaman .mono { font-size: 13px; }
-.panel.info { display: flex; gap: 8px 32px; flex-wrap: wrap; padding: 14px 20px; color: var(--tinta2); font-size: 14px; }
-.panel.info b { color: var(--tinta); font-weight: 600; }
-.panel.info a { margin-left: auto; text-decoration: none; }
-.dua-kolom { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
-.kolom-pengguna { grid-template-columns: 2fr 1fr; }
-/* Label peran pengguna: Admin / Staf / Pemantau */
-.peran { display: inline-block; font-size: 12.5px; font-weight: 500; border-radius: 3px; padding: 1px 7px; border: 1px solid; white-space: nowrap; }
+.card.info { flex-direction: row; gap: 8px 32px; flex-wrap: wrap; padding: 14px 20px; color: var(--tinta2); font-size: 14px; }
+.card.info b { color: var(--tinta); font-weight: 600; }
+.card.info a { margin-left: auto; text-decoration: none; }
+/* Dua kolom (class Bootstrap: row + col-lg-6 / col-lg), jarak antarkolom 18px.
+   Halaman User: kolom daftar dua kali lebar kolom form (col-lg + kolom-lebar). */
+.isi > .row { --bs-gutter-x: 18px; --bs-gutter-y: 18px; }
+@media (min-width: 992px) { .kolom-lebar { flex-grow: 2; } }
+/* Label peran pengguna: Admin / Staf / Pemantau (class Bootstrap: badge) */
+.badge.peran { --bs-badge-font-size: 12.5px; --bs-badge-font-weight: 500; --bs-badge-border-radius: 3px; --bs-badge-padding-x: 7px;
+    --bs-badge-padding-y: 1px; line-height: inherit; text-align: left; vertical-align: baseline; border-width: 1px; border-style: solid; }
 .peran-admin { color: var(--aksen); border-color: #c8c4c5; background: #f2f1f1; }
 .peran-staf { color: var(--tinta2); border-color: var(--garis); background: #f5f5f5; }
 .peran-pemantau { color: var(--tinta3); border-color: var(--garis); background: #fff; }
 .input-group .btn[data-mata] { border-color: var(--garis); color: var(--tinta3); border-radius: 0 4px 4px 0; }
 
-/* ---------- Tab status ---------- */
-.tabs { display: flex; gap: 26px; padding: 0 20px; border-bottom: 1px solid var(--garis); overflow-x: auto; }
-.tabs a { padding: 14px 0 12px; font-size: 14.5px; color: var(--tinta2); text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; display: flex; gap: 7px; align-items: baseline; }
-.tabs a:hover { color: var(--tinta); }
-.tabs a.on { color: var(--merek-gelap); border-bottom-color: var(--logo-oranye); font-weight: 600; }
-.tabs a i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--tinta3); }
-.tabs a.penting i { color: var(--merah); font-weight: 500; }
+/* ---------- Tab status (class Bootstrap: nav nav-underline, nav-link, active) ---------- */
+.tabs { --bs-nav-underline-gap: 26px; --bs-nav-underline-border-width: 2px; --bs-nav-underline-link-active-color: var(--merek-gelap);
+    --bs-nav-link-font-size: 14.5px; --bs-nav-link-color: var(--tinta2); --bs-nav-link-hover-color: var(--tinta);
+    flex-wrap: nowrap; padding: 0 20px; border-bottom: 1px solid var(--garis); overflow-x: auto; }
+.tabs .nav-link { padding: 14px 0 12px; white-space: nowrap; display: flex; gap: 7px; align-items: baseline; transition: none; }
+.tabs .nav-link:hover, .tabs .nav-link:focus { border-bottom-color: transparent; }
+.tabs .nav-link.active { font-weight: 600; border-bottom-color: var(--logo-oranye); }
+.tabs .nav-link i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--tinta3); }
+.tabs .nav-link.penting i { color: var(--merah); font-weight: 500; }
 
 /* ---------- Bilah pencarian ---------- */
 .bar { display: flex; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--garis2); align-items: center; flex-wrap: wrap; }
@@ -167,11 +189,13 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .aksi { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
 .aksi form { margin: 0; }
 .aksi .btn { white-space: nowrap; }
-.menu-aksi { font-size: 14px; min-width: 230px; border-color: var(--garis); border-radius: 6px; box-shadow: 0 6px 20px rgba(29, 37, 40, .12); padding: 6px 0; }
+/* Menu titik tiga (class Bootstrap: dropdown-menu) */
+.menu-aksi { --bs-dropdown-font-size: 14px; --bs-dropdown-min-width: 230px; --bs-dropdown-border-color: var(--garis);
+    --bs-dropdown-border-radius: 6px; --bs-dropdown-padding-y: 6px; --bs-dropdown-item-padding-x: 14px; --bs-dropdown-item-padding-y: 6px;
+    --bs-dropdown-header-color: var(--tinta3); box-shadow: 0 6px 20px rgba(29, 37, 40, .12); }
 .menu-aksi form { margin: 0; }
-.menu-aksi .dropdown-item { padding: 6px 14px; }
 .menu-aksi .dropdown-item small { color: var(--tinta3); }
-.menu-aksi .dropdown-header { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--tinta3); padding: 6px 14px 2px; }
+.menu-aksi .dropdown-header { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; padding: 6px 14px 2px; }
 .menu-aksi .angka { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--tinta3); margin-left: 4px; }
 
 /* ---------- Penerima & lampiran ---------- */
@@ -179,7 +203,8 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .modal .baris-penerima { padding: 10px 0; }
 .baris-penerima.nonaktif .nama, .baris-penerima.nonaktif .kode { opacity: .55; }
 .baris-penerima.ditemukan { background: #f8f8f8; }
-.tanda { font-size: 12px; font-weight: 500; color: var(--tinta3); border: 1px solid var(--garis); border-radius: 3px; padding: 0 5px; margin-left: 4px; }
+.badge.tanda { --bs-badge-font-size: 12px; --bs-badge-font-weight: 500; --bs-badge-color: var(--tinta3); --bs-badge-border-radius: 3px;
+    --bs-badge-padding-x: 5px; --bs-badge-padding-y: 0; display: inline; line-height: inherit; vertical-align: baseline; border: 1px solid var(--garis); margin-left: 4px; }
 .catatan { margin: 12px 20px 0; padding: 10px 12px; background: #f5f5f5; border-radius: 4px; color: var(--tinta2); font-size: 14px; }
 .form-tambah { padding: 16px 20px 18px; }
 .modal .form-tambah { padding: 16px 0 0; border-top: 1px solid var(--garis2); margin-top: 8px; }
@@ -198,17 +223,20 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .form-label { font-size: 13.5px; font-weight: 500; color: var(--tinta2); margin-bottom: 4px; }
 .form-control, .form-select { border-color: var(--garis); border-radius: 4px; font-size: 15px; }
 .form-text { font-size: 13px; color: var(--tinta3); }
-.modal-content { border: 1px solid var(--garis); border-radius: 6px; }
-.modal-header { border-bottom-color: var(--garis2); padding: 14px 20px; }
+/* Popup (class Bootstrap: modal) */
+.modal { --bs-modal-border-color: var(--garis); --bs-modal-border-radius: 6px; --bs-modal-inner-border-radius: 5px;
+    --bs-modal-header-padding: 14px 20px; --bs-modal-header-border-color: var(--garis2); --bs-modal-padding: 18px 20px;
+    --bs-modal-footer-border-color: var(--garis2); }
 .modal-title { font-size: 17px; font-weight: 600; }
-.modal-body { padding: 18px 20px; }
-.modal-footer { border-top-color: var(--garis2); padding: 10px 20px; }
-.alert { border-radius: 4px; border: 1px solid; font-size: 14.5px; padding: 10px 40px 10px 14px; margin: 0; }
+.modal-footer { padding: 10px 20px; }
+/* Pesan di atas halaman (class Bootstrap: alert) */
+.alert { --bs-alert-border-radius: 4px; --bs-alert-padding-x: 14px; --bs-alert-padding-y: 10px; --bs-alert-margin-bottom: 0; font-size: 14.5px; }
+.alert-dismissible { padding-right: 40px; }
 .alert .btn-close { padding: 12px; }
-.alert-success { background: #eef6ef; border-color: #cfe3d2; color: #24532c; }
-.alert-info { background: #f1f0f0; border-color: #d9d6d7; color: #3f3638; }
-.alert-warning { background: #fbf4e8; border-color: #ecd9b3; color: #7a4a0c; }
-.alert-danger { background: #fbeeec; border-color: #efcdc8; color: #8a1c12; }
+.alert-success { --bs-alert-bg: #eef6ef; --bs-alert-border-color: #cfe3d2; --bs-alert-color: #24532c; }
+.alert-info { --bs-alert-bg: #f1f0f0; --bs-alert-border-color: #d9d6d7; --bs-alert-color: #3f3638; }
+.alert-warning { --bs-alert-bg: #fbf4e8; --bs-alert-border-color: #ecd9b3; --bs-alert-color: #7a4a0c; }
+.alert-danger { --bs-alert-bg: #fbeeec; --bs-alert-border-color: #efcdc8; --bs-alert-color: #8a1c12; }
 .progress-bar { background: var(--aksen); }
 .list-group-item { font-size: 14px; }
 
@@ -226,14 +254,11 @@ body.auth { min-height: 100vh; background: var(--side); display: flex; flex-dire
 .auth-kotak .kepala-sub { margin-bottom: 22px; }
 .auth-kotak .alert { margin-bottom: 18px; }
 .auth-kotak .form-control { padding: 9px 12px; }
-.auth-kotak .btn-gelap { padding: 10px 14px; font-size: 15px; }
+.auth-kotak .btn-primary { --bs-btn-padding-y: 10px; --bs-btn-font-size: 15px; }
 .auth-bawah { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--garis2); color: var(--tinta3); font-size: 14px; }
 body.auth .kaki { padding: 16px 0 0; color: var(--side-redup); }
 
 /* ---------- Layar kecil ---------- */
-@media (max-width: 991.98px) {
-    .dua-kolom, .kolom-pengguna { grid-template-columns: 1fr; }
-}
 @media (max-width: 767.98px) {
     /* Login & Daftar: kotak form mulai dari atas layar */
     body.auth { justify-content: flex-start; padding-top: 32px; }
@@ -261,7 +286,7 @@ body.auth .kaki { padding: 16px 0 0; color: var(--side-redup); }
     .bar-tgl { flex: 1; }
     .bar-tgl .form-control { width: 100%; }
     .bar-ket { margin-left: 0; width: 100%; }
-    .panel.info a { margin-left: 0; }
+    .card.info a { margin-left: 0; }
     /* Tabel menjadi kartu per baris */
     .tabel-a thead { display: none; }
     .tabel-a, .tabel-a tbody, .tabel-a tr, .tabel-a td { display: block; width: 100%; }
@@ -277,5 +302,5 @@ body.auth .kaki { padding: 16px 0 0; color: var(--side-redup); }
     .baris-input .form-control { flex: 1 1 100%; }
     .baris-input .input-group { flex: 1 1 100%; }
     .baris-input .input-group .form-control { flex: 1 1 auto; }
-    .panel-kaki { padding: 10px 16px; }
+    .card-footer { padding: 10px 16px; }
 }

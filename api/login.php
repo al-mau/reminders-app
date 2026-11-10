@@ -113,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?= tombol_mata(); ?>
             </div>
         </div>
-        <button type="submit" name="login" class="btn btn-gelap w-100">Masuk</button>
+        <button type="submit" name="login" class="btn btn-primary w-100">Masuk</button>
     </form>
 
     <div class="auth-bawah">
