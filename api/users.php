@@ -270,7 +270,7 @@ unset($_SESSION['flash_user']);
 <?= sidebarAplikasi('pengguna'); ?>
 
 <main class="isi">
-    <div class="kepala">
+    <div class="kepala d-flex align-items-end justify-content-between gap-3 flex-wrap">
         <div>
             <h1><?= e($judul); ?></h1>
             <div class="kepala-sub"><?= $admin
@@ -286,9 +286,10 @@ unset($_SESSION['flash_user']);
     <?php endforeach; ?>
 
     <?php // Akses Penuh: daftar pengguna + form tambah; Akses Kerja & Akses Lihat: hanya akun sendiri. Lihat README.md ?>
-    <div class="<?= $admin ? 'dua-kolom kolom-pengguna' : ''; ?>">
-        <section class="panel">
-            <div class="panel-judul"><h2><?= $admin ? 'Daftar user' : 'Akun Anda'; ?></h2><?php if ($admin): ?><span><?= count($users); ?> akun</span><?php endif; ?></div>
+    <div class="<?= $admin ? 'row align-items-start' : ''; ?>">
+        <div class="<?= $admin ? 'col-lg kolom-lebar' : ''; ?>">
+        <section class="card">
+            <div class="card-header d-flex justify-content-between align-items-baseline"><h2><?= $admin ? 'Daftar user' : 'Akun Anda'; ?></h2><?php if ($admin): ?><span><?= count($users); ?> akun</span><?php endif; ?></div>
             <div class="table-responsive">
                 <table class="tabel-a">
                     <thead>
@@ -303,22 +304,22 @@ unset($_SESSION['flash_user']);
                     <tbody>
                     <?php foreach ($users as $i => $u): $isSaya = $u['username'] === $saya; ?>
                         <tr>
-                            <td data-label="Username"><span class="nama"><?= e($u['username']); ?></span><?php if ($isSaya): ?> <span class="tanda">Anda</span><?php endif; ?></td>
+                            <td data-label="Username"><span class="nama"><?= e($u['username']); ?></span><?php if ($isSaya): ?> <span class="badge tanda">Anda</span><?php endif; ?></td>
                             <?php if ($adaNama): ?><td data-label="Nama lengkap"><?= e($u['nama_lengkap'] ?? ''); ?></td><?php endif; ?>
-                            <td data-label="Hak akses"><span class="peran peran-<?= e($u['peran']); ?>"><?= e(labelPeran($u['peran'])); ?></span></td>
+                            <td data-label="Hak akses"><span class="badge peran peran-<?= e($u['peran']); ?>"><?= e(labelPeran($u['peran'])); ?></span></td>
                             <?php if ($adaTanggal): ?>
                                 <td data-label="Dibuat" class="mono"><?= !empty($u['dibuat_tanggal']) ? date('d.m.Y', strtotime($u['dibuat_tanggal'])) : '&mdash;'; ?></td>
                             <?php endif; ?>
                             <td>
                                 <div class="aksi">
-                                    <button type="button" class="btn btn-garis btn-kecil" data-bs-toggle="modal" data-bs-target="#modalAkun<?= $i; ?>">Ubah akun</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAkun<?= $i; ?>">Ubah akun</button>
                                     <?php if ($admin && !$isSaya && count($users) > 1): ?>
                                     <form method="POST" action="users.php" onsubmit="return confirm(this.dataset.konfirmasi)"
                                           data-konfirmasi="Hapus user <?= e($u['username']); ?>? User ini tidak akan bisa login lagi.">
                                         <?= csrf_field(); ?>
                                         <input type="hidden" name="aksi" value="hapus">
                                         <input type="hidden" name="username" value="<?= e($u['username']); ?>">
-                                        <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">Hapus</button>
                                     </form>
                                     <?php endif; ?>
                                 </div>
@@ -329,10 +330,12 @@ unset($_SESSION['flash_user']);
                 </table>
             </div>
         </section>
+        </div>
 
         <?php if ($admin): ?>
-        <section class="panel">
-            <div class="panel-judul"><h2>Tambah user</h2></div>
+        <div class="col-lg">
+        <section class="card">
+            <div class="card-header d-flex justify-content-between align-items-baseline"><h2>Tambah user</h2></div>
             <form method="POST" action="users.php" autocomplete="off" class="form-tambah">
                 <?= csrf_field(); ?>
                 <input type="hidden" name="aksi" value="tambah">
@@ -368,7 +371,7 @@ unset($_SESSION['flash_user']);
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <button type="submit" class="btn btn-gelap w-100">Simpan user</button>
+                <button type="submit" class="btn btn-primary w-100">Simpan user</button>
             </form>
             <p class="catatan mb-2">
                 Halaman Daftar publik: <b class="<?= pendaftaranDibuka() ? 'teks-merah' : 'teks-hijau'; ?>"><?= pendaftaranDibuka() ? 'terbuka' : 'ditutup'; ?></b>.
@@ -379,6 +382,7 @@ unset($_SESSION['flash_user']);
                 <?php endif; ?>
             </p>
         </section>
+        </div>
         <?php endif; ?>
     </div>
 
@@ -442,8 +446,8 @@ unset($_SESSION['flash_user']);
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-gelap">Simpan</button>
+                    <button type="button" class="btn btn-link" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
                 </div>
             </form>
         </div>

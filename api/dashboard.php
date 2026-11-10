@@ -109,12 +109,12 @@ function tombolHalaman(int $hal, int $jumlah, string $param, string $jangkar): s
         return 'dashboard.php?' . e(http_build_query($q)) . '#' . $jangkar;
     };
     $sebelum = $hal > 1
-        ? '<a class="btn btn-garis btn-kecil" href="' . $url($hal - 1) . '">&lsaquo; Sebelumnya</a>'
-        : '<span class="btn btn-garis btn-kecil disabled">&lsaquo; Sebelumnya</span>';
+        ? '<a class="btn btn-outline-secondary btn-sm" href="' . $url($hal - 1) . '">&lsaquo; Sebelumnya</a>'
+        : '<span class="btn btn-outline-secondary btn-sm disabled">&lsaquo; Sebelumnya</span>';
     $sesudah = $hal < $jumlah
-        ? '<a class="btn btn-garis btn-kecil" href="' . $url($hal + 1) . '">Berikutnya &rsaquo;</a>'
-        : '<span class="btn btn-garis btn-kecil disabled">Berikutnya &rsaquo;</span>';
-    return '<div class="halaman">' . $sebelum . '<span class="mono">' . $hal . ' / ' . $jumlah . '</span>' . $sesudah . '</div>';
+        ? '<a class="btn btn-outline-secondary btn-sm" href="' . $url($hal + 1) . '">Berikutnya &rsaquo;</a>'
+        : '<span class="btn btn-outline-secondary btn-sm disabled">Berikutnya &rsaquo;</span>';
+    return '<div class="halaman d-flex align-items-center gap-2">' . $sebelum . '<span class="mono">' . $hal . ' / ' . $jumlah . '</span>' . $sesudah . '</div>';
 }
 
 /**
@@ -973,11 +973,11 @@ function aksiUnit(array $row, int $jmlLampiran): string
             <?= csrf_field(); ?>
             <input type="hidden" name="aksi" value="<?= $selesai ? 'batal_selesai' : 'tandai_selesai'; ?>">
             <input type="hidden" name="id" value="<?= $id; ?>">
-            <button type="submit" class="btn btn-garis btn-kecil"><?= $selesai ? 'Batalkan' : 'Tandai selesai'; ?></button>
+            <button type="submit" class="btn btn-outline-secondary btn-sm"><?= $selesai ? 'Batalkan' : 'Tandai selesai'; ?></button>
         </form>
         <?php endif; ?>
         <div class="dropdown">
-            <button type="button" class="btn btn-garis btn-kecil btn-titik" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="Aksi lain" title="Aksi lain">&#8943;</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm btn-titik" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="Aksi lain" title="Aksi lain">&#8943;</button>
             <ul class="dropdown-menu dropdown-menu-end menu-aksi">
                 <?php if ($kelola): ?>
                 <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalEdit<?= $id; ?>">Edit</button></li>
@@ -1032,7 +1032,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 <main class="isi">
 
     <!-- Judul halaman -->
-    <div class="kepala">
+    <div class="kepala d-flex align-items-end justify-content-between gap-3 flex-wrap">
         <div>
             <h1><?= e($judul_menu); ?></h1>
             <div class="kepala-sub">
@@ -1043,7 +1043,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             </div>
         </div>
         <?php if ($menu === 'unit' && boleh('kelola_unit')): ?>
-            <button type="button" class="btn btn-gelap" data-bs-toggle="modal" data-bs-target="#modalTambah">+ Tambah unit</button>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTambah">+ Tambah unit</button>
         <?php endif; ?>
     </div>
 
@@ -1065,11 +1065,11 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 
 <?php if ($menu === 'unit'): ?>
     <!-- ================= DAFTAR UNIT ================= -->
-    <section class="panel" id="daftar">
+    <section class="card" id="daftar">
         <?php // Tab status: klik untuk menampilkan unit dengan status tersebut ?>
-        <nav class="tabs" aria-label="Filter status">
+        <nav class="nav nav-underline tabs" aria-label="Filter status">
             <?php foreach ($tab_status as [$kunci, $label, $nilai, $penting]): ?>
-                <a href="dashboard.php<?= $kunci === 'semua' ? '' : '?filter=' . $kunci; ?>" class="<?= $filter === $kunci ? 'on' : ''; ?> <?= $penting ? 'penting' : ''; ?>"<?= $filter === $kunci ? ' aria-current="page"' : ''; ?>>
+                <a href="dashboard.php<?= $kunci === 'semua' ? '' : '?filter=' . $kunci; ?>" class="nav-link<?= $filter === $kunci ? ' active' : ''; ?><?= $penting ? ' penting' : ''; ?>"<?= $filter === $kunci ? ' aria-current="page"' : ''; ?>>
                     <?= e($label); ?> <i><?= (int) $nilai; ?></i>
                 </a>
             <?php endforeach; ?>
@@ -1085,9 +1085,9 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <label class="bar-tgl" title="Tampilkan unit dengan tanggal akhir sampai tanggal ini">
                 <span>Akhir</span><input type="date" name="sampai" class="form-control" value="<?= e($tgl_sampai); ?>" aria-label="Tanggal akhir">
             </label>
-            <button type="submit" class="btn btn-garis">Cari</button>
+            <button type="submit" class="btn btn-outline-secondary">Cari</button>
             <?php if ($sedang_menyaring): ?>
-                <a href="dashboard.php" class="btn btn-teks">Hapus filter</a>
+                <a href="dashboard.php" class="btn btn-link">Hapus filter</a>
             <?php endif; ?>
             <span class="bar-ket"><?= (int) $total_rows; ?> unit · <?= $filter === 'selesai' ? 'terakhir diselesaikan di atas' : 'deadline terdekat di atas'; ?></span>
         </form>
@@ -1150,14 +1150,14 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             </table>
         </div>
 
-        <div class="panel-kaki">
+        <div class="card-footer">
             <span>Menampilkan <?= $total_rows ? ($offset + 1) . '–' . ($offset + count($data_tampil)) : 0; ?> dari <?= (int) $total_rows; ?> unit</span>
             <?= tombolHalaman($hal, $jumlah_hal, 'hal', 'daftar'); ?>
         </div>
     </section>
 
     <?php // Bilah info: pengingat otomatis terakhir + saluran yang aktif ?>
-    <section class="panel info">
+    <section class="card info">
         <span>Pengingat otomatis terakhir:
             <?php if ($pengingat_terakhir): ?>
                 <b><?= tglPendek($pengingat_terakhir['waktu']) . ', ' . date('H.i', strtotime($pengingat_terakhir['waktu'])); ?></b>
@@ -1174,9 +1174,10 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 <?php elseif ($menu === 'penerima'): ?>
     <!-- ================= PENERIMA ================= -->
     <?php $kelola_penerima = boleh('kelola_penerima'); ?>
-    <div class="dua-kolom">
-        <section class="panel" id="penerima">
-            <div class="panel-judul">
+    <div class="row align-items-start">
+        <div class="col-lg-6">
+        <section class="card" id="penerima">
+            <div class="card-header d-flex justify-content-between align-items-baseline">
                 <h2>WhatsApp</h2>
                 <span><?= $penerima_aktif; ?> aktif<?= in_array('wa', $saluran_notif, true) ? '' : ' · tidak dipakai'; ?></span>
             </div>
@@ -1189,24 +1190,24 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <?php foreach ($penerima_list as $p): $aktif = (int) $p['aktif'] === 1; ?>
                 <div class="baris-penerima <?= $aktif ? '' : 'nonaktif'; ?>">
                     <div>
-                        <div class="nama"><?= e($p['nama']); ?><?= $aktif ? '' : ' <span class="tanda">nonaktif</span>'; ?></div>
+                        <div class="nama"><?= e($p['nama']); ?><?= $aktif ? '' : ' <span class="badge tanda">nonaktif</span>'; ?></div>
                         <div class="kode">+<?= e($p['nomor']); ?></div>
                     </div>
                     <?php if ($kelola_penerima): ?>
                     <div class="aksi">
-                        <button type="button" class="btn btn-teks btn-kecil" data-bs-toggle="modal" data-bs-target="#modalEditWa"
+                        <button type="button" class="btn btn-link btn-sm" data-bs-toggle="modal" data-bs-target="#modalEditWa"
                                 data-id="<?= (int) $p['id']; ?>" data-nama="<?= e($p['nama']); ?>" data-nomor="<?= e($p['nomor']); ?>">Edit</button>
                         <form method="POST" action="dashboard.php">
                             <?= csrf_field(); ?>
                             <input type="hidden" name="aksi" value="toggle_penerima">
                             <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
-                            <button type="submit" class="btn btn-teks btn-kecil"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
+                            <button type="submit" class="btn btn-link btn-sm"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
                         </form>
                         <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus nomor ini dari penerima WhatsApp?')">
                             <?= csrf_field(); ?>
                             <input type="hidden" name="aksi" value="hapus_penerima">
                             <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
-                            <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Hapus</button>
                         </form>
                     </div>
                     <?php endif; ?>
@@ -1220,15 +1221,17 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <div class="baris-input">
                     <input type="text" name="nama" class="form-control" placeholder="Nama, contoh: Admin Kantor" maxlength="100" required>
                     <input type="tel" name="nomor" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +" required>
-                    <button type="submit" class="btn btn-gelap">Tambah</button>
+                    <button type="submit" class="btn btn-primary">Tambah</button>
                 </div>
             </form>
             <?php endif; ?>
         </section>
+        </div>
 
         <?php $telegram_dipakai = in_array('telegram', $saluran_notif, true); ?>
-        <section class="panel" id="telegram">
-            <div class="panel-judul">
+        <div class="col-lg-6">
+        <section class="card" id="telegram">
+            <div class="card-header d-flex justify-content-between align-items-baseline">
                 <h2>Telegram</h2>
                 <span><?= $telegram_aktif; ?> aktif<?= $telegram_dipakai ? '' : ' · tidak dipakai'; ?></span>
             </div>
@@ -1241,24 +1244,24 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <?php foreach ($telegram_list as $t): $aktif = (int) $t['aktif'] === 1; ?>
                 <div class="baris-penerima <?= $aktif ? '' : 'nonaktif'; ?>">
                     <div>
-                        <div class="nama"><?= e($t['nama']); ?><?= $aktif ? '' : ' <span class="tanda">nonaktif</span>'; ?></div>
+                        <div class="nama"><?= e($t['nama']); ?><?= $aktif ? '' : ' <span class="badge tanda">nonaktif</span>'; ?></div>
                         <div class="kode">ID <?= e($t['chat_id']); ?><?= strncmp($t['chat_id'], '-', 1) === 0 ? ' · grup' : ''; ?></div>
                     </div>
                     <?php if ($kelola_penerima): ?>
                     <div class="aksi">
-                        <button type="button" class="btn btn-teks btn-kecil" data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
+                        <button type="button" class="btn btn-link btn-sm" data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
                                 data-aksi="ubah_nama_telegram" data-id="<?= (int) $t['id']; ?>" data-nama="<?= e($t['nama']); ?>" data-info="Telegram ID <?= e($t['chat_id']); ?>">Ubah nama</button>
                         <form method="POST" action="dashboard.php">
                             <?= csrf_field(); ?>
                             <input type="hidden" name="aksi" value="toggle_telegram">
                             <input type="hidden" name="id" value="<?= (int) $t['id']; ?>">
-                            <button type="submit" class="btn btn-teks btn-kecil"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
+                            <button type="submit" class="btn btn-link btn-sm"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
                         </form>
                         <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus chat ini dari penerima Telegram?')">
                             <?= csrf_field(); ?>
                             <input type="hidden" name="aksi" value="hapus_telegram">
                             <input type="hidden" name="id" value="<?= (int) $t['id']; ?>">
-                            <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Hapus</button>
                         </form>
                     </div>
                     <?php endif; ?>
@@ -1271,7 +1274,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <?php foreach ($tg_ditemukan as $cid => $c): ?>
                     <div class="baris-penerima ditemukan">
                         <div>
-                            <div class="nama"><?= e($c['nama']); ?> <span class="tanda"><?= e($c['jenis']); ?></span></div>
+                            <div class="nama"><?= e($c['nama']); ?> <span class="badge tanda"><?= e($c['jenis']); ?></span></div>
                             <div class="kode">ID <?= e((string) $cid); ?></div>
                         </div>
                         <form method="POST" action="dashboard.php">
@@ -1279,7 +1282,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <input type="hidden" name="aksi" value="tambah_telegram">
                             <input type="hidden" name="nama" value="<?= e($c['nama']); ?>">
                             <input type="hidden" name="chat_id" value="<?= e((string) $cid); ?>">
-                            <button type="submit" class="btn btn-garis btn-kecil">Tambah</button>
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">Tambah</button>
                         </form>
                     </div>
                 <?php endforeach; ?>
@@ -1291,22 +1294,24 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <form method="POST" action="dashboard.php" class="mb-2">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="cari_telegram">
-                    <button type="submit" class="btn btn-garis w-100" <?= env('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN dulu"'; ?>>Cari chat yang sudah klik Start di bot</button>
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= env('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN dulu"'; ?>>Cari chat yang sudah klik Start di bot</button>
                 </form>
                 <form method="POST" action="dashboard.php" class="baris-input">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="tambah_telegram">
                     <input type="text" name="nama" class="form-control" placeholder="Nama, contoh: Grup Admin" maxlength="100" required>
                     <input type="text" name="chat_id" class="form-control" placeholder="Chat ID" inputmode="numeric" pattern="-?[0-9]{3,20}" title="Angka; grup diawali tanda minus" required>
-                    <button type="submit" class="btn btn-gelap">Tambah</button>
+                    <button type="submit" class="btn btn-primary">Tambah</button>
                 </form>
             </div>
             <?php endif; ?>
         </section>
+        </div>
 
         <?php $email_dipakai = in_array('email', $saluran_notif, true); ?>
-        <section class="panel" id="email">
-            <div class="panel-judul">
+        <div class="col-lg-6">
+        <section class="card" id="email">
+            <div class="card-header d-flex justify-content-between align-items-baseline">
                 <h2>Email</h2>
                 <span><?= $email_aktif; ?> aktif<?= $email_dipakai ? '' : ' · tidak dipakai'; ?></span>
             </div>
@@ -1319,24 +1324,24 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <?php foreach ($email_list as $m): $aktif = (int) $m['aktif'] === 1; ?>
                 <div class="baris-penerima <?= $aktif ? '' : 'nonaktif'; ?>">
                     <div>
-                        <div class="nama"><?= e($m['nama']); ?><?= $aktif ? '' : ' <span class="tanda">nonaktif</span>'; ?></div>
+                        <div class="nama"><?= e($m['nama']); ?><?= $aktif ? '' : ' <span class="badge tanda">nonaktif</span>'; ?></div>
                         <div class="kode"><?= e($m['email']); ?></div>
                     </div>
                     <?php if ($kelola_penerima): ?>
                     <div class="aksi">
-                        <button type="button" class="btn btn-teks btn-kecil" data-bs-toggle="modal" data-bs-target="#modalEditEmail"
+                        <button type="button" class="btn btn-link btn-sm" data-bs-toggle="modal" data-bs-target="#modalEditEmail"
                                 data-id="<?= (int) $m['id']; ?>" data-nama="<?= e($m['nama']); ?>" data-email="<?= e(emailTampil($m['email'])); ?>">Edit</button>
                         <form method="POST" action="dashboard.php">
                             <?= csrf_field(); ?>
                             <input type="hidden" name="aksi" value="toggle_email">
                             <input type="hidden" name="id" value="<?= (int) $m['id']; ?>">
-                            <button type="submit" class="btn btn-teks btn-kecil"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
+                            <button type="submit" class="btn btn-link btn-sm"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
                         </form>
                         <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus alamat ini dari penerima Email?')">
                             <?= csrf_field(); ?>
                             <input type="hidden" name="aksi" value="hapus_email">
                             <input type="hidden" name="id" value="<?= (int) $m['id']; ?>">
-                            <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Hapus</button>
                         </form>
                     </div>
                     <?php endif; ?>
@@ -1354,18 +1359,19 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             <input type="text" name="email" class="form-control" placeholder="nama" maxlength="150" autocomplete="off" autocapitalize="off" spellcheck="false" required aria-label="Alamat email">
                             <span class="input-group-text">@gmail.com</span>
                         </div>
-                        <button type="submit" class="btn btn-gelap">Tambah</button>
+                        <button type="submit" class="btn btn-primary">Tambah</button>
                     </div>
                     <div class="form-text">Email selain Gmail: ketik alamat lengkapnya.</div>
                 </form>
                 <form method="POST" action="dashboard.php" class="mt-2">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="uji_email">
-                    <button type="submit" class="btn btn-garis w-100" <?= emailSiap() ? '' : 'disabled title="Isi SMTP_HOST, SMTP_USER, dan SMTP_PASS dulu"'; ?>>Kirim email percobaan ke penerima aktif</button>
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= emailSiap() ? '' : 'disabled title="Isi SMTP_HOST, SMTP_USER, dan SMTP_PASS dulu"'; ?>>Kirim email percobaan ke penerima aktif</button>
                 </form>
             </div>
             <?php endif; ?>
         </section>
+        </div>
     </div>
     <?php if (!$kelola_penerima): ?>
         <p class="catatan mx-0">Daftar penerima hanya bisa diubah oleh pengguna dengan Akses Penuh. Hubungi pengelola aplikasi bila ada nomor atau chat yang perlu ditambah atau diganti.</p>
@@ -1373,7 +1379,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 
 <?php else: ?>
     <!-- ================= RIWAYAT KIRIM ================= -->
-    <section class="panel" id="riwayat">
+    <section class="card" id="riwayat">
         <form method="GET" action="dashboard.php" class="bar">
             <input type="hidden" name="menu" value="riwayat">
             <input type="text" name="cari_wa" class="form-control bar-cari" placeholder="Cari unit atau penerima" value="<?= e($cari_wa); ?>" aria-label="Cari unit atau penerima">
@@ -1384,9 +1390,9 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 <option value="gagal" <?= $status_wa === 'gagal' ? 'selected' : ''; ?>>Gagal</option>
             </select>
             <label class="bar-tgl" title="Tanggal kirim"><span>Tanggal</span><input type="date" name="tgl_wa" class="form-control" value="<?= e($tgl_wa); ?>" aria-label="Tanggal kirim"></label>
-            <button type="submit" class="btn btn-garis">Cari</button>
+            <button type="submit" class="btn btn-outline-secondary">Cari</button>
             <?php if ($menyaring_riwayat): ?>
-                <a href="dashboard.php?menu=riwayat" class="btn btn-teks">Hapus filter</a>
+                <a href="dashboard.php?menu=riwayat" class="btn btn-link">Hapus filter</a>
             <?php endif; ?>
         </form>
         <div class="table-responsive">
@@ -1455,7 +1461,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                 </tbody>
             </table>
         </div>
-        <div class="panel-kaki">
+        <div class="card-footer">
             <span><?= $total_wa; ?> pengiriman</span>
             <?= tombolHalaman($hal_wa, $jumlah_hal_wa, 'hal_wa', 'riwayat'); ?>
         </div>
@@ -1488,8 +1494,8 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="form-text">Boleh ditulis 08…, 62…, atau +62…. Ganti nomor ini jika pemiliknya berganti nomor HP.</div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-gelap">Simpan</button>
+                        <button type="button" class="btn btn-link" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan</button>
                     </div>
                 </form>
             </div>
@@ -1521,8 +1527,8 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="form-text">Email selain Gmail: ketik alamat lengkapnya.</div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-gelap">Simpan</button>
+                        <button type="button" class="btn btn-link" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan</button>
                     </div>
                 </form>
             </div>
@@ -1548,8 +1554,8 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="form-text">Nama ini tampil di daftar penerima dan di Riwayat Kirim.</div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-gelap">Simpan</button>
+                        <button type="button" class="btn btn-link" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan</button>
                     </div>
                 </form>
             </div>
@@ -1633,8 +1639,8 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="form-text">Pesan dikirim ke semua penerima aktif pada saluran yang dicentang (lihat menu Penerima).</div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-gelap" data-tombol-kirim>Kirim</button>
+                        <button type="button" class="btn btn-link" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary" data-tombol-kirim>Kirim</button>
                     </div>
                 </form>
             </div>
@@ -1703,8 +1709,8 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="small redup mt-1 d-none" data-progres-teks></div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-gelap">Simpan unit</button>
+                        <button type="button" class="btn btn-link" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan unit</button>
                     </div>
                 </form>
             </div>
@@ -1770,8 +1776,8 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="form-text mt-2">Mengubah deadline (memperpanjang) akan mengaktifkan lagi pengingat otomatis dan menghapus status selesai.</div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-teks" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-gelap">Simpan perubahan</button>
+                        <button type="button" class="btn btn-link" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan perubahan</button>
                     </div>
                 </form>
             </div>
@@ -1807,15 +1813,15 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                             </div>
                             <div class="aksi">
                                 <?php if ($bisa_dilihat): ?>
-                                    <a href="lampiran.php?id=<?= (int) $l['id']; ?>&lihat=1" target="_blank" rel="noopener" class="btn btn-teks btn-kecil">Lihat</a>
+                                    <a href="lampiran.php?id=<?= (int) $l['id']; ?>&lihat=1" target="_blank" rel="noopener" class="btn btn-link btn-sm">Lihat</a>
                                 <?php endif; ?>
-                                <a href="lampiran.php?id=<?= (int) $l['id']; ?>" target="_blank" rel="noopener" class="btn btn-teks btn-kecil">Unduh</a>
+                                <a href="lampiran.php?id=<?= (int) $l['id']; ?>" target="_blank" rel="noopener" class="btn btn-link btn-sm">Unduh</a>
                                 <?php if (boleh('hapus_data')): ?>
                                 <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus lampiran ini?')">
                                     <?= csrf_field(); ?>
                                     <input type="hidden" name="aksi" value="hapus_lampiran">
                                     <input type="hidden" name="id" value="<?= (int) $l['id']; ?>">
-                                    <button type="submit" class="btn btn-teks btn-kecil teks-merah">Hapus</button>
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">Hapus</button>
                                 </form>
                                 <?php endif; ?>
                             </div>
@@ -1832,7 +1838,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                         <div class="form-text mb-2"><?= e($info_lampiran); ?></div>
                         <div class="progress mb-2 d-none" style="height: 6px;" data-progres><div class="progress-bar" role="progressbar" style="width: 0%"></div></div>
                         <div class="small redup mb-2 d-none" data-progres-teks></div>
-                        <button type="submit" class="btn btn-gelap w-100">Unggah</button>
+                        <button type="submit" class="btn btn-primary w-100">Unggah</button>
                     </form>
                     <?php endif; ?>
                 </div>

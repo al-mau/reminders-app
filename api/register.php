@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if (!$registerAktif): ?>
         <div class="kepala-sub">Pendaftaran akun ditutup.</div>
         <p class="catatan mx-0 mb-4">Akun baru hanya bisa dibuatkan oleh admin melalui menu <b>Pengguna</b> di aplikasi.</p>
-        <a href="login.php" class="btn btn-gelap w-100">Kembali ke halaman masuk</a>
+        <a href="login.php" class="btn btn-primary w-100">Kembali ke halaman masuk</a>
     <?php else: ?>
         <div class="kepala-sub">Lengkapi data di bawah untuk mendaftar.</div>
 
@@ -126,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?= tombol_mata(); ?>
                 </div>
             </div>
-            <button type="submit" name="register" class="btn btn-gelap w-100">Daftar</button>
+            <button type="submit" name="register" class="btn btn-primary w-100">Daftar</button>
         </form>
         <?php endif; ?>
     <?php endif; /* registerAktif */ ?>
