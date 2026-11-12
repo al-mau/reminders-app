@@ -110,36 +110,48 @@ function kirimKeEmail(string $pesan, array $alamat, string $subjek): array
         return ['ok' => false, 'pesan' => 'Belum ada alamat email penerima (tambahkan di dashboard atau isi EMAIL_TARGET).'];
     }
 
-    $mail = new PHPMailer(true);
     try {
-        $port = (int) env('SMTP_PORT', 587);
-        $mail->setLanguage('id', __DIR__ . '/phpmailer/language/');
-        $mail->isSMTP();
-        $mail->Host       = (string) env('SMTP_HOST');
-        $mail->Port       = $port;
-        $mail->SMTPAuth   = true;
-        $mail->Username   = (string) env('SMTP_USER');
-        $mail->Password   = (string) env('SMTP_PASS');
-        // Port 465 = SSL sejak awal; port lain (587) = STARTTLS
-        $mail->SMTPSecure = $port === 465 ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
-        // Batas waktu agar halaman/cron tidak menggantung bila server SMTP lambat
-        $mail->Timeout       = 15;
-        $mail->SMTPKeepAlive = true;
-        $mail->CharSet       = PHPMailer::CHARSET_UTF8;
-        // XAMPP / Laragon / Herd (Windows) kadang belum mengatur sertifikat HTTPS untuk PHP
-        $ca = ini_get('openssl.cafile') ? '' : fileSertifikatCa();
-        if ($ca !== '') {
-            $mail->SMTPOptions = ['ssl' => ['cafile' => $ca]];
-        }
-        $mail->setFrom((string) (env('EMAIL_PENGIRIM') ?: env('SMTP_USER')), (string) env('EMAIL_NAMA_PENGIRIM', 'Pengingat Deadline'));
-        $mail->isHTML(true);
+        $mail = siapkanMailer();
         $mail->Subject = $subjek;
         $mail->Body    = pesanKeHtmlEmail($pesan, $subjek);
         $mail->AltBody = str_replace('*', '', $pesan);
     } catch (PHPMailerException $e) {
         return ['ok' => false, 'pesan' => 'Pengaturan email tidak valid: ' . $e->getMessage()];
     }
+    return kirimKeSemua($mail, $alamat);
+}
 
+/** PHPMailer yang sudah diatur SMTP + pengirim (dipakai pengingat & arsip lampiran) */
+function siapkanMailer(): PHPMailer
+{
+    $mail = new PHPMailer(true);
+    $port = (int) env('SMTP_PORT', 587);
+    $mail->setLanguage('id', __DIR__ . '/phpmailer/language/');
+    $mail->isSMTP();
+    $mail->Host       = (string) env('SMTP_HOST');
+    $mail->Port       = $port;
+    $mail->SMTPAuth   = true;
+    $mail->Username   = (string) env('SMTP_USER');
+    $mail->Password   = (string) env('SMTP_PASS');
+    // Port 465 = SSL sejak awal; port lain (587) = STARTTLS
+    $mail->SMTPSecure = $port === 465 ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+    // Batas waktu agar halaman/cron tidak menggantung bila server SMTP lambat
+    $mail->Timeout       = 15;
+    $mail->SMTPKeepAlive = true;
+    $mail->CharSet       = PHPMailer::CHARSET_UTF8;
+    // XAMPP / Laragon / Herd (Windows) kadang belum mengatur sertifikat HTTPS untuk PHP
+    $ca = ini_get('openssl.cafile') ? '' : fileSertifikatCa();
+    if ($ca !== '') {
+        $mail->SMTPOptions = ['ssl' => ['cafile' => $ca]];
+    }
+    $mail->setFrom((string) (env('EMAIL_PENGIRIM') ?: env('SMTP_USER')), (string) env('EMAIL_NAMA_PENGIRIM', 'Pengingat Deadline'));
+    $mail->isHTML(true);
+    return $mail;
+}
+
+/** Kirim email yang sudah disiapkan ke setiap alamat (satu koneksi). @return array{ok: bool, pesan: string} */
+function kirimKeSemua(PHPMailer $mail, array $alamat): array
+{
     $berhasil = 0;
     $alasan   = '';
     $gagal    = [];
@@ -167,4 +179,25 @@ function kirimKeEmail(string $pesan, array $alamat, string $subjek): array
         $pesanHasil .= ', gagal ke ' . implode(', ', $gagal);
     }
     return ['ok' => true, 'pesan' => $pesanHasil];
+}
+
+/**
+ * Kirim satu file lampiran sebagai attachment (arsip OneDrive lewat Power Automate).
+ * @return array{ok: bool, pesan: string}
+ */
+function kirimEmailLampiran(string $ke, string $subjek, string $pesan, string $namaFile, string $isi): array
+{
+    if (!emailSiap()) {
+        return ['ok' => false, 'pesan' => 'SMTP_HOST, SMTP_USER, atau SMTP_PASS belum diatur.'];
+    }
+    try {
+        $mail = siapkanMailer();
+        $mail->Subject = $subjek;
+        $mail->Body    = pesanKeHtmlEmail($pesan, $subjek);
+        $mail->AltBody = str_replace('*', '', $pesan);
+        $mail->addStringAttachment($isi, $namaFile);
+    } catch (PHPMailerException $e) {
+        return ['ok' => false, 'pesan' => 'Pengaturan email tidak valid: ' . $e->getMessage()];
+    }
+    return kirimKeSemua($mail, [$ke]);
 }

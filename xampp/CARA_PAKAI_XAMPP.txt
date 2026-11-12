@@ -49,7 +49,12 @@ Opsional, kirim lewat Email (SMTP Gmail atau SMTP kantor):
   Tambahkan email di NOTIF_VIA, contoh: NOTIF_VIA=wa,telegram,email
   Penerima email diatur di dashboard (menu Penerima -> Email). Klik
   "Kirim email percobaan" untuk mengecek pengaturan.
-Opsional, salin lampiran otomatis ke OneDrive kantor:
+Opsional, arsip lampiran ke OneDrive lewat email + Power Automate (tanpa Client ID):
+  Atur SMTP di atas, lalu di dashboard: menu Penerima -> Penyimpanan OneDrive ->
+  isi alamat email arsip (contoh akun Corsec) -> Simpan -> Kirim email uji.
+  Cara membuat alur Power Automate ada di README.md bagian
+  "Arsip lampiran lewat Power Automate".
+Opsional (cara langsung, butuh Client ID dari IT), salin lampiran otomatis ke OneDrive kantor:
   ONEDRIVE_CLIENT_ID=  Application (client) ID dari Microsoft Entra (minta ke tim IT)
   ONEDRIVE_TENANT=     domain kantor, contoh brksyariah.co.id
   Lalu di dashboard: menu Penerima -> Penyimpanan OneDrive -> Hubungkan OneDrive,

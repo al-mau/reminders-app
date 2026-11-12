@@ -212,7 +212,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'tambah_email' => 'kelola_penerima', 'edit_email' => 'kelola_penerima', 'toggle_email' => 'kelola_penerima',
         'hapus_email' => 'kelola_penerima', 'uji_email' => 'kelola_penerima',
         'onedrive_mulai' => 'kelola_penerima', 'onedrive_cek' => 'kelola_penerima', 'onedrive_putuskan' => 'kelola_penerima',
-        'onedrive_sinkron' => 'kelola_penerima', 'onedrive_folder' => 'kelola_penerima', 'onedrive_folder_hapus' => 'kelola_penerima',
+        'folder_manual_simpan' => 'kelola_penerima', 'folder_manual_hapus' => 'kelola_penerima',
+        'onedrive_sinkron' => 'kelola_penerima', 'arsip_email_simpan' => 'kelola_penerima', 'arsip_email_hapus' => 'kelola_penerima', 'arsip_email_uji' => 'kelola_penerima', 'onedrive_folder' => 'kelola_penerima', 'onedrive_folder_hapus' => 'kelola_penerima',
     ];
     if (!boleh($hakAksi[$aksi] ?? 'kelola_pengguna')) {
         $pesanTolak = 'Akun Anda (' . labelPeran(peranSaya()) . ') tidak punya izin untuk melakukan aksi ini.';
@@ -240,7 +241,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Salin ke OneDrive (bila terhubung); kegagalan tidak membatalkan upload ke aplikasi
             $od = onedriveSalinBaru($pdo, [(int) ($_POST['id'] ?? 0)]);
             if ($od && $od['gagal']) {
-                flash('warning', 'Lampiran tersimpan di aplikasi, tetapi belum tersalin ke OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
+                flash('warning', 'Lampiran tersimpan di aplikasi, tetapi belum masuk arsip OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
             }
             jsonKeluar(['ok' => true, 'onedrive' => $od]);
         } catch (InvalidArgumentException $e) {
@@ -328,7 +329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $od = onedriveSalinBaru($pdo, $hasil['id']);
                 if ($od && $od['gagal']) {
-                    flash('warning', 'Lampiran belum tersalin ke OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
+                    flash('warning', 'Lampiran belum masuk arsip OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
                 }
             }
             header('Location: ' . kembaliKe('unit', ['status' => 'success_add']));
@@ -452,10 +453,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hasil = simpanLampiran($pdo, $deadlineId, $files, $_SESSION['username'] ?? null);
             $od = onedriveSalinBaru($pdo, $hasil['id']);
             if ($hasil['berhasil'] > 0) {
-                flash('success', $hasil['berhasil'] . ' lampiran berhasil diunggah' . ($od && $od['ok'] ? ' dan disalin ke OneDrive' : '') . '.');
+                flash('success', $hasil['berhasil'] . ' lampiran berhasil diunggah' . ($od && $od['ok'] ? (onedriveMode($pdo) === 'email' ? ' dan dikirim ke arsip OneDrive' : ' dan disalin ke OneDrive') : '') . '.');
             }
             if ($od && $od['gagal']) {
-                flash('warning', 'Lampiran belum tersalin ke OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
+                flash('warning', 'Lampiran belum masuk arsip OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
             }
             foreach ($hasil['gagal'] as $pesan) {
                 flash('danger', 'Lampiran gagal — ' . $pesan);
@@ -679,10 +680,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // --- 10. PENYIMPANAN ONEDRIVE (Akses Penuh) ---
+    // --- 10a. LINK FOLDER ONEDRIVE UNTUK UPLOAD MANUAL (Akses Penuh) ---
+    if ($aksi === 'folder_manual_simpan' || $aksi === 'folder_manual_hapus') {
+        try {
+            if ($aksi === 'folder_manual_simpan') {
+                simpanPengaturan($pdo, 'onedrive_link_manual', periksaLinkOneDrive((string) ($_POST['link_manual'] ?? '')));
+                flash('success', 'Link folder OneDrive disimpan. Tombol "Buka folder OneDrive" kini tampil di jendela Lampiran setiap unit.');
+            } else {
+                simpanPengaturan($pdo, 'onedrive_link_manual', null);
+                flash('warning', 'Link folder OneDrive dihapus dari aplikasi (folder di OneDrive tidak berubah).');
+            }
+        } catch (Throwable $e) {
+            flash('danger', 'Folder OneDrive: ' . $e->getMessage());
+        }
+        header('Location: ' . kembaliKe('penerima', [], 'onedrive'));
+        exit;
+    }
+
+    // --- 10. ARSIP ONEDRIVE LEWAT EMAIL + POWER AUTOMATE (Akses Penuh) ---
+    if (str_starts_with($aksi, 'arsip_email_')) {
+        try {
+            if ($aksi === 'arsip_email_simpan') {
+                $alamat = strtolower(trim((string) ($_POST['arsip_email'] ?? '')));
+                if (!filter_var($alamat, FILTER_VALIDATE_EMAIL) || strlen($alamat) > 190) {
+                    throw new RuntimeException('Alamat email arsip tidak valid.');
+                }
+                simpanPengaturan($pdo, 'arsip_email', $alamat);
+                flash('success', "Alamat arsip disimpan: $alamat. Klik \"Kirim email uji\" untuk memastikan alur Power Automate menyimpan file ke OneDrive.");
+            } elseif ($aksi === 'arsip_email_hapus') {
+                simpanPengaturan($pdo, 'arsip_email', null);
+                flash('warning', arsipEmail($pdo) !== ''
+                    ? 'Alamat dari dashboard dihapus; kembali memakai ARSIP_EMAIL dari Environment Variables.'
+                    : 'Pengiriman arsip lewat email dihentikan. Lampiran baru tidak lagi dikirim ke arsip.');
+            } else {
+                $ke = arsipEmail($pdo);
+                if ($ke === '') {
+                    throw new RuntimeException('Isi alamat email arsip terlebih dahulu.');
+                }
+                $isi = "Email uji arsip lampiran.\nBila alur Power Automate sudah benar, file ini tersimpan di folder OneDrive tujuan,\n"
+                    . "di dalam subfolder \"UJI - Email Uji Arsip\". Folder uji tersebut boleh dihapus.\nDikirim: " . date('d-m-Y H.i');
+                $hasil = kirimEmailLampiran($ke, subjekArsip('UJI', 'Email Uji Arsip'),
+                    "*Email uji arsip lampiran*\n\nDikirim dari menu Penerima → Penyimpanan OneDrive. Lampiran: uji-arsip.txt",
+                    'uji-arsip.txt', $isi);
+                $hasil['ok']
+                    ? flash('success', "Email uji terkirim ke $ke. Dalam 1–5 menit cek folder OneDrive: harus ada subfolder \"UJI - Email Uji Arsip\" berisi uji-arsip.txt.")
+                    : flash('danger', 'Email uji gagal: ' . $hasil['pesan']);
+            }
+        } catch (Throwable $e) {
+            flash('danger', 'Arsip OneDrive: ' . $e->getMessage());
+        }
+        header('Location: ' . kembaliKe('penerima', [], 'onedrive'));
+        exit;
+    }
+
+    // --- 11. PENYIMPANAN ONEDRIVE (Akses Penuh) ---
     if (str_starts_with($aksi, 'onedrive_')) {
         try {
-            if (!onedriveDiatur()) {
+            if ($aksi !== 'onedrive_sinkron' && !onedriveDiatur()) {
                 throw new RuntimeException('Isi ONEDRIVE_CLIENT_ID di Environment Variables terlebih dahulu.');
             }
             if ($aksi === 'onedrive_mulai') {
@@ -708,9 +762,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // Coba lagi semua yang gagal (hitungan percobaan direset), lalu salin yang belum tersimpan
                 $pdo->exec("UPDATE lampiran SET onedrive_coba = 0 WHERE onedrive_status = 'gagal'");
-                $hasil = onedriveSinkronTertunda($pdo, 15);
+                if (onedriveMode($pdo) === null) {
+                    throw new RuntimeException('Arsip OneDrive belum aktif.');
+                }
+                $hasil = onedriveSinkronTertunda($pdo, 15, true);
                 $sisa  = onedriveRingkasan($pdo);
-                flash($hasil['gagal'] ? 'warning' : 'success', "Disalin ke OneDrive: {$hasil['ok']} file" . ($hasil['gagal'] ? ", gagal {$hasil['gagal']}" : '')
+                flash($hasil['gagal'] ? 'warning' : 'success', (onedriveMode($pdo) === 'email' ? 'Dikirim ke arsip' : 'Disalin ke OneDrive') . ": {$hasil['ok']} file" . ($hasil['gagal'] ? ", gagal {$hasil['gagal']}" : '')
                     . ($sisa['belum'] + $sisa['gagal'] ? '. Masih ada ' . ($sisa['belum'] + $sisa['gagal']) . ' file, klik lagi untuk melanjutkan.' : '.'));
             }
         } catch (Throwable $e) {
@@ -882,6 +939,8 @@ $buka_lampiran = (int) ($_GET['lampiran'] ?? 0);
 // --- ONEDRIVE: status salinan lampiran & kartu pengaturan (menu Penerima, Akses Penuh) ---
 $od_diatur = onedriveDiatur();
 $od_siap   = $od_diatur && onedriveSiap($pdo);
+$od_mode   = onedriveMode($pdo);
+$od_manual = linkFolderManual($pdo);
 
 // --- PENGIRIMAN TERAKHIR per unit dari Riwayat Kirim (otomatis maupun manual) ---
 // Riwayat mencatat unit sebagai "(kode) nama", satu unit per baris (lihat cron_wa_reminder.php & kirim manual).
@@ -1566,13 +1625,29 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
         <section class="card" id="onedrive">
             <div class="card-header d-flex justify-content-between align-items-baseline">
                 <h2><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Penyimpanan OneDrive</h2>
-                <span><?= $od_siap ? 'terhubung' : 'belum terhubung'; ?></span>
+                <span><?= ['graph' => 'otomatis', 'email' => 'otomatis lewat email'][$od_mode] ?? ($od_manual !== '' ? 'manual' : 'belum aktif'); ?></span>
             </div>
             <div class="form-tambah">
-            <?php if (!$od_diatur): ?>
-                <p class="mb-2">Lampiran yang diunggah bisa otomatis disalin ke OneDrive. Fitur ini belum aktif karena <code>ONEDRIVE_CLIENT_ID</code> belum diisi.</p>
-                <p class="redup small mb-0">Isi Environment Variable <code>ONEDRIVE_CLIENT_ID</code> (dari pendaftaran aplikasi di Microsoft Entra), lalu kembali ke kartu ini untuk menghubungkan akun. Langkahnya ada di file panduan.</p>
-            <?php elseif ($od_siap): $od_r = onedriveRingkasan($pdo); ?>
+                <p class="mb-2"><b>Folder OneDrive (upload manual)</b><br>
+                    <span>Simpan link folder tujuan. Di jendela Lampiran setiap unit akan muncul tombol <b>Buka folder OneDrive</b> untuk mengunggah file ke sana secara manual.</span></p>
+                <form method="POST" action="dashboard.php" class="mb-2"><?= csrf_field(); ?><input type="hidden" name="aksi" value="folder_manual_simpan">
+                    <label for="link-manual" class="small">Link folder OneDrive (Bagikan → Salin link)</label>
+                    <div class="d-flex gap-2">
+                        <input type="url" id="link-manual" name="link_manual" required maxlength="2000" class="form-control form-control-sm"
+                            value="<?= e($od_manual); ?>" placeholder="https://…sharepoint.com/:f:/g/personal/…">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">Simpan link</button>
+                    </div>
+                </form>
+                <?php if ($od_manual !== ''): ?>
+                <div class="d-flex gap-3 align-items-center mb-1">
+                    <a href="<?= e($od_manual); ?>" target="_blank" rel="noopener" class="small"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Coba buka folder</a>
+                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus link folder OneDrive dari aplikasi?')"><?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="folder_manual_hapus"><button type="submit" class="btn btn-link btn-sm p-0">Hapus link</button></form>
+                </div>
+                <?php endif; ?>
+                <hr>
+                <p class="small mb-2"><b>Arsip otomatis</b> (opsional)</p>
+            <?php if ($od_siap): $od_r = onedriveRingkasan($pdo); ?>
                 <?php $od_tujuan = onedriveTujuan($pdo); ?>
                 <p class="mb-2">Akun: <b class="text-break"><?= e((string) ambilPengaturan($pdo, 'onedrive_akun')); ?></b><br>
                     Folder tujuan:
@@ -1604,7 +1679,37 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                         <input type="hidden" name="aksi" value="onedrive_putuskan"><button type="submit" class="btn btn-outline-danger btn-sm">Putuskan</button></form>
                 </div>
                 <p class="redup small mt-3 mb-0">Lampiran baru langsung disalin saat diunggah; yang gagal dicoba lagi otomatis setiap pagi. Menghapus lampiran di aplikasi tidak menghapus salinannya di OneDrive.</p>
-            <?php elseif ($od_kode): ?>
+            <?php else: $od_arsip = arsipEmail($pdo); $od_r = onedriveRingkasan($pdo); ?>
+                <p class="mb-2">Setiap lampiran yang diunggah dikirim sebagai email ke alamat arsip. <b>Power Automate</b> di akun Microsoft tersebut menyimpannya otomatis ke folder OneDrive tujuan.</p>
+                <?php if (!emailSiap()): ?>
+                    <p class="teks-merah small">Pengaturan SMTP (SMTP_HOST, SMTP_USER, SMTP_PASS) belum lengkap, jadi email arsip belum bisa dikirim.</p>
+                <?php endif; ?>
+                <form method="POST" action="dashboard.php" class="mb-3"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_email_simpan">
+                    <label for="arsip-email" class="small">Alamat email arsip (akun pemilik alur Power Automate)</label>
+                    <div class="d-flex gap-2">
+                        <input type="email" id="arsip-email" name="arsip_email" required maxlength="190" class="form-control form-control-sm"
+                            value="<?= e($od_arsip); ?>" placeholder="corsec@brksyariah.co.id">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">Simpan</button>
+                    </div>
+                </form>
+                <?php if ($od_mode === 'email'): ?>
+                <p class="mb-3 small">Terkirim ke arsip <b><?= $od_r['ok']; ?></b> file · gagal <b class="<?= $od_r['gagal'] ? 'teks-merah' : ''; ?>"><?= $od_r['gagal']; ?></b> · lampiran lama belum diarsipkan <b><?= $od_r['belum']; ?></b></p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_email_uji">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Kirim email uji</button></form>
+                    <?php if ($od_r['belum'] + $od_r['gagal']): ?>
+                    <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_sinkron">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Kirim lampiran yang belum diarsipkan</button></form>
+                    <?php endif; ?>
+                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Hentikan pengiriman arsip lewat email?')"><?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="arsip_email_hapus"><button type="submit" class="btn btn-outline-danger btn-sm">Hentikan</button></form>
+                </div>
+                <?php endif; ?>
+                <p class="redup small mt-3 mb-0">Subjek email: <span class="mono"><?= e(ARSIP_TAG); ?> &lt;kode&gt; - &lt;nama unit&gt;</span>, dipakai Power Automate sebagai nama subfolder. Langkah membuat alurnya ada di README bagian "Arsip lampiran lewat Power Automate".</p>
+                <?php if ($od_diatur): ?>
+                <hr>
+                <p class="small mb-2"><b>Cara langsung</b> (tanpa email, memakai Client ID dari tim IT):</p>
+                <?php if ($od_kode): ?>
                 <ol class="mb-3 small ps-3">
                     <li>Buka <a href="<?= e($od_kode['url']); ?>" target="_blank" rel="noopener"><?= e(preg_replace('#^https?://#', '', $od_kode['url'])); ?></a></li>
                     <li>Masukkan kode <b class="mono od-kode"><?= e($od_kode['kode']); ?></b>, lalu login dengan akun Microsoft pemilik OneDrive.</li>
@@ -1613,10 +1718,12 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <form method="POST" action="dashboard.php" class="d-inline"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_cek">
                     <button type="submit" class="btn btn-primary btn-sm">Saya sudah login</button></form>
                 <span class="redup small ms-2">Kode berlaku sampai <?= date('H.i', (int) $od_kode['berlaku']); ?></span>
-            <?php else: ?>
+                <?php else: ?>
                 <p class="mb-3">Hubungkan akun Microsoft agar setiap lampiran yang diunggah otomatis disalin ke OneDrive.</p>
                 <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_mulai">
                     <button type="submit" class="btn btn-primary btn-sm"><i class="fa-brands fa-microsoft" aria-hidden="true"></i> Hubungkan OneDrive</button></form>
+                <?php endif; ?>
+                <?php endif; ?>
             <?php endif; ?>
             </div>
         </section>
@@ -2060,16 +2167,19 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                                     <?= formatUkuran((int) $l['ukuran']); ?> · <?= tglPendek($l['dibuat_tanggal']) . ' ' . date('H.i', strtotime($l['dibuat_tanggal'])); ?>
                                     <?= $l['diunggah_oleh'] ? '· ' . e($l['diunggah_oleh']) : ''; ?>
                                 </div>
-                                <?php if ($od_diatur): ?>
+                                <?php if ($od_mode !== null || $l['onedrive_status'] !== null): ?>
                                 <div class="od-status">
                                     <?php if ($l['onedrive_status'] === 'ok'): ?>
                                         <i class="fa-solid fa-cloud teks-hijau" aria-hidden="true"></i>
                                         <?= $l['onedrive_url'] ? '<a href="' . e($l['onedrive_url']) . '" target="_blank" rel="noopener">Tersimpan di OneDrive</a>' : 'Tersimpan di OneDrive'; ?>
+                                    <?php elseif ($l['onedrive_status'] === 'email'): ?>
+                                        <i class="fa-solid fa-paper-plane teks-hijau" aria-hidden="true"></i>
+                                        <span title="<?= e((string) $l['onedrive_pesan']); ?>">Dikirim ke arsip OneDrive</span>
                                     <?php elseif ($l['onedrive_status'] === 'gagal'): ?>
                                         <i class="fa-solid fa-cloud teks-merah" aria-hidden="true"></i>
-                                        <span class="teks-merah" title="<?= e((string) $l['onedrive_pesan']); ?>">Belum tersalin ke OneDrive · dicoba lagi otomatis</span>
+                                        <span class="teks-merah" title="<?= e((string) $l['onedrive_pesan']); ?>">Belum masuk arsip OneDrive · dicoba lagi otomatis</span>
                                     <?php else: ?>
-                                        <i class="fa-regular fa-cloud" aria-hidden="true"></i> <?= $od_siap ? 'Menunggu disalin ke OneDrive' : 'OneDrive belum terhubung'; ?>
+                                        <i class="fa-regular fa-cloud" aria-hidden="true"></i> <?= $od_mode ? 'Belum diarsipkan ke OneDrive' : 'Arsip OneDrive belum aktif'; ?>
                                     <?php endif; ?>
                                 </div>
                                 <?php endif; ?>
@@ -2103,6 +2213,14 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                         <div class="small redup mb-2 d-none" data-progres-teks></div>
                         <button type="submit" class="btn btn-primary w-100">Unggah</button>
                     </form>
+                    <?php endif; ?>
+                    <?php if ($od_manual !== ''): ?>
+                    <div class="od-manual">
+                        <a href="<?= e($od_manual); ?>" target="_blank" rel="noopener" class="btn btn-outline-secondary w-100">
+                            <i class="fa-solid fa-folder-open" aria-hidden="true"></i> Buka folder OneDrive</a>
+                        <div class="form-text">Unggah file secara manual di OneDrive (tombol <b>Unggah</b> atau seret file ke folder).
+                            Saran nama subfolder: <span class="mono od-subfolder"><?= e(namaAmanOneDrive($row['kode_unit'] . ' - ' . $row['nama_unit'])); ?></span></div>
+                    </div>
                     <?php endif; ?>
                 </div>
             </div>
