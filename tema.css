@@ -365,3 +365,8 @@ body.auth .kaki { padding: 16px 0 0; color: var(--side-redup); }
     .beranda-item .lonceng-st { grid-column: 1 / -1; }
     .beranda-gulir.bergerak { height: 420px; }
 }
+
+/* Tombol folder OneDrive (upload manual) di jendela Lampiran */
+.od-manual { border-top: 1px solid var(--garis); margin-top: 14px; padding-top: 14px; }
+.od-manual .form-text { margin-top: 6px; }
+.od-subfolder { user-select: all; background: var(--latar-redup, #f5f3f2); padding: 0 4px; border-radius: 3px; }

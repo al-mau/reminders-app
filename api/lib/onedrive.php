@@ -306,6 +306,25 @@ function onedriveTujuan(PDO $pdo): ?array
     return is_array($data) && !empty($data['drive']) && !empty($data['item']) ? $data : null;
 }
 
+/** Pastikan link berasal dari OneDrive/SharePoint (https). @throws RuntimeException */
+function periksaLinkOneDrive(string $link): string
+{
+    $link = trim($link);
+    $host = strtolower((string) parse_url($link, PHP_URL_HOST));
+    $dikenal = $host === '1drv.ms' || $host === 'onedrive.live.com'
+        || str_ends_with($host, '.sharepoint.com') || str_ends_with($host, '.sharepoint.cn');
+    if (!preg_match('#^https://#i', $link) || !$dikenal || strlen($link) > 2000) {
+        throw new RuntimeException('Link tidak dikenali. Gunakan link folder dari OneDrive/SharePoint (Bagikan → Salin link).');
+    }
+    return $link;
+}
+
+/** Link folder OneDrive untuk upload manual (tombol "Buka folder OneDrive"); cadangan ONEDRIVE_FOLDER_LINK */
+function linkFolderManual(PDO $pdo): string
+{
+    return trim((string) (ambilPengaturan($pdo, 'onedrive_link_manual') ?? env('ONEDRIVE_FOLDER_LINK', '')));
+}
+
 /** Link berbagi → kode "shares" Microsoft Graph (u! + base64url) */
 function kodeLinkBerbagi(string $link): string
 {
@@ -319,13 +338,7 @@ function kodeLinkBerbagi(string $link): string
  */
 function onedriveSetelLink(PDO $pdo, string $link): array
 {
-    $link = trim($link);
-    $host = strtolower((string) parse_url($link, PHP_URL_HOST));
-    $dikenal = $host === '1drv.ms' || $host === 'onedrive.live.com'
-        || str_ends_with($host, '.sharepoint.com') || str_ends_with($host, '.sharepoint.cn');
-    if (!preg_match('#^https://#i', $link) || !$dikenal || strlen($link) > 2000) {
-        throw new RuntimeException('Link tidak dikenali. Gunakan link folder dari OneDrive/SharePoint (Bagikan → Salin link).');
-    }
+    $link = periksaLinkOneDrive($link);
     $token = onedriveTokenAkses($pdo);
     [$kode, $json, $mentah] = httpMicrosoft('GET',
         urlGraph('/shares/' . kodeLinkBerbagi($link) . '/driveItem?$select=id,name,webUrl,folder,parentReference'),

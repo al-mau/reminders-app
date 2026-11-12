@@ -111,6 +111,14 @@ sama seperti WhatsApp dan Telegram. Tombol **Kirim email percobaan** di panel it
 Tambahkan `email` di `NOTIF_VIA` agar pengingat otomatis jam 07.00 juga dikirim lewat email.
 Batas Gmail sekitar 500 email/hari; untuk pemakaian resmi sebaiknya memakai SMTP kantor agar tidak masuk Spam.
 
+## Folder OneDrive untuk upload manual (opsional)
+
+Menu **Penerima → Penyimpanan OneDrive** (Akses Penuh): tempel link folder OneDrive/SharePoint
+(*Bagikan → Salin link*) → **Simpan link**. Di jendela **Lampiran** setiap unit muncul tombol **Buka folder OneDrive**
+beserta saran nama subfolder (`<kode unit> - <nama unit>`). Pengguna mengunggah file sendiri di OneDrive (tombol
+*Unggah* atau seret file). Aplikasi tidak mengirim file apa pun; yang membuka folder harus punya izin di OneDrive.
+Link juga bisa diisi lewat Environment Variable `ONEDRIVE_FOLDER_LINK`.
+
 ## Arsip lampiran lewat Power Automate (opsional, tanpa pendaftaran aplikasi)
 
 Cara termudah agar setiap lampiran otomatis masuk ke folder OneDrive kantor tanpa meminta Client ID ke tim IT.

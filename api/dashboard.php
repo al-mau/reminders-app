@@ -212,6 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'tambah_email' => 'kelola_penerima', 'edit_email' => 'kelola_penerima', 'toggle_email' => 'kelola_penerima',
         'hapus_email' => 'kelola_penerima', 'uji_email' => 'kelola_penerima',
         'onedrive_mulai' => 'kelola_penerima', 'onedrive_cek' => 'kelola_penerima', 'onedrive_putuskan' => 'kelola_penerima',
+        'folder_manual_simpan' => 'kelola_penerima', 'folder_manual_hapus' => 'kelola_penerima',
         'onedrive_sinkron' => 'kelola_penerima', 'arsip_email_simpan' => 'kelola_penerima', 'arsip_email_hapus' => 'kelola_penerima', 'arsip_email_uji' => 'kelola_penerima', 'onedrive_folder' => 'kelola_penerima', 'onedrive_folder_hapus' => 'kelola_penerima',
     ];
     if (!boleh($hakAksi[$aksi] ?? 'kelola_pengguna')) {
@@ -679,6 +680,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // --- 10a. LINK FOLDER ONEDRIVE UNTUK UPLOAD MANUAL (Akses Penuh) ---
+    if ($aksi === 'folder_manual_simpan' || $aksi === 'folder_manual_hapus') {
+        try {
+            if ($aksi === 'folder_manual_simpan') {
+                simpanPengaturan($pdo, 'onedrive_link_manual', periksaLinkOneDrive((string) ($_POST['link_manual'] ?? '')));
+                flash('success', 'Link folder OneDrive disimpan. Tombol "Buka folder OneDrive" kini tampil di jendela Lampiran setiap unit.');
+            } else {
+                simpanPengaturan($pdo, 'onedrive_link_manual', null);
+                flash('warning', 'Link folder OneDrive dihapus dari aplikasi (folder di OneDrive tidak berubah).');
+            }
+        } catch (Throwable $e) {
+            flash('danger', 'Folder OneDrive: ' . $e->getMessage());
+        }
+        header('Location: ' . kembaliKe('penerima', [], 'onedrive'));
+        exit;
+    }
+
     // --- 10. ARSIP ONEDRIVE LEWAT EMAIL + POWER AUTOMATE (Akses Penuh) ---
     if (str_starts_with($aksi, 'arsip_email_')) {
         try {
@@ -922,6 +940,7 @@ $buka_lampiran = (int) ($_GET['lampiran'] ?? 0);
 $od_diatur = onedriveDiatur();
 $od_siap   = $od_diatur && onedriveSiap($pdo);
 $od_mode   = onedriveMode($pdo);
+$od_manual = linkFolderManual($pdo);
 
 // --- PENGIRIMAN TERAKHIR per unit dari Riwayat Kirim (otomatis maupun manual) ---
 // Riwayat mencatat unit sebagai "(kode) nama", satu unit per baris (lihat cron_wa_reminder.php & kirim manual).
@@ -1606,9 +1625,28 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
         <section class="card" id="onedrive">
             <div class="card-header d-flex justify-content-between align-items-baseline">
                 <h2><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Penyimpanan OneDrive</h2>
-                <span><?= ['graph' => 'terhubung', 'email' => 'lewat email'][$od_mode] ?? 'belum aktif'; ?></span>
+                <span><?= ['graph' => 'otomatis', 'email' => 'otomatis lewat email'][$od_mode] ?? ($od_manual !== '' ? 'manual' : 'belum aktif'); ?></span>
             </div>
             <div class="form-tambah">
+                <p class="mb-2"><b>Folder OneDrive (upload manual)</b><br>
+                    <span>Simpan link folder tujuan. Di jendela Lampiran setiap unit akan muncul tombol <b>Buka folder OneDrive</b> untuk mengunggah file ke sana secara manual.</span></p>
+                <form method="POST" action="dashboard.php" class="mb-2"><?= csrf_field(); ?><input type="hidden" name="aksi" value="folder_manual_simpan">
+                    <label for="link-manual" class="small">Link folder OneDrive (Bagikan → Salin link)</label>
+                    <div class="d-flex gap-2">
+                        <input type="url" id="link-manual" name="link_manual" required maxlength="2000" class="form-control form-control-sm"
+                            value="<?= e($od_manual); ?>" placeholder="https://…sharepoint.com/:f:/g/personal/…">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">Simpan link</button>
+                    </div>
+                </form>
+                <?php if ($od_manual !== ''): ?>
+                <div class="d-flex gap-3 align-items-center mb-1">
+                    <a href="<?= e($od_manual); ?>" target="_blank" rel="noopener" class="small"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Coba buka folder</a>
+                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus link folder OneDrive dari aplikasi?')"><?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="folder_manual_hapus"><button type="submit" class="btn btn-link btn-sm p-0">Hapus link</button></form>
+                </div>
+                <?php endif; ?>
+                <hr>
+                <p class="small mb-2"><b>Arsip otomatis</b> (opsional)</p>
             <?php if ($od_siap): $od_r = onedriveRingkasan($pdo); ?>
                 <?php $od_tujuan = onedriveTujuan($pdo); ?>
                 <p class="mb-2">Akun: <b class="text-break"><?= e((string) ambilPengaturan($pdo, 'onedrive_akun')); ?></b><br>
@@ -2175,6 +2213,14 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                         <div class="small redup mb-2 d-none" data-progres-teks></div>
                         <button type="submit" class="btn btn-primary w-100">Unggah</button>
                     </form>
+                    <?php endif; ?>
+                    <?php if ($od_manual !== ''): ?>
+                    <div class="od-manual">
+                        <a href="<?= e($od_manual); ?>" target="_blank" rel="noopener" class="btn btn-outline-secondary w-100">
+                            <i class="fa-solid fa-folder-open" aria-hidden="true"></i> Buka folder OneDrive</a>
+                        <div class="form-text">Unggah file secara manual di OneDrive (tombol <b>Unggah</b> atau seret file ke folder).
+                            Saran nama subfolder: <span class="mono od-subfolder"><?= e(namaAmanOneDrive($row['kode_unit'] . ' - ' . $row['nama_unit'])); ?></span></div>
+                    </div>
                     <?php endif; ?>
                 </div>
             </div>
