@@ -86,6 +86,10 @@ CREATE TABLE IF NOT EXISTS lampiran (
     selesai        TINYINT(1)   NOT NULL DEFAULT 1,
     diunggah_oleh  VARCHAR(50)  NULL,
     dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    onedrive_status VARCHAR(10)  NULL,               -- salinan di OneDrive: NULL belum, ok, gagal
+    onedrive_url    VARCHAR(1000) NULL,
+    onedrive_pesan  VARCHAR(255) NULL,
+    onedrive_coba   TINYINT UNSIGNED NOT NULL DEFAULT 0,
     INDEX idx_deadline_id (deadline_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -112,6 +116,13 @@ CREATE TABLE IF NOT EXISTS log_pengiriman (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Percobaan login gagal (pembatasan brute force)
+-- Pengaturan aplikasi (kunci-nilai), mis. token OneDrive terenkripsi
+CREATE TABLE IF NOT EXISTS pengaturan (
+    kunci  VARCHAR(50)  NOT NULL PRIMARY KEY,
+    nilai  TEXT         NULL,
+    diubah DATETIME     NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS login_gagal (
     id       INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL,

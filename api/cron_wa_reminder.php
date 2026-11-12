@@ -15,6 +15,7 @@
  */
 require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/fonnte.php';
+require_once __DIR__ . '/lib/onedrive.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -104,6 +105,13 @@ if ($rows) {
 }
 
 // Sekalian bersihkan sisa lampiran tidak terpakai (upload terputus, potongan tanpa induk) sekali sehari
+// Lampiran yang belum / gagal disalin ke OneDrive dicoba lagi (bila OneDrive terhubung)
+try {
+    $laporan['onedrive'] = onedriveSinkronTertunda($pdo, 10);
+} catch (Throwable $e) {
+    error_log('Sinkron OneDrive gagal: ' . $e->getMessage());
+}
+
 try {
     $laporan['potongan_lampiran_dibersihkan'] = bersihkanLampiranGantung($pdo);
 } catch (PDOException $e) {

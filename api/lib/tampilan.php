@@ -8,7 +8,7 @@
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 42;
+const VERSI_TEMA = 43;
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -27,7 +27,7 @@ function kepalaHalaman(string $judul): string
 
 /**
  * Menu samping (di HP menjadi bilah menu di atas).
- * @param string $aktif  'unit', 'penerima', 'riwayat', atau 'pengguna'
+ * @param string $aktif  'beranda', 'unit', 'penerima', 'riwayat', atau 'pengguna'
  * @param array  $angka  angka kecil di samping menu, contoh ['unit' => 12, 'penerima' => 4]
  */
 function sidebarAplikasi(string $aktif, array $angka = []): string
@@ -35,13 +35,14 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
     // Peran akun (lib/peran.php): selain Akses Penuh, menu ini hanya berisi akun sendiri ("Akun saya")
     $peran = function_exists('peranSaya') ? peranSaya() : 'admin';
     $menu = [
+        'beranda'  => ['Beranda', 'dashboard.php?menu=beranda'],
         'unit'     => ['Daftar Unit', 'dashboard.php'],
         'penerima' => ['Penerima', 'dashboard.php?menu=penerima'],
         'riwayat'  => ['Riwayat Kirim', 'dashboard.php?menu=riwayat'],
         'pengguna' => [$peran === 'admin' ? 'User' : 'Akun saya', 'users.php'],
     ];
     $html = '<aside class="side"><div class="side-isi">'
-        . '<a class="brand" href="dashboard.php">'
+        . '<a class="brand" href="dashboard.php?menu=beranda">'
         . '<span class="brand-logo"><img src="logo-brk-syariah.webp" alt="BRK Syariah" width="160" height="33"></span>'
         . '<span class="brand-teks">Pengingat Deadline<small>Monitoring User Aplikasi Naskah Dinas</small></span></a>'
         . '<nav class="nav-side">';
