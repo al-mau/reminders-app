@@ -212,6 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'tambah_email' => 'kelola_penerima', 'edit_email' => 'kelola_penerima', 'toggle_email' => 'kelola_penerima',
         'hapus_email' => 'kelola_penerima', 'uji_email' => 'kelola_penerima',
         'onedrive_mulai' => 'kelola_penerima', 'onedrive_cek' => 'kelola_penerima', 'onedrive_putuskan' => 'kelola_penerima',
+        'arsip_tg_simpan' => 'kelola_penerima', 'arsip_tg_hapus' => 'kelola_penerima', 'arsip_tg_uji' => 'kelola_penerima', 'arsip_tg_cari' => 'kelola_penerima',
         'folder_manual_simpan' => 'kelola_penerima', 'folder_manual_hapus' => 'kelola_penerima',
         'onedrive_sinkron' => 'kelola_penerima', 'arsip_email_simpan' => 'kelola_penerima', 'arsip_email_hapus' => 'kelola_penerima', 'arsip_email_uji' => 'kelola_penerima', 'onedrive_folder' => 'kelola_penerima', 'onedrive_folder_hapus' => 'kelola_penerima',
     ];
@@ -241,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Salin ke OneDrive (bila terhubung); kegagalan tidak membatalkan upload ke aplikasi
             $od = onedriveSalinBaru($pdo, [(int) ($_POST['id'] ?? 0)]);
             if ($od && $od['gagal']) {
-                flash('warning', 'Lampiran tersimpan di aplikasi, tetapi belum masuk arsip OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
+                flash('warning', 'Lampiran tersimpan di aplikasi, tetapi belum masuk arsip (dicoba lagi otomatis): ' . $od['alasan']);
             }
             jsonKeluar(['ok' => true, 'onedrive' => $od]);
         } catch (InvalidArgumentException $e) {
@@ -329,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $od = onedriveSalinBaru($pdo, $hasil['id']);
                 if ($od && $od['gagal']) {
-                    flash('warning', 'Lampiran belum masuk arsip OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
+                    flash('warning', 'Lampiran belum masuk arsip (dicoba lagi otomatis): ' . $od['alasan']);
                 }
             }
             header('Location: ' . kembaliKe('unit', ['status' => 'success_add']));
@@ -453,10 +454,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hasil = simpanLampiran($pdo, $deadlineId, $files, $_SESSION['username'] ?? null);
             $od = onedriveSalinBaru($pdo, $hasil['id']);
             if ($hasil['berhasil'] > 0) {
-                flash('success', $hasil['berhasil'] . ' lampiran berhasil diunggah' . ($od && $od['ok'] ? (onedriveMode($pdo) === 'email' ? ' dan dikirim ke arsip OneDrive' : ' dan disalin ke OneDrive') : '') . '.');
+                flash('success', $hasil['berhasil'] . ' lampiran berhasil diunggah' . ($od && $od['ok'] ? ' dan ' . labelArsip(onedriveMode($pdo)) : '') . '.');
             }
             if ($od && $od['gagal']) {
-                flash('warning', 'Lampiran belum masuk arsip OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
+                flash('warning', 'Lampiran belum masuk arsip (dicoba lagi otomatis): ' . $od['alasan']);
             }
             foreach ($hasil['gagal'] as $pesan) {
                 flash('danger', 'Lampiran gagal — ' . $pesan);
@@ -680,6 +681,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // --- 10b. ARSIP LAMPIRAN KE GRUP TELEGRAM (Akses Penuh) ---
+    if (str_starts_with($aksi, 'arsip_tg_')) {
+        try {
+            if (!env('TELEGRAM_BOT_TOKEN')) {
+                throw new RuntimeException('Isi TELEGRAM_BOT_TOKEN di Environment Variables terlebih dahulu.');
+            }
+            if ($aksi === 'arsip_tg_cari') {
+                $hasil = cariChatTelegram();
+                if (!$hasil['ok']) {
+                    throw new RuntimeException('Gagal mencari grup: ' . $hasil['pesan']);
+                }
+                $grup = array_filter($hasil['chat'], fn($c) => $c['jenis'] !== 'Pribadi');
+                $grup
+                    ? $_SESSION['tg_arsip_ditemukan'] = $grup
+                    : flash('warning', 'Belum ada grup terdeteksi. Tambahkan bot ke grup arsip, kirim satu pesan di grup (mis. /start@nama_bot), lalu klik Cari grup lagi.');
+            } elseif ($aksi === 'arsip_tg_simpan') {
+                $chat = trim((string) ($_POST['chat_id'] ?? ''));
+                if (!chatIdTelegramValid($chat)) {
+                    throw new RuntimeException('Chat ID tidak valid. Chat ID grup berupa angka diawali tanda minus, contoh -1001234567890.');
+                }
+                simpanPengaturan($pdo, 'arsip_telegram', $chat);
+                simpanPengaturan($pdo, 'arsip_telegram_nama', potong(trim((string) ($_POST['nama'] ?? '')), 100) ?: null);
+                flash('success', 'Grup arsip Telegram disimpan. Klik "Kirim file uji" untuk memastikan bot bisa mengirim file ke grup.');
+            } elseif ($aksi === 'arsip_tg_hapus') {
+                simpanPengaturan($pdo, 'arsip_telegram', null);
+                simpanPengaturan($pdo, 'arsip_telegram_nama', null);
+                flash('warning', arsipTelegram($pdo) !== ''
+                    ? 'Grup dari dashboard dihapus; kembali memakai TELEGRAM_ARSIP_CHAT_ID dari Environment Variables.'
+                    : 'Arsip ke grup Telegram dihentikan. File yang sudah ada di grup tetap tersimpan.');
+            } else {
+                if (arsipTelegram($pdo) === '') {
+                    throw new RuntimeException('Pilih atau isi grup arsip terlebih dahulu.');
+                }
+                $hasil = kirimFileArsipTelegram($pdo, 'uji-arsip.txt',
+                    "File uji arsip lampiran.\nBila file ini muncul di grup, arsip Telegram sudah siap.\nDikirim: " . date('d-m-Y H.i'),
+                    "🧪 <b>File uji arsip lampiran</b>\nDikirim dari menu Penerima → Arsip Lampiran.");
+                $hasil['ok']
+                    ? flash('success', 'File uji terkirim. Cek grup Telegram: harus ada file uji-arsip.txt.')
+                    : flash('danger', 'File uji gagal dikirim: ' . $hasil['pesan']
+                        . (stripos($hasil['pesan'], 'not found') !== false || stripos($hasil['pesan'], 'kicked') !== false ? ' (pastikan bot sudah menjadi anggota grup).' : ''));
+            }
+        } catch (Throwable $e) {
+            flash('danger', 'Arsip Telegram: ' . $e->getMessage());
+        }
+        header('Location: ' . kembaliKe('penerima', [], 'onedrive'));
+        exit;
+    }
+
     // --- 10a. LINK FOLDER ONEDRIVE UNTUK UPLOAD MANUAL (Akses Penuh) ---
     if ($aksi === 'folder_manual_simpan' || $aksi === 'folder_manual_hapus') {
         try {
@@ -720,7 +769,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $isi = "Email uji arsip lampiran.\nBila alur Power Automate sudah benar, file ini tersimpan di folder OneDrive tujuan,\n"
                     . "di dalam subfolder \"UJI - Email Uji Arsip\". Folder uji tersebut boleh dihapus.\nDikirim: " . date('d-m-Y H.i');
                 $hasil = kirimEmailLampiran($ke, subjekArsip('UJI', 'Email Uji Arsip'),
-                    "*Email uji arsip lampiran*\n\nDikirim dari menu Penerima → Penyimpanan OneDrive. Lampiran: uji-arsip.txt",
+                    "*Email uji arsip lampiran*\n\nDikirim dari menu Penerima → Arsip Lampiran. Lampiran: uji-arsip.txt",
                     'uji-arsip.txt', $isi);
                 $hasil['ok']
                     ? flash('success', "Email uji terkirim ke $ke. Dalam 1–5 menit cek folder OneDrive: harus ada subfolder \"UJI - Email Uji Arsip\" berisi uji-arsip.txt.")
@@ -767,7 +816,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $hasil = onedriveSinkronTertunda($pdo, 15, true);
                 $sisa  = onedriveRingkasan($pdo);
-                flash($hasil['gagal'] ? 'warning' : 'success', (onedriveMode($pdo) === 'email' ? 'Dikirim ke arsip' : 'Disalin ke OneDrive') . ": {$hasil['ok']} file" . ($hasil['gagal'] ? ", gagal {$hasil['gagal']}" : '')
+                flash($hasil['gagal'] ? 'warning' : 'success', ucfirst(labelArsip(onedriveMode($pdo))) . ": {$hasil['ok']} file" . ($hasil['gagal'] ? ", gagal {$hasil['gagal']}" : '')
                     . ($sisa['belum'] + $sisa['gagal'] ? '. Masih ada ' . ($sisa['belum'] + $sisa['gagal']) . ' file, klik lagi untuk melanjutkan.' : '.'));
             }
         } catch (Throwable $e) {
@@ -941,6 +990,9 @@ $od_diatur = onedriveDiatur();
 $od_siap   = $od_diatur && onedriveSiap($pdo);
 $od_mode   = onedriveMode($pdo);
 $od_manual = linkFolderManual($pdo);
+$tg_arsip  = arsipTelegram($pdo);
+$tg_arsip_ditemukan = $_SESSION['tg_arsip_ditemukan'] ?? [];
+unset($_SESSION['tg_arsip_ditemukan']);
 
 // --- PENGIRIMAN TERAKHIR per unit dari Riwayat Kirim (otomatis maupun manual) ---
 // Riwayat mencatat unit sebagai "(kode) nama", satu unit per baris (lihat cron_wa_reminder.php & kirim manual).
@@ -1624,8 +1676,8 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
         <div class="col-lg-6">
         <section class="card" id="onedrive">
             <div class="card-header d-flex justify-content-between align-items-baseline">
-                <h2><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Penyimpanan OneDrive</h2>
-                <span><?= ['graph' => 'otomatis', 'email' => 'otomatis lewat email'][$od_mode] ?? ($od_manual !== '' ? 'manual' : 'belum aktif'); ?></span>
+                <h2><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Arsip Lampiran</h2>
+                <span><?= ['graph' => 'otomatis · OneDrive', 'email' => 'otomatis · email', 'telegram' => 'otomatis · Telegram'][$od_mode] ?? ($od_manual !== '' ? 'manual' : 'belum aktif'); ?></span>
             </div>
             <div class="form-tambah">
                 <p class="mb-2"><b>Folder OneDrive (upload manual)</b><br>
@@ -1647,6 +1699,50 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <?php endif; ?>
                 <hr>
                 <p class="small mb-2"><b>Arsip otomatis</b> (opsional)</p>
+                <div class="od-bagian">
+                <p class="mb-2"><i class="fa-brands fa-telegram" aria-hidden="true"></i> <b>Grup Telegram</b><br>
+                    <span>Bot pengingat mengirim setiap lampiran baru sebagai file ke grup arsip. Untuk demo / data contoh.</span></p>
+                <?php if (!env('TELEGRAM_BOT_TOKEN')): ?>
+                    <p class="teks-merah small mb-0">TELEGRAM_BOT_TOKEN belum diatur.</p>
+                <?php else: ?>
+                    <?php if ($tg_arsip !== ''): $tg_nama = ambilPengaturan($pdo, 'arsip_telegram_nama'); ?>
+                    <p class="mb-2 small">Grup: <b><?= e($tg_nama ?: 'Grup arsip'); ?></b> <span class="mono">(<?= e($tg_arsip); ?>)</span>
+                        <?php if ($od_mode !== 'telegram' && $od_mode !== null): ?><br><span class="teks-merah">Tidak dipakai sekarang karena <?= $od_mode === 'graph' ? 'OneDrive langsung' : 'arsip email'; ?> sedang aktif.</span><?php endif; ?></p>
+                    <?php if ($od_mode === 'telegram'): $od_r = onedriveRingkasan($pdo); ?>
+                    <p class="mb-2 small">Terarsip <b><?= $od_r['ok']; ?></b> file · gagal <b class="<?= $od_r['gagal'] ? 'teks-merah' : ''; ?>"><?= $od_r['gagal']; ?></b> · lampiran lama belum diarsipkan <b><?= $od_r['belum']; ?></b></p>
+                    <?php endif; ?>
+                    <div class="d-flex gap-2 flex-wrap mb-2">
+                        <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_tg_uji">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">Kirim file uji</button></form>
+                        <?php if ($od_mode === 'telegram' && $od_r['belum'] + $od_r['gagal']): ?>
+                        <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_sinkron">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">Kirim lampiran yang belum diarsipkan</button></form>
+                        <?php endif; ?>
+                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hentikan arsip ke grup Telegram?')"><?= csrf_field(); ?>
+                            <input type="hidden" name="aksi" value="arsip_tg_hapus"><button type="submit" class="btn btn-outline-danger btn-sm">Hentikan</button></form>
+                    </div>
+                    <?php endif; ?>
+                    <?php foreach ($tg_arsip_ditemukan as $cid => $c): ?>
+                    <div class="baris-penerima ditemukan">
+                        <div><div class="nama"><?= e($c['nama']); ?> <span class="badge tanda"><?= e($c['jenis']); ?></span></div><div class="kode">ID <?= e((string) $cid); ?></div></div>
+                        <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_tg_simpan">
+                            <input type="hidden" name="chat_id" value="<?= e((string) $cid); ?>"><input type="hidden" name="nama" value="<?= e($c['nama']); ?>">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">Pakai grup ini</button></form>
+                    </div>
+                    <?php endforeach; ?>
+                    <form method="POST" action="dashboard.php" class="mb-2"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_tg_cari">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm w-100"><?= $tg_arsip !== '' ? 'Ganti grup: cari grup yang ada botnya' : 'Cari grup yang sudah ada botnya'; ?></button></form>
+                    <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_tg_simpan">
+                        <label for="tg-arsip" class="small">atau isi Chat ID grup</label>
+                        <div class="d-flex gap-2">
+                            <input type="text" id="tg-arsip" name="chat_id" required maxlength="25" inputmode="numeric" class="form-control form-control-sm mono" placeholder="-1001234567890">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">Simpan</button>
+                        </div>
+                    </form>
+                <?php endif; ?>
+                </div>
+                <hr>
+                <p class="mb-2"><i class="fa-solid fa-envelope" aria-hidden="true"></i> <b>Email + Power Automate</b> (OneDrive kantor)</p>
             <?php if ($od_siap): $od_r = onedriveRingkasan($pdo); ?>
                 <?php $od_tujuan = onedriveTujuan($pdo); ?>
                 <p class="mb-2">Akun: <b class="text-break"><?= e((string) ambilPengaturan($pdo, 'onedrive_akun')); ?></b><br>
@@ -2172,14 +2268,17 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                                     <?php if ($l['onedrive_status'] === 'ok'): ?>
                                         <i class="fa-solid fa-cloud teks-hijau" aria-hidden="true"></i>
                                         <?= $l['onedrive_url'] ? '<a href="' . e($l['onedrive_url']) . '" target="_blank" rel="noopener">Tersimpan di OneDrive</a>' : 'Tersimpan di OneDrive'; ?>
+                                    <?php elseif ($l['onedrive_status'] === 'telegram'): ?>
+                                        <i class="fa-brands fa-telegram teks-hijau" aria-hidden="true"></i>
+                                        <?= $l['onedrive_url'] ? '<a href="' . e($l['onedrive_url']) . '" target="_blank" rel="noopener" title="' . e((string) $l['onedrive_pesan']) . '">Diarsipkan ke grup Telegram</a>' : '<span title="' . e((string) $l['onedrive_pesan']) . '">Diarsipkan ke grup Telegram</span>'; ?>
                                     <?php elseif ($l['onedrive_status'] === 'email'): ?>
                                         <i class="fa-solid fa-paper-plane teks-hijau" aria-hidden="true"></i>
                                         <span title="<?= e((string) $l['onedrive_pesan']); ?>">Dikirim ke arsip OneDrive</span>
                                     <?php elseif ($l['onedrive_status'] === 'gagal'): ?>
                                         <i class="fa-solid fa-cloud teks-merah" aria-hidden="true"></i>
-                                        <span class="teks-merah" title="<?= e((string) $l['onedrive_pesan']); ?>">Belum masuk arsip OneDrive · dicoba lagi otomatis</span>
+                                        <span class="teks-merah" title="<?= e((string) $l['onedrive_pesan']); ?>">Belum masuk arsip · dicoba lagi otomatis</span>
                                     <?php else: ?>
-                                        <i class="fa-regular fa-cloud" aria-hidden="true"></i> <?= $od_mode ? 'Belum diarsipkan ke OneDrive' : 'Arsip OneDrive belum aktif'; ?>
+                                        <i class="fa-regular fa-clock redup" aria-hidden="true"></i> <?= $od_mode ? 'Belum diarsipkan' : 'Arsip otomatis belum aktif'; ?>
                                     <?php endif; ?>
                                 </div>
                                 <?php endif; ?>

@@ -338,6 +338,62 @@ function kirimKeTelegram(string $pesan, array $chatIds): array
 }
 
 /**
+ * Kirim satu file ke chat/grup Telegram (sendDocument, maks. 50 MB per file untuk bot).
+ * @return array{ok: bool, pesan: string, message_id?: int, chat_baru?: string}
+ *   chat_baru terisi bila grup sudah di-upgrade menjadi supergroup (chat id berubah).
+ */
+function kirimDokumenTelegram(string $chatId, string $namaFile, string $isi, string $captionHtml): array
+{
+    $token = env('TELEGRAM_BOT_TOKEN');
+    if (!$token) {
+        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur.'];
+    }
+    $url = rtrim((string) env('TELEGRAM_API', 'https://api.telegram.org'), '/') . '/bot' . $token . '/sendDocument';
+
+    // PHP 8.1+: kirim langsung dari memori; versi lama lewat file sementara
+    $sementara = null;
+    if (class_exists('CURLStringFile')) {
+        $file = new CURLStringFile($isi, $namaFile, 'application/octet-stream');
+    } else {
+        $sementara = tempnam(sys_get_temp_dir(), 'tg');
+        file_put_contents($sementara, $isi);
+        $file = new CURLFile($sementara, 'application/octet-stream', $namaFile);
+    }
+
+    $curl = curl_init();
+    curl_setopt_array($curl, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT        => 90,
+        CURLOPT_POSTFIELDS     => [
+            'chat_id'    => $chatId,
+            'document'   => $file,
+            'caption'    => potong($captionHtml, 1000),
+            'parse_mode' => 'HTML',
+        ],
+    ]);
+    pasangSertifikatXampp($curl);
+    $response = curl_exec($curl);
+    $error    = curl_error($curl);
+    curl_close($curl);
+    if ($sementara) {
+        @unlink($sementara);
+    }
+
+    $res = $response === false ? null : json_decode((string) $response, true);
+    if (!empty($res['ok'])) {
+        return ['ok' => true, 'pesan' => 'Terkirim', 'message_id' => (int) ($res['result']['message_id'] ?? 0)];
+    }
+    if (!empty($res['parameters']['migrate_to_chat_id'])) {
+        return ['ok' => false, 'pesan' => 'Grup di-upgrade Telegram', 'chat_baru' => (string) $res['parameters']['migrate_to_chat_id']];
+    }
+    error_log("Telegram dokumen gagal ($chatId): " . ($response === false ? $error : $response));
+    return ['ok' => false, 'pesan' => $response === false ? 'Gagal menghubungi server Telegram: ' . $error : (string) ($res['description'] ?? 'Respon tidak valid')];
+}
+
+/**
  * Kirim pesan langsung ke API Fonnte (dipanggil oleh kirimWhatsApp).
  * $target berisi satu atau beberapa nomor dipisah koma; Fonnte mengirim ke semuanya.
  * Pesan dikirim dari HP/nomor yang terhubung (device) di dashboard fonnte.com.
