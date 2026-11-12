@@ -31,6 +31,11 @@
  *   (atau Environment Variable ARSIP_EMAIL); butuh pengaturan SMTP yang sama dengan pengingat email.
  *   Bila akun Microsoft terhubung langsung (ONEDRIVE_CLIENT_ID), cara langsung itu yang dipakai.
  *
+ * CARA 3 — ARSIP KE GRUP TELEGRAM (untuk demo / data contoh):
+ *   Bot pengingat (TELEGRAM_BOT_TOKEN) mengirim setiap lampiran sebagai file ke grup arsip.
+ *   Chat id grup diatur di kartu (atau TELEGRAM_ARSIP_CHAT_ID). Urutan prioritas bila beberapa
+ *   cara diatur sekaligus: OneDrive langsung → email (Power Automate) → Telegram.
+ *
  * Bila upload gagal (jaringan, token kedaluwarsa), lampiran ditandai "gagal" dan dicoba lagi
  * otomatis oleh cron pengingat setiap pagi (maks. ONEDRIVE_MAKS_COBA kali).
  */
@@ -38,6 +43,7 @@
 require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/skema.php';
 require_once __DIR__ . '/email.php';
+require_once __DIR__ . '/fonnte.php';
 
 const ARSIP_TAG = '[ARSIP-LAMPIRAN]';
 
@@ -76,7 +82,42 @@ function onedriveMode(PDO $pdo): ?string
     if (onedriveSiap($pdo)) {
         return 'graph';
     }
-    return arsipEmail($pdo) !== '' && emailSiap() ? 'email' : null;
+    if (arsipEmail($pdo) !== '' && emailSiap()) {
+        return 'email';
+    }
+    return arsipTelegram($pdo) !== '' && env('TELEGRAM_BOT_TOKEN') ? 'telegram' : null;
+}
+
+/** Chat id grup Telegram arsip: pengaturan dashboard, cadangan TELEGRAM_ARSIP_CHAT_ID */
+function arsipTelegram(PDO $pdo): string
+{
+    return trim((string) (ambilPengaturan($pdo, 'arsip_telegram') ?? env('TELEGRAM_ARSIP_CHAT_ID', '')));
+}
+
+/** Kata kerja hasil penyalinan per cara, untuk pesan di dashboard */
+function labelArsip(?string $mode): string
+{
+    return ['graph' => 'disalin ke OneDrive', 'email' => 'dikirim ke arsip OneDrive', 'telegram' => 'diarsipkan ke grup Telegram'][$mode] ?? 'diarsipkan';
+}
+
+/** Tautan pesan Telegram (hanya untuk supergroup/channel: chat id -100...; dibuka oleh anggota grup) */
+function tautanPesanTelegram(string $chatId, int $pesanId): string
+{
+    return str_starts_with($chatId, '-100') && $pesanId > 0 ? 'https://t.me/c/' . substr($chatId, 4) . '/' . $pesanId : '';
+}
+
+/** Kirim satu file ke grup arsip Telegram; grup yang di-upgrade ke supergroup diikuti otomatis */
+function kirimFileArsipTelegram(PDO $pdo, string $namaFile, string $isi, string $caption): array
+{
+    $chat  = arsipTelegram($pdo);
+    $hasil = kirimDokumenTelegram($chat, $namaFile, $isi, $caption);
+    if (!$hasil['ok'] && !empty($hasil['chat_baru'])) {
+        $chat = $hasil['chat_baru'];
+        simpanPengaturan($pdo, 'arsip_telegram', $chat);
+        $hasil = kirimDokumenTelegram($chat, $namaFile, $isi, $caption);
+    }
+    $hasil['chat'] = $chat;
+    return $hasil;
 }
 
 /** Subjek email arsip; Power Automate memakai teks setelah tag sebagai nama subfolder unit */
@@ -424,8 +465,12 @@ function onedriveUnggah(PDO $pdo, int $lampiranId): array
     }
 
     try {
-        if (onedriveMode($pdo) === 'email') {
+        $mode = onedriveMode($pdo);
+        if ($mode === 'email') {
             return arsipKirimEmail($pdo, $lamp);
+        }
+        if ($mode === 'telegram') {
+            return arsipKirimTelegram($pdo, $lamp);
         }
         $token = onedriveTokenAkses($pdo);
         $isi   = isiLampiran($pdo, $lamp);
@@ -490,6 +535,26 @@ function arsipKirimEmail(PDO $pdo, array $lamp): array
     return ['ok' => true, 'pesan' => 'Dikirim ke arsip OneDrive'];
 }
 
+/** Cara 3: kirim lampiran sebagai file ke grup arsip Telegram */
+function arsipKirimTelegram(PDO $pdo, array $lamp): array
+{
+    $h = fn($t) => htmlspecialchars((string) $t, ENT_NOQUOTES, 'UTF-8');
+    $tagar = '#' . trim(preg_replace('/[^\p{L}\p{N}_]+/u', '_', (string) $lamp['kode_unit']), '_');
+    $caption = "📎 <b>Arsip lampiran</b> " . $h($tagar) . "\n"
+        . 'Unit: ' . $h($lamp['kode_unit'] . ' - ' . $lamp['nama_unit']) . "\n"
+        . 'No. surat: ' . $h($lamp['no_surat'] ?: '-') . "\n"
+        . 'File: ' . $h($lamp['nama_file']) . "\n"
+        . 'Diunggah: ' . date('d-m-Y H.i', strtotime((string) $lamp['dibuat_tanggal'])) . ($lamp['diunggah_oleh'] ? ' oleh ' . $h($lamp['diunggah_oleh']) : '');
+    $hasil = kirimFileArsipTelegram($pdo, namaAmanOneDrive($lamp['nama_file']), isiLampiran($pdo, $lamp), $caption);
+    if (!$hasil['ok']) {
+        throw new RuntimeException('Telegram: ' . $hasil['pesan']);
+    }
+    $pdo->prepare("UPDATE lampiran SET onedrive_status = 'telegram', onedrive_url = ?, onedrive_pesan = ?, onedrive_coba = onedrive_coba + 1 WHERE id = ?")
+        ->execute([tautanPesanTelegram($hasil['chat'], (int) ($hasil['message_id'] ?? 0)) ?: null,
+            potong('Dikirim ke grup Telegram ' . $hasil['chat'] . ' pada ' . date('d-m-Y H.i'), 250), (int) $lamp['id']]);
+    return ['ok' => true, 'pesan' => 'Diarsipkan ke grup Telegram'];
+}
+
 /** Salin lampiran yang baru disimpan (dipanggil setelah upload di dashboard); diam bila OneDrive belum terhubung */
 function onedriveSalinBaru(PDO $pdo, array $lampiranIds): ?array
 {
@@ -536,7 +601,7 @@ function onedriveSinkronTertunda(PDO $pdo, int $batas = 10, bool $termasukLama =
 function onedriveRingkasan(PDO $pdo): array
 {
     $r = $pdo->query(
-        "SELECT COALESCE(SUM(onedrive_status IN ('ok', 'email')), 0) AS ok,
+        "SELECT COALESCE(SUM(onedrive_status IN ('ok', 'email', 'telegram')), 0) AS ok,
                 COALESCE(SUM(onedrive_status = 'gagal'), 0) AS gagal,
                 COALESCE(SUM(onedrive_status IS NULL), 0) AS belum
          FROM lampiran WHERE selesai = 1"

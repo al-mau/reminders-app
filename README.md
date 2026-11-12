@@ -113,11 +113,32 @@ Batas Gmail sekitar 500 email/hari; untuk pemakaian resmi sebaiknya memakai SMTP
 
 ## Folder OneDrive untuk upload manual (opsional)
 
-Menu **Penerima → Penyimpanan OneDrive** (Akses Penuh): tempel link folder OneDrive/SharePoint
+Menu **Penerima → Arsip Lampiran** (Akses Penuh): tempel link folder OneDrive/SharePoint
 (*Bagikan → Salin link*) → **Simpan link**. Di jendela **Lampiran** setiap unit muncul tombol **Buka folder OneDrive**
 beserta saran nama subfolder (`<kode unit> - <nama unit>`). Pengguna mengunggah file sendiri di OneDrive (tombol
 *Unggah* atau seret file). Aplikasi tidak mengirim file apa pun; yang membuka folder harus punya izin di OneDrive.
 Link juga bisa diisi lewat Environment Variable `ONEDRIVE_FOLDER_LINK`.
+
+## Arsip lampiran ke grup Telegram (opsional, untuk demo / data contoh)
+
+Bot Telegram pengingat (`TELEGRAM_BOT_TOKEN`) mengirim setiap lampiran baru sebagai **file** ke grup arsip, dengan
+keterangan unit, no. surat, nama file, pengunggah, dan tagar kode unit (contoh `#KC001`) agar mudah dicari di grup.
+Status di jendela Lampiran: *Diarsipkan ke grup Telegram* (untuk supergroup berupa tautan ke pesannya). Bila gagal
+(jaringan/Telegram error), dicoba lagi oleh cron jam 07.00. Batas file bot Telegram 50 MB (aplikasi membatasi 5 MB).
+
+**Persiapan (±5 menit)**
+
+1. Di Telegram buat **grup baru**, contoh "Arsip Lampiran", lalu **tambahkan bot pengingat** sebagai anggota.
+2. Kirim satu pesan di grup, contoh `/start@nama_bot`.
+3. Di aplikasi: menu **Penerima → Arsip Lampiran → Cari grup yang sudah ada botnya** → **Pakai grup ini**.
+   (Atau isi Chat ID grup secara manual, angka diawali minus, contoh `-1001234567890`, atau lewat
+   Environment Variable `TELEGRAM_ARSIP_CHAT_ID`.)
+4. Klik **Kirim file uji** → file `uji-arsip.txt` harus muncul di grup.
+
+Lampiran yang diunggah sebelum fitur aktif dikirim lewat tombol **Kirim lampiran yang belum diarsipkan** (15 file per
+klik). Bila grup di-upgrade Telegram menjadi supergroup (Chat ID berubah), aplikasi mengikutinya otomatis.
+Prioritas bila beberapa cara diatur sekaligus: OneDrive langsung → email (Power Automate) → Telegram.
+Telegram adalah layanan konsumen di luar Microsoft 365 kantor: gunakan untuk demo/data contoh, bukan dokumen dinas asli.
 
 ## Arsip lampiran lewat Power Automate (opsional, tanpa pendaftaran aplikasi)
 
@@ -138,7 +159,7 @@ Status tiap file tampil di jendela Lampiran: *Dikirim ke arsip OneDrive* atau *B
 (bila SMTP gagal; cron jam 07.00 mengulang maks. 5 kali). Aplikasi hanya tahu email sudah terkirim — riwayat penyimpanan
 ada di Power Automate (*My flows → nama alur → Run history*).
 
-**1. Aktifkan di aplikasi** — menu **Penerima → Penyimpanan OneDrive** (Akses Penuh): isi alamat email arsip → **Simpan**.
+**1. Aktifkan di aplikasi** — menu **Penerima → Arsip Lampiran** (Akses Penuh): isi alamat email arsip → **Simpan**.
 Pengaturan SMTP (bagian Notifikasi Email) harus sudah benar. Alamat juga bisa diisi lewat Environment Variable `ARSIP_EMAIL`.
 Lampiran yang diunggah sebelum fitur aktif tidak dikirim otomatis; klik **Kirim lampiran yang belum diarsipkan** bila ingin
 mengarsipkannya juga (15 file per klik).
@@ -204,7 +225,7 @@ Tidak ada *client secret* yang dibutuhkan.
 | `ONEDRIVE_IZIN` | Kosongkan. Isi `semua` hanya bila akun yang login **bukan** pemilik folder (meminta `Files.ReadWrite.All`) |
 | `ONEDRIVE_FOLDER` | Opsional. Folder di OneDrive akun yang login bila belum ada link, default `Aplikasi Pengingat Deadline/Lampiran` |
 
-**3. Hubungkan (sekali, akun Akses Penuh → menu Penerima → kartu Penyimpanan OneDrive)**
+**3. Hubungkan (sekali, akun Akses Penuh → menu Penerima → kartu Arsip Lampiran)**
 
 1. Klik **Hubungkan OneDrive** → buka `microsoft.com/devicelogin` → masukkan kode yang tampil → login dengan akun
    pemilik folder (contoh akun Corsec) → *Accept*.
