@@ -17,6 +17,7 @@ require_once __DIR__ . '/lib/session_handler.php';
 require_once __DIR__ . '/lib/fonnte.php';
 require_once __DIR__ . '/lib/tampilan.php';
 require_once __DIR__ . '/lib/peran.php';
+require_once __DIR__ . '/lib/onedrive.php';
 
 // Cek status login: belum login -> lempar ke halaman login
 if (empty($_SESSION['login'])) {
@@ -210,6 +211,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'toggle_telegram' => 'kelola_penerima', 'hapus_telegram' => 'kelola_penerima', 'cari_telegram' => 'kelola_penerima',
         'tambah_email' => 'kelola_penerima', 'edit_email' => 'kelola_penerima', 'toggle_email' => 'kelola_penerima',
         'hapus_email' => 'kelola_penerima', 'uji_email' => 'kelola_penerima',
+        'onedrive_mulai' => 'kelola_penerima', 'onedrive_cek' => 'kelola_penerima', 'onedrive_putuskan' => 'kelola_penerima',
+        'onedrive_sinkron' => 'kelola_penerima', 'onedrive_folder' => 'kelola_penerima', 'onedrive_folder_hapus' => 'kelola_penerima',
     ];
     if (!boleh($hakAksi[$aksi] ?? 'kelola_pengguna')) {
         $pesanTolak = 'Akun Anda (' . labelPeran(peranSaya()) . ') tidak punya izin untuk melakukan aksi ini.';
@@ -234,7 +237,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonKeluar(['ok' => true]);
             }
             selesaikanLampiran($pdo, (int) ($_POST['id'] ?? 0));
-            jsonKeluar(['ok' => true]);
+            // Salin ke OneDrive (bila terhubung); kegagalan tidak membatalkan upload ke aplikasi
+            $od = onedriveSalinBaru($pdo, [(int) ($_POST['id'] ?? 0)]);
+            if ($od && $od['gagal']) {
+                flash('warning', 'Lampiran tersimpan di aplikasi, tetapi belum tersalin ke OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
+            }
+            jsonKeluar(['ok' => true, 'onedrive' => $od]);
         } catch (InvalidArgumentException $e) {
             jsonKeluar(['ok' => false, 'pesan' => $e->getMessage()], 422);
         }
@@ -317,6 +325,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hasil = simpanLampiran($pdo, $idBaru, $files, $_SESSION['username'] ?? null);
                 foreach ($hasil['gagal'] as $pesan) {
                     flash('warning', 'Lampiran tidak disimpan — ' . $pesan);
+                }
+                $od = onedriveSalinBaru($pdo, $hasil['id']);
+                if ($od && $od['gagal']) {
+                    flash('warning', 'Lampiran belum tersalin ke OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
                 }
             }
             header('Location: ' . kembaliKe('unit', ['status' => 'success_add']));
@@ -438,8 +450,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('warning', 'Pilih file yang akan diunggah terlebih dahulu.');
         } else {
             $hasil = simpanLampiran($pdo, $deadlineId, $files, $_SESSION['username'] ?? null);
+            $od = onedriveSalinBaru($pdo, $hasil['id']);
             if ($hasil['berhasil'] > 0) {
-                flash('success', $hasil['berhasil'] . ' lampiran berhasil diunggah.');
+                flash('success', $hasil['berhasil'] . ' lampiran berhasil diunggah' . ($od && $od['ok'] ? ' dan disalin ke OneDrive' : '') . '.');
+            }
+            if ($od && $od['gagal']) {
+                flash('warning', 'Lampiran belum tersalin ke OneDrive (dicoba lagi otomatis): ' . $od['alasan']);
             }
             foreach ($hasil['gagal'] as $pesan) {
                 flash('danger', 'Lampiran gagal — ' . $pesan);
@@ -663,6 +679,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // --- 10. PENYIMPANAN ONEDRIVE (Akses Penuh) ---
+    if (str_starts_with($aksi, 'onedrive_')) {
+        try {
+            if (!onedriveDiatur()) {
+                throw new RuntimeException('Isi ONEDRIVE_CLIENT_ID di Environment Variables terlebih dahulu.');
+            }
+            if ($aksi === 'onedrive_mulai') {
+                onedriveMulaiHubung($pdo);
+                flash('info', 'Buka halaman login Microsoft, masukkan kodenya, lalu klik "Saya sudah login".');
+            } elseif ($aksi === 'onedrive_cek') {
+                $status = onedriveCekHubung($pdo);
+                $status === 'terhubung'
+                    ? flash('success', 'OneDrive terhubung. Lampiran baru akan otomatis disalin ke OneDrive.')
+                    : flash('warning', 'Belum terdeteksi login. Selesaikan login Microsoft dengan kode di bawah, lalu klik lagi.');
+            } elseif ($aksi === 'onedrive_folder') {
+                if (!onedriveSiap($pdo)) {
+                    throw new RuntimeException('Hubungkan akun Microsoft terlebih dahulu.');
+                }
+                $tujuan = onedriveSetelLink($pdo, (string) ($_POST['link_folder'] ?? ''));
+                flash('success', 'Folder tujuan diatur: "' . $tujuan['nama'] . '". Lampiran baru akan disalin ke folder ini.');
+            } elseif ($aksi === 'onedrive_folder_hapus') {
+                onedriveHapusTujuan($pdo);
+                flash('warning', 'Link folder dihapus. Lampiran baru disalin ke folder bawaan: ' . onedriveFolder() . '.');
+            } elseif ($aksi === 'onedrive_putuskan') {
+                onedrivePutuskan($pdo);
+                flash('warning', 'OneDrive diputuskan. Lampiran baru tidak lagi disalin (file yang sudah ada di OneDrive tetap aman).');
+            } else {
+                // Coba lagi semua yang gagal (hitungan percobaan direset), lalu salin yang belum tersimpan
+                $pdo->exec("UPDATE lampiran SET onedrive_coba = 0 WHERE onedrive_status = 'gagal'");
+                $hasil = onedriveSinkronTertunda($pdo, 15);
+                $sisa  = onedriveRingkasan($pdo);
+                flash($hasil['gagal'] ? 'warning' : 'success', "Disalin ke OneDrive: {$hasil['ok']} file" . ($hasil['gagal'] ? ", gagal {$hasil['gagal']}" : '')
+                    . ($sisa['belum'] + $sisa['gagal'] ? '. Masih ada ' . ($sisa['belum'] + $sisa['gagal']) . ' file, klik lagi untuk melanjutkan.' : '.'));
+            }
+        } catch (Throwable $e) {
+            flash('danger', 'OneDrive: ' . $e->getMessage());
+        }
+        header('Location: ' . kembaliKe('penerima', [], 'onedrive'));
+        exit;
+    }
+
     header('Location: ' . kembaliKe('unit'));
     exit;
 }
@@ -672,6 +729,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ===================================================================
 $today    = date('Y-m-d');
 $tomorrow = date('Y-m-d', strtotime('+1 day'));
+
+// Daftar unit & riwayat ditampilkan 5 per halaman (?hal=2, ?hal=3, ...)
+const DATA_PER_HALAMAN = 5;
 
 // --- STATISTIK RINGKAS (dihitung langsung di database) ---
 // Hari Ini / H-1 / Mendatang / Terlewat hanya menghitung unit yang BELUM selesai
@@ -694,6 +754,17 @@ $stat_h1        = (int) $stat['h1'];
 $stat_mendatang = (int) $stat['mendatang'];
 $stat_terlewat  = (int) $stat['terlewat'];
 $stat_selesai   = (int) $stat['selesai'];
+
+// --- UNIT BELUM SELESAI untuk lonceng & Beranda: terlewat paling atas, lalu deadline terdekat ---
+$belum_selesai = [];
+foreach ($pdo->query(
+    "SELECT id, kode_unit, nama_unit, no_surat, keterangan, tanggal_awal, tanggal_akhir
+     FROM deadline WHERE selesai_tanggal IS NULL ORDER BY tanggal_akhir, id DESC"
+)->fetchAll() as $r) {
+    $r['sisa_hari']      = hitungSisaHari($r['tanggal_akhir']);
+    $r['selesai_tanggal'] = null;
+    $belum_selesai[]     = $r;
+}
 
 // --- SEARCH, FILTER, DAN PAGINATION ---
 $search = trim((string) ($_GET['search'] ?? ''));
@@ -757,10 +828,23 @@ $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM deadline $where_sql");
 $stmtCount->execute($params);
 $total_rows = (int) $stmtCount->fetchColumn();
 
-// Daftar unit ditampilkan 5 per halaman (?hal=2, ?hal=3, ...)
-const DATA_PER_HALAMAN = 5;
 $jumlah_hal = max(1, (int) ceil($total_rows / DATA_PER_HALAMAN));
 $hal        = min($jumlah_hal, max(1, (int) ($_GET['hal'] ?? 1)));
+// ?fokus=ID (dari lonceng / Beranda): pindah ke halaman tempat unit itu berada, lalu barisnya disorot
+$fokus = (int) ($_GET['fokus'] ?? 0);
+if ($fokus > 0) {
+    $stmtUrut = $pdo->prepare(
+        "SELECT id FROM deadline $where_sql
+         ORDER BY (selesai_tanggal IS NOT NULL),
+                  CASE WHEN selesai_tanggal IS NULL THEN tanggal_akhir END,
+                  selesai_tanggal DESC, id DESC"
+    );
+    $stmtUrut->execute($params);
+    $posisi = array_search($fokus, array_map('intval', $stmtUrut->fetchAll(PDO::FETCH_COLUMN)), true);
+    if ($posisi !== false) {
+        $hal = intdiv($posisi, DATA_PER_HALAMAN) + 1;
+    }
+}
 $offset     = ($hal - 1) * DATA_PER_HALAMAN;
 
 // LIMIT/OFFSET berupa integer -> aman disisipkan langsung
@@ -786,7 +870,7 @@ $lampiran_per_unit = [];
 if ($data_tampil) {
     $ids = array_map(static fn($r) => (int) $r['id'], $data_tampil);
     $stmtLamp = $pdo->query(
-        "SELECT id, deadline_id, nama_file, ekstensi, ukuran, diunggah_oleh, dibuat_tanggal
+        "SELECT id, deadline_id, nama_file, ekstensi, ukuran, diunggah_oleh, dibuat_tanggal, onedrive_status, onedrive_url, onedrive_pesan
          FROM lampiran WHERE selesai = 1 AND deadline_id IN (" . implode(',', $ids) . ") ORDER BY id"
     );
     foreach ($stmtLamp->fetchAll() as $l) {
@@ -794,6 +878,10 @@ if ($data_tampil) {
     }
 }
 $buka_lampiran = (int) ($_GET['lampiran'] ?? 0);
+
+// --- ONEDRIVE: status salinan lampiran & kartu pengaturan (menu Penerima, Akses Penuh) ---
+$od_diatur = onedriveDiatur();
+$od_siap   = $od_diatur && onedriveSiap($pdo);
 
 // --- PENGIRIMAN TERAKHIR per unit dari Riwayat Kirim (otomatis maupun manual) ---
 // Riwayat mencatat unit sebagai "(kode) nama", satu unit per baris (lihat cron_wa_reminder.php & kirim manual).
@@ -906,8 +994,8 @@ $flash_list = $_SESSION['flash'] ?? [];
 unset($_SESSION['flash_wa_error'], $_SESSION['flash']);
 
 
-// --- MENU YANG DIBUKA: Daftar Unit (bawaan), Penerima, Riwayat Kirim ---
-$menu = in_array($_GET['menu'] ?? '', ['penerima', 'riwayat'], true) ? $_GET['menu'] : 'unit';
+// --- MENU YANG DIBUKA: Beranda, Daftar Unit (bawaan), Penerima, Riwayat Kirim ---
+$menu = in_array($_GET['menu'] ?? '', ['beranda', 'penerima', 'riwayat'], true) ? $_GET['menu'] : 'unit';
 
 // --- TAB STATUS di atas tabel unit: [filter, label, jumlah, perlu perhatian?] ---
 $tab_status = [
@@ -958,6 +1046,72 @@ function selStatus(array $row, ?array $bukti): string
     return '<div class="st abu">' . $sisa . ' hari lagi</div>';
 }
 
+/** Status singkat satu unit belum selesai, contoh "Terlewat 3 hari", "Hari ini", "Besok", "5 hari lagi" + kelas warna */
+function statusSingkat(int $sisa): array
+{
+    if ($sisa < 0) {
+        return ['Terlewat ' . abs($sisa) . ' hari', 'merah'];
+    }
+    if ($sisa === 0) {
+        return ['Hari ini', 'merah'];
+    }
+    if ($sisa === 1) {
+        return ['Besok', 'amber'];
+    }
+    return [$sisa . ' hari lagi', 'abu'];
+}
+
+/** Tautan ke satu unit di Daftar Unit (pindah ke halamannya lalu baris unit disorot) */
+function tautanFokus(int $id): string
+{
+    return 'dashboard.php?fokus=' . $id . '#unit-' . $id;
+}
+
+/** Lonceng di kepala halaman: jumlah unit belum ditandai selesai + daftar unitnya (klik -> buka di Daftar Unit) */
+function loncengUnit(array $unit): string
+{
+    $jumlah  = count($unit);
+    $penting = count(array_filter($unit, static fn($u) => (int) $u['sisa_hari'] <= 0));
+    ob_start(); ?>
+    <div class="dropdown lonceng">
+        <button type="button" class="btn btn-outline-secondary btn-lonceng" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+                aria-label="<?= $jumlah; ?> unit belum ditandai selesai" title="Unit belum ditandai selesai">
+            <i class="fa-<?= $jumlah ? 'solid' : 'regular'; ?> fa-bell" aria-hidden="true"></i>
+            <?php if ($jumlah): ?><span class="lonceng-angka<?= $penting ? ' penting' : ''; ?>"><?= $jumlah > 99 ? '99+' : $jumlah; ?></span><?php endif; ?>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end menu-lonceng">
+            <div class="lonceng-kepala"><b>Belum ditandai selesai</b><span><?= $jumlah; ?> unit</span></div>
+            <?php if (!$jumlah): ?>
+                <div class="lonceng-kosong">Semua unit sudah ditandai selesai.</div>
+            <?php else: ?>
+            <div class="lonceng-daftar">
+                <?php foreach ($unit as $u): [$teks, $warna] = statusSingkat((int) $u['sisa_hari']); ?>
+                <a class="dropdown-item lonceng-item" href="<?= tautanFokus((int) $u['id']); ?>">
+                    <span class="min-w-0"><span class="nama"><?= e($u['nama_unit']); ?></span><span class="kode"><?= e($u['kode_unit']); ?> · <?= tglPendek($u['tanggal_akhir']); ?></span></span>
+                    <span class="lonceng-st <?= $warna; ?>"><?= e($teks); ?></span>
+                </a>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+            <a class="lonceng-kaki" href="dashboard.php?menu=beranda">Lihat di Beranda &rarr;</a>
+        </div>
+    </div>
+    <?php return ob_get_clean();
+}
+
+/** Satu baris unit di Beranda (dipakai dua kali agar daftar bisa bergulir tanpa putus) */
+function barisBeranda(array $u, bool $salinan): string
+{
+    [$teks, $warna] = statusSingkat((int) $u['sisa_hari']);
+    $atr = $salinan ? ' tabindex="-1"' : '';
+    return '<a class="beranda-item" href="' . tautanFokus((int) $u['id']) . '"' . $atr . '>'
+        . '<span class="lonceng-st ' . $warna . '">' . e($teks) . '</span>'
+        . '<span class="beranda-unit"><span class="nama">' . e($u['nama_unit']) . '</span>'
+        . '<span class="kode">' . e($u['kode_unit']) . (!empty($u['no_surat']) ? ' · ' . e($u['no_surat']) : '') . '</span>'
+        . (!empty($u['keterangan']) ? '<span class="beranda-ket">' . e($u['keterangan']) . '</span>' : '') . '</span>'
+        . '<span class="beranda-tgl mono">' . tglPendek($u['tanggal_akhir']) . '</span></a>';
+}
+
 /** Tombol aksi satu unit: "Tandai selesai" / "Batalkan" + menu ⋯ (edit, lampiran, kirim sekarang, hapus) */
 function aksiUnit(array $row, int $jmlLampiran): string
 {
@@ -1005,7 +1159,7 @@ function aksiUnit(array $row, int $jmlLampiran): string
     <?php return (string) ob_get_clean();
 }
 
-$judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => 'Riwayat Kirim'][$menu];
+$judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => 'Riwayat Kirim'][$menu];
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -1027,7 +1181,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
 </head>
 <body class="app">
 
-<?= sidebarAplikasi($menu, ['unit' => $stat_total, 'penerima' => $penerima_aktif + $telegram_aktif + $email_aktif]); ?>
+<?= sidebarAplikasi($menu, ['beranda' => count($belum_selesai), 'unit' => $stat_total, 'penerima' => $penerima_aktif + $telegram_aktif + $email_aktif]); ?>
 
 <main class="isi">
 
@@ -1037,14 +1191,17 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <h1><?= e($judul_menu); ?></h1>
             <div class="kepala-sub">
                 <?= e($tanggal_hari_ini); ?>
-                <?php if ($menu === 'unit'): ?> · pengingat otomatis setiap hari pukul 07.00 WIB<?php endif; ?>
+                <?php if ($menu === 'unit' || $menu === 'beranda'): ?> · pengingat otomatis setiap hari pukul 07.00 WIB<?php endif; ?>
                 <?php if ($menu === 'penerima'): ?> · nomor WhatsApp, chat Telegram, dan alamat email yang menerima pengingat<?php endif; ?>
                 <?php if ($menu === 'riwayat'): ?> · <?= $total_wa; ?> pengiriman<?= $menyaring_riwayat ? ' sesuai pencarian' : ''; ?><?php endif; ?>
             </div>
         </div>
-        <?php if ($menu === 'unit' && boleh('kelola_unit')): ?>
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTambah">+ Tambah unit</button>
-        <?php endif; ?>
+        <div class="d-flex align-items-center gap-2">
+            <?= loncengUnit($belum_selesai); ?>
+            <?php if ($menu === 'unit' && boleh('kelola_unit')): ?>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTambah">+ Tambah unit</button>
+            <?php endif; ?>
+        </div>
     </div>
 
     <?php if ($alert): ?>
@@ -1110,7 +1267,7 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                     <tr><td colspan="7"><div class="kosong"><?= $sedang_menyaring ? 'Tidak ada unit yang cocok dengan filter ini.' : (boleh('kelola_unit') ? 'Belum ada unit. Klik “+ Tambah unit” untuk mulai.' : 'Belum ada unit.'); ?></div></td></tr>
                 <?php endif; ?>
                 <?php foreach ($data_tampil as $row): $id = (int) $row['id']; ?>
-                    <tr class="<?= $row['selesai_tanggal'] !== null ? 'baris-selesai' : ''; ?>">
+                    <tr id="unit-<?= $id; ?>" class="<?= trim(($row['selesai_tanggal'] !== null ? 'baris-selesai' : '') . ($id === $fokus ? ' baris-sorot' : '')); ?>">
                         <td data-label="Unit">
                             <div class="nama"><?= e($row['nama_unit']); ?></div>
                             <div class="kode"><?= e($row['kode_unit']); ?></div>
@@ -1169,6 +1326,38 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
         </span>
         <span>Saluran aktif: <b><?= e(gabungKata(array_map('namaSaluran', $saluran_notif))); ?></b></span>
         <a href="dashboard.php?menu=riwayat">Lihat riwayat &rarr;</a>
+    </section>
+
+<?php elseif ($menu === 'beranda'): ?>
+    <!-- ================= BERANDA ================= -->
+    <div class="row g-3 beranda-ringkas">
+        <?php foreach ([['terlewat', 'Terlewat', $stat_terlewat, 'merah'], ['hari_ini', 'Jatuh tempo hari ini', $stat_hari_ini, 'merah'],
+                        ['h1', 'Besok (H-1)', $stat_h1, 'amber'], ['mendatang', 'Mendatang', $stat_mendatang, 'abu']] as [$f, $label, $n, $warna]): ?>
+        <div class="col-6 col-lg-3">
+            <a class="card kartu-angka <?= $n > 0 ? $warna : ''; ?>" href="dashboard.php?filter=<?= $f; ?>">
+                <span class="kartu-label"><?= e($label); ?></span>
+                <span class="kartu-nilai"><?= (int) $n; ?></span>
+                <span class="kartu-sub">unit belum selesai</span>
+            </a>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <section class="card" id="belum-selesai">
+        <div class="card-header d-flex justify-content-between align-items-baseline">
+            <h2>Unit belum ditandai selesai</h2><span><?= count($belum_selesai); ?> unit</span>
+        </div>
+        <?php if (!$belum_selesai): ?>
+            <div class="kosong">Semua unit sudah ditandai selesai.</div>
+        <?php else: $gulir = count($belum_selesai) > 4; ?>
+            <div class="beranda-gulir<?= $gulir ? ' bergerak' : ''; ?>" style="--durasi: <?= max(12, count($belum_selesai) * 4); ?>s">
+                <div class="beranda-jalur">
+                    <div class="beranda-daftar"><?php foreach ($belum_selesai as $u) { echo barisBeranda($u, false); } ?></div>
+                    <?php if ($gulir): ?><div class="beranda-daftar" aria-hidden="true"><?php foreach ($belum_selesai as $u) { echo barisBeranda($u, true); } ?></div><?php endif; ?>
+                </div>
+            </div>
+            <div class="card-footer"><span><?= $gulir ? 'Daftar bergerak otomatis; arahkan kursor atau sentuh untuk berhenti. ' : ''; ?>Klik unit untuk membukanya di Daftar Unit.</span><a href="dashboard.php">Buka Daftar Unit &rarr;</a></div>
+        <?php endif; ?>
     </section>
 
 <?php elseif ($menu === 'penerima'): ?>
@@ -1372,6 +1561,67 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
             <?php endif; ?>
         </section>
         </div>
+        <?php if ($kelola_penerima): $od_kode = $od_diatur && !$od_siap ? onedriveKodeMenunggu($pdo) : null; ?>
+        <div class="col-lg-6">
+        <section class="card" id="onedrive">
+            <div class="card-header d-flex justify-content-between align-items-baseline">
+                <h2><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Penyimpanan OneDrive</h2>
+                <span><?= $od_siap ? 'terhubung' : 'belum terhubung'; ?></span>
+            </div>
+            <div class="form-tambah">
+            <?php if (!$od_diatur): ?>
+                <p class="mb-2">Lampiran yang diunggah bisa otomatis disalin ke OneDrive. Fitur ini belum aktif karena <code>ONEDRIVE_CLIENT_ID</code> belum diisi.</p>
+                <p class="redup small mb-0">Isi Environment Variable <code>ONEDRIVE_CLIENT_ID</code> (dari pendaftaran aplikasi di Microsoft Entra), lalu kembali ke kartu ini untuk menghubungkan akun. Langkahnya ada di file panduan.</p>
+            <?php elseif ($od_siap): $od_r = onedriveRingkasan($pdo); ?>
+                <?php $od_tujuan = onedriveTujuan($pdo); ?>
+                <p class="mb-2">Akun: <b class="text-break"><?= e((string) ambilPengaturan($pdo, 'onedrive_akun')); ?></b><br>
+                    Folder tujuan:
+                    <?php if ($od_tujuan): ?>
+                        <?= $od_tujuan['url'] ? '<a href="' . e($od_tujuan['url']) . '" target="_blank" rel="noopener"><b>' . e($od_tujuan['nama']) . '</b></a>' : '<b>' . e($od_tujuan['nama']) . '</b>'; ?>
+                        <span class="mono small">/&lt;kode - nama unit&gt;</span>
+                    <?php else: ?>
+                        <span class="mono small"><?= e(onedriveFolder()); ?>/&lt;kode - nama unit&gt;</span> <span class="redup small">(bawaan)</span>
+                    <?php endif; ?></p>
+                <form method="POST" action="dashboard.php" class="mb-3"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_folder">
+                    <label for="link-folder" class="small"><?= $od_tujuan ? 'Ganti folder: tempel link folder lain' : 'Tempel link folder OneDrive tujuan'; ?></label>
+                    <div class="d-flex gap-2">
+                        <input type="url" id="link-folder" name="link_folder" required maxlength="2000" class="form-control form-control-sm"
+                            placeholder="https://…sharepoint.com/:f:/g/personal/…">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">Simpan folder</button>
+                    </div>
+                </form>
+                <?php if ($od_tujuan): ?>
+                <form method="POST" action="dashboard.php" class="mb-3" onsubmit="return confirm('Hapus link folder dan kembali ke folder bawaan?')"><?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="onedrive_folder_hapus"><button type="submit" class="btn btn-link btn-sm p-0">Kembali ke folder bawaan</button></form>
+                <?php endif; ?>
+                <p class="mb-3 small">Tersimpan <b><?= $od_r['ok']; ?></b> file · menunggu <b><?= $od_r['belum']; ?></b> · gagal <b class="<?= $od_r['gagal'] ? 'teks-merah' : ''; ?>"><?= $od_r['gagal']; ?></b></p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <?php if ($od_r['belum'] + $od_r['gagal']): ?>
+                    <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_sinkron">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Salin lampiran yang belum tersimpan</button></form>
+                    <?php endif; ?>
+                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Putuskan OneDrive? Lampiran baru tidak akan disalin lagi.')"><?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="onedrive_putuskan"><button type="submit" class="btn btn-outline-danger btn-sm">Putuskan</button></form>
+                </div>
+                <p class="redup small mt-3 mb-0">Lampiran baru langsung disalin saat diunggah; yang gagal dicoba lagi otomatis setiap pagi. Menghapus lampiran di aplikasi tidak menghapus salinannya di OneDrive.</p>
+            <?php elseif ($od_kode): ?>
+                <ol class="mb-3 small ps-3">
+                    <li>Buka <a href="<?= e($od_kode['url']); ?>" target="_blank" rel="noopener"><?= e(preg_replace('#^https?://#', '', $od_kode['url'])); ?></a></li>
+                    <li>Masukkan kode <b class="mono od-kode"><?= e($od_kode['kode']); ?></b>, lalu login dengan akun Microsoft pemilik OneDrive.</li>
+                    <li>Kembali ke sini dan klik tombol di bawah.</li>
+                </ol>
+                <form method="POST" action="dashboard.php" class="d-inline"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_cek">
+                    <button type="submit" class="btn btn-primary btn-sm">Saya sudah login</button></form>
+                <span class="redup small ms-2">Kode berlaku sampai <?= date('H.i', (int) $od_kode['berlaku']); ?></span>
+            <?php else: ?>
+                <p class="mb-3">Hubungkan akun Microsoft agar setiap lampiran yang diunggah otomatis disalin ke OneDrive.</p>
+                <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_mulai">
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="fa-brands fa-microsoft" aria-hidden="true"></i> Hubungkan OneDrive</button></form>
+            <?php endif; ?>
+            </div>
+        </section>
+        </div>
+        <?php endif; ?>
     </div>
     <?php if (!$kelola_penerima): ?>
         <p class="catatan mx-0">Daftar penerima hanya bisa diubah oleh pengguna dengan Akses Penuh. Hubungi pengelola aplikasi bila ada nomor atau chat yang perlu ditambah atau diganti.</p>
@@ -1810,6 +2060,19 @@ $judul_menu = ['unit' => 'Daftar Unit', 'penerima' => 'Penerima', 'riwayat' => '
                                     <?= formatUkuran((int) $l['ukuran']); ?> · <?= tglPendek($l['dibuat_tanggal']) . ' ' . date('H.i', strtotime($l['dibuat_tanggal'])); ?>
                                     <?= $l['diunggah_oleh'] ? '· ' . e($l['diunggah_oleh']) : ''; ?>
                                 </div>
+                                <?php if ($od_diatur): ?>
+                                <div class="od-status">
+                                    <?php if ($l['onedrive_status'] === 'ok'): ?>
+                                        <i class="fa-solid fa-cloud teks-hijau" aria-hidden="true"></i>
+                                        <?= $l['onedrive_url'] ? '<a href="' . e($l['onedrive_url']) . '" target="_blank" rel="noopener">Tersimpan di OneDrive</a>' : 'Tersimpan di OneDrive'; ?>
+                                    <?php elseif ($l['onedrive_status'] === 'gagal'): ?>
+                                        <i class="fa-solid fa-cloud teks-merah" aria-hidden="true"></i>
+                                        <span class="teks-merah" title="<?= e((string) $l['onedrive_pesan']); ?>">Belum tersalin ke OneDrive · dicoba lagi otomatis</span>
+                                    <?php else: ?>
+                                        <i class="fa-regular fa-cloud" aria-hidden="true"></i> <?= $od_siap ? 'Menunggu disalin ke OneDrive' : 'OneDrive belum terhubung'; ?>
+                                    <?php endif; ?>
+                                </div>
+                                <?php endif; ?>
                             </div>
                             <div class="aksi">
                                 <?php if ($bisa_dilihat): ?>

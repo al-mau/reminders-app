@@ -45,7 +45,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v13'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v14'])) {
         return;
     }
 
@@ -190,9 +190,23 @@ function pastikanTabelTambahan(PDO $pdo): void
         INDEX idx_user_waktu (username, waktu)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+    // Pengaturan aplikasi (kunci-nilai), mis. token OneDrive yang disimpan terenkripsi (lib/onedrive.php)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS pengaturan (
+        kunci  VARCHAR(50)  NOT NULL PRIMARY KEY,
+        nilai  TEXT         NULL,
+        diubah DATETIME     NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Status salinan lampiran di OneDrive: NULL = belum, ok = tersimpan (onedrive_url), gagal = dicoba lagi oleh cron
+    $kolomLampiran = $pdo->query("SHOW COLUMNS FROM lampiran")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('onedrive_status', $kolomLampiran, true)) {
+        $pdo->exec("ALTER TABLE lampiran ADD COLUMN onedrive_status VARCHAR(10) NULL, ADD COLUMN onedrive_url VARCHAR(1000) NULL,
+                    ADD COLUMN onedrive_pesan VARCHAR(255) NULL, ADD COLUMN onedrive_coba TINYINT UNSIGNED NOT NULL DEFAULT 0");
+    }
+
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v13'] = true;
+        $_SESSION['skema_tambahan_v14'] = true;
     }
 }
 
@@ -234,12 +248,13 @@ function formatUkuran(int $byte): string
 /**
  * Simpan file upload biasa (form tanpa JavaScript) sebagai lampiran sebuah unit.
  * File disimpan utuh dalam satu baris; jalur utama sekarang memakai upload per potongan di bawah.
- * @return array{berhasil: int, gagal: string[]}
+ * @return array{berhasil: int, gagal: string[], id: int[]}
  */
 function simpanLampiran(PDO $pdo, int $deadlineId, array $files, ?string $pengunggah): array
 {
     $berhasil = 0;
     $gagal    = [];
+    $ids      = [];
 
     // Native prepare untuk data biner (isi file) agar terkirim apa adanya
     $stmt = $pdo->prepare(
@@ -281,10 +296,11 @@ function simpanLampiran(PDO $pdo, int $deadlineId, array $files, ?string $pengun
         $stmt->bindValue(6, $pengunggah);
         $stmt->bindValue(7, date('Y-m-d H:i:s'));
         $stmt->execute();
+        $ids[] = (int) $pdo->lastInsertId();
         $berhasil++;
     }
 
-    return ['berhasil' => $berhasil, 'gagal' => $gagal];
+    return ['berhasil' => $berhasil, 'gagal' => $gagal, 'id' => $ids];
 }
 
 // ===================================================================

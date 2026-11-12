@@ -110,3 +110,44 @@ sama seperti WhatsApp dan Telegram. Tombol **Kirim email percobaan** di panel it
 
 Tambahkan `email` di `NOTIF_VIA` agar pengingat otomatis jam 07.00 juga dikirim lewat email.
 Batas Gmail sekitar 500 email/hari; untuk pemakaian resmi sebaiknya memakai SMTP kantor agar tidak masuk Spam.
+
+## Salinan lampiran ke OneDrive (opsional)
+
+Setiap lampiran yang diunggah otomatis disalin ke folder OneDrive/SharePoint:
+`<folder tujuan>/<kode unit> - <nama unit>/<nama file>`. Lampiran tetap tersimpan di aplikasi; OneDrive adalah arsip.
+Bila penyalinan gagal (jaringan, token kedaluwarsa), status lampiran menjadi *gagal* dan dicoba lagi otomatis oleh cron
+jam 07.00 (maks. 5 kali), atau lewat tombol **Salin lampiran yang belum tersimpan**. Menghapus lampiran di aplikasi
+tidak menghapus salinannya di OneDrive.
+
+**1. Daftarkan aplikasi (sekali, di [entra.microsoft.com](https://entra.microsoft.com) — untuk akun kantor biasanya oleh tim IT)**
+
+1. *Identity → Applications → App registrations → New registration*. Nama bebas, contoh "Aplikasi Pengingat Deadline".
+   *Supported account types*: **Accounts in this organizational directory only** (akun kantor). Redirect URI dikosongkan.
+2. *Authentication* → **Allow public client flows = Yes** → Save.
+3. *API permissions → Add a permission → Microsoft Graph → Delegated*: `Files.ReadWrite`, `User.Read`, `offline_access`.
+   Bila tenant kantor mewajibkan, admin klik **Grant admin consent**.
+4. Salin **Application (client) ID** dan **Directory (tenant) ID** / domain kantor.
+
+Tidak ada *client secret* yang dibutuhkan.
+
+**2. Isi Environment Variables** (Vercel: *Settings → Environment Variables*, XAMPP: file `.env`)
+
+| Variabel | Isi |
+|---|---|
+| `ONEDRIVE_CLIENT_ID` | Application (client) ID dari langkah 1 |
+| `ONEDRIVE_TENANT` | Domain kantor (contoh `brksyariah.co.id`) atau Directory (tenant) ID. Akun pribadi: `consumers` |
+| `ONEDRIVE_FOLDER_LINK` | Opsional. Link folder tujuan; bisa juga ditempel di dashboard |
+| `ONEDRIVE_IZIN` | Kosongkan. Isi `semua` hanya bila akun yang login **bukan** pemilik folder (meminta `Files.ReadWrite.All`) |
+| `ONEDRIVE_FOLDER` | Opsional. Folder di OneDrive akun yang login bila belum ada link, default `Aplikasi Pengingat Deadline/Lampiran` |
+
+**3. Hubungkan (sekali, akun Akses Penuh → menu Penerima → kartu Penyimpanan OneDrive)**
+
+1. Klik **Hubungkan OneDrive** → buka `microsoft.com/devicelogin` → masukkan kode yang tampil → login dengan akun
+   pemilik folder (contoh akun Corsec) → *Accept*.
+2. Klik **Saya sudah login**.
+3. Di OneDrive buka folder tujuan → *Bagikan → Salin link* → tempel di kolom **Tempel link folder OneDrive tujuan** →
+   **Simpan folder**. Aplikasi mengubah link menjadi ID drive + ID folder dan menampilkan nama foldernya.
+
+Password Microsoft tidak pernah dimasukkan ke aplikasi; yang disimpan hanya *refresh token* terenkripsi (AES-256-GCM,
+kunci dari `APP_KEY`/`CRON_SECRET`) di tabel `pengaturan`. Akses bisa dicabut dengan tombol **Putuskan** atau dari
+halaman keamanan akun Microsoft. Untuk dokumen dinas, gunakan akun Microsoft 365 kantor dengan persetujuan tim IT.

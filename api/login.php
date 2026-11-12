@@ -11,7 +11,7 @@ require_once __DIR__ . '/lib/tampilan.php';
 
 // Jika sudah login, redirect ke dashboard
 if (!empty($_SESSION['login'])) {
-    header("Location: dashboard.php");
+    header("Location: dashboard.php?menu=beranda");
     exit;
 }
 
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 hapusLoginGagal($pdo, $username, ipKlien());
 
-                header("Location: dashboard.php");
+                header("Location: dashboard.php?menu=beranda");
                 exit;
             }
 
