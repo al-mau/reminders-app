@@ -111,6 +111,62 @@ sama seperti WhatsApp dan Telegram. Tombol **Kirim email percobaan** di panel it
 Tambahkan `email` di `NOTIF_VIA` agar pengingat otomatis jam 07.00 juga dikirim lewat email.
 Batas Gmail sekitar 500 email/hari; untuk pemakaian resmi sebaiknya memakai SMTP kantor agar tidak masuk Spam.
 
+## Arsip lampiran lewat Power Automate (opsional, tanpa pendaftaran aplikasi)
+
+Cara termudah agar setiap lampiran otomatis masuk ke folder OneDrive kantor tanpa meminta Client ID ke tim IT.
+
+**Cara kerja**
+
+```
+Upload lampiran di aplikasi
+  → aplikasi mengirim email (SMTP yang sama dengan pengingat) ke alamat arsip, contoh corsec@brksyariah.co.id
+      Subjek : [ARSIP-LAMPIRAN] <kode unit> - <nama unit>
+      Lampiran: file yang diunggah (satu email per file)
+  → alur Power Automate milik akun tersebut menangkap email bersubjek [ARSIP-LAMPIRAN]
+  → attachment disimpan ke <folder tujuan>/<kode unit> - <nama unit>/<tanggal> - <nama file>
+```
+
+Status tiap file tampil di jendela Lampiran: *Dikirim ke arsip OneDrive* atau *Belum masuk arsip · dicoba lagi otomatis*
+(bila SMTP gagal; cron jam 07.00 mengulang maks. 5 kali). Aplikasi hanya tahu email sudah terkirim — riwayat penyimpanan
+ada di Power Automate (*My flows → nama alur → Run history*).
+
+**1. Aktifkan di aplikasi** — menu **Penerima → Penyimpanan OneDrive** (Akses Penuh): isi alamat email arsip → **Simpan**.
+Pengaturan SMTP (bagian Notifikasi Email) harus sudah benar. Alamat juga bisa diisi lewat Environment Variable `ARSIP_EMAIL`.
+Lampiran yang diunggah sebelum fitur aktif tidak dikirim otomatis; klik **Kirim lampiran yang belum diarsipkan** bila ingin
+mengarsipkannya juga (15 file per klik).
+
+**2. Buat alur di Power Automate** (sekali, ±10 menit, login [make.powerautomate.com](https://make.powerautomate.com) dengan
+akun alamat arsip, contoh akun Corsec)
+
+1. **+ Create → Automated cloud flow**. Nama: `Arsip Lampiran Pengingat Deadline`. Pemicu: **When a new email arrives (V3)**
+   (Office 365 Outlook) → **Create**.
+2. Klik pemicu, buka *Advanced parameters / Show all*, isi:
+   - *Folder*: `Inbox`
+   - *From*: alamat pengirim aplikasi (`EMAIL_PENGIRIM` atau `SMTP_USER`) — agar hanya email dari aplikasi yang diproses
+   - *Subject Filter*: `[ARSIP-LAMPIRAN]`
+   - *Include Attachments*: `Yes` · *Only with Attachments*: `Yes`
+3. **+ New step / +** → **Create file** (OneDrive for Business). Power Automate otomatis membungkusnya dengan
+   **Apply to each** atas *Attachments* (jika tidak, tambahkan *Apply to each* dengan isi *Attachments* lalu pindahkan
+   *Create file* ke dalamnya). Isi *Create file*:
+   - *Folder Path*: klik ikon folder, pilih folder tujuan (folder dari link berbagi, contoh `/Arsip Lampiran Unit`),
+     lalu di belakangnya tambahkan `/` dan **Expression**:
+     `trim(replace(triggerOutputs()?['body/subject'], '[ARSIP-LAMPIRAN]', ''))`
+     → hasilnya `/Arsip Lampiran Unit/KC001 - KC Pekanbaru` (subfolder dibuat otomatis).
+   - *File Name*: **Expression**
+     `concat(formatDateTime(convertFromUtc(utcNow(), 'SE Asia Standard Time'), 'yyyyMMdd-HHmmss'), ' - ', items('Apply_to_each')?['name'])`
+     (tanggal di depan mencegah file bernama sama saling bentrok; ganti `Apply_to_each` bila nama perulangan berbeda,
+     contoh `For_each`).
+   - *File Content*: dari *Dynamic content* pilih **Attachments Content**.
+4. Opsional, agar kotak masuk tetap rapi: setelah *Apply to each* tambahkan **Move email (V2)** (*Message Id* dari pemicu,
+   *Folder*: buat folder `Arsip Lampiran` di Outlook).
+5. **Save**. Kembali ke aplikasi → **Kirim email uji**. Dalam 1–5 menit harus muncul subfolder `UJI - Email Uji Arsip`
+   berisi `uji-arsip.txt` (folder uji boleh dihapus). Bila tidak muncul: cek folder *Junk* Outlook (tandai pengirim
+   sebagai *Safe sender*) dan *Run history* alur.
+
+Konektor Office 365 Outlook dan OneDrive for Business termasuk konektor standar Microsoft 365 (tanpa lisensi Premium).
+Ikuti kebijakan TI kantor bila pemakaian Power Automate dibatasi. Bila akun Microsoft dihubungkan langsung
+(bagian berikut), cara langsung itu yang dipakai dan email arsip tidak dikirim.
+
 ## Salinan lampiran ke OneDrive (opsional)
 
 Setiap lampiran yang diunggah otomatis disalin ke folder OneDrive/SharePoint:

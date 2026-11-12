@@ -24,12 +24,22 @@
  *   ONEDRIVE_IZIN       "semua" bila akun yang login BUKAN pemilik folder dari link (folder dibagikan
  *                       orang lain) → meminta izin Files.ReadWrite.All. Bawaan: Files.ReadWrite.
  *
+ * CARA 1 — TANPA PENDAFTARAN APLIKASI (lewat email + Power Automate):
+ *   Setiap lampiran dikirim sebagai attachment email ke alamat arsip (mis. corsec@brksyariah.co.id)
+ *   dengan subjek "[ARSIP-LAMPIRAN] <kode> - <nama unit>". Alur Power Automate milik akun tersebut
+ *   menyimpan attachment-nya ke folder OneDrive tujuan. Alamat arsip diatur di kartu OneDrive
+ *   (atau Environment Variable ARSIP_EMAIL); butuh pengaturan SMTP yang sama dengan pengingat email.
+ *   Bila akun Microsoft terhubung langsung (ONEDRIVE_CLIENT_ID), cara langsung itu yang dipakai.
+ *
  * Bila upload gagal (jaringan, token kedaluwarsa), lampiran ditandai "gagal" dan dicoba lagi
  * otomatis oleh cron pengingat setiap pagi (maks. ONEDRIVE_MAKS_COBA kali).
  */
 
 require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/skema.php';
+require_once __DIR__ . '/email.php';
+
+const ARSIP_TAG = '[ARSIP-LAMPIRAN]';
 
 const ONEDRIVE_MAKS_COBA  = 5;
 const ONEDRIVE_BATAS_SATU = 4 * 1024 * 1024;   // di atas ini pakai upload session (aturan Microsoft Graph)
@@ -52,6 +62,27 @@ function onedriveDiatur(): bool
 function onedriveSiap(PDO $pdo): bool
 {
     return onedriveDiatur() && ambilPengaturan($pdo, 'onedrive_refresh') !== null;
+}
+
+/** Alamat email arsip (Power Automate): pengaturan dashboard, cadangan ARSIP_EMAIL */
+function arsipEmail(PDO $pdo): string
+{
+    return trim((string) (ambilPengaturan($pdo, 'arsip_email') ?? env('ARSIP_EMAIL', '')));
+}
+
+/** Cara penyalinan yang aktif: 'graph' (akun terhubung), 'email' (Power Automate), atau null */
+function onedriveMode(PDO $pdo): ?string
+{
+    if (onedriveSiap($pdo)) {
+        return 'graph';
+    }
+    return arsipEmail($pdo) !== '' && emailSiap() ? 'email' : null;
+}
+
+/** Subjek email arsip; Power Automate memakai teks setelah tag sebagai nama subfolder unit */
+function subjekArsip(string $kodeUnit, string $namaUnit): string
+{
+    return ARSIP_TAG . ' ' . namaAmanOneDrive($kodeUnit . ' - ' . $namaUnit);
 }
 
 function onedriveFolder(): string
@@ -370,7 +401,7 @@ function isiLampiran(PDO $pdo, array $lamp): string
 function onedriveUnggah(PDO $pdo, int $lampiranId): array
 {
     $stmt = $pdo->prepare(
-        "SELECT l.id, l.nama_file, l.ukuran, l.jumlah_bagian, d.kode_unit, d.nama_unit
+        "SELECT l.id, l.nama_file, l.ukuran, l.jumlah_bagian, l.diunggah_oleh, l.dibuat_tanggal, d.kode_unit, d.nama_unit, d.no_surat
          FROM lampiran l JOIN deadline d ON d.id = l.deadline_id WHERE l.id = ? AND l.selesai = 1"
     );
     $stmt->execute([$lampiranId]);
@@ -380,6 +411,9 @@ function onedriveUnggah(PDO $pdo, int $lampiranId): array
     }
 
     try {
+        if (onedriveMode($pdo) === 'email') {
+            return arsipKirimEmail($pdo, $lamp);
+        }
         $token = onedriveTokenAkses($pdo);
         $isi   = isiLampiran($pdo, $lamp);
         $jalurUrl = rawurlencode(namaAmanOneDrive($lamp['kode_unit'] . ' - ' . $lamp['nama_unit'])) . '/' . rawurlencode(namaAmanOneDrive($lamp['nama_file']));
@@ -423,10 +457,30 @@ function onedriveUnggah(PDO $pdo, int $lampiranId): array
     }
 }
 
+/** Cara 1: kirim lampiran ke alamat arsip; Power Automate yang menyimpannya ke OneDrive */
+function arsipKirimEmail(PDO $pdo, array $lamp): array
+{
+    $ke = arsipEmail($pdo);
+    $pesan = "*Arsip lampiran Aplikasi Pengingat Deadline*\n\n"
+        . "Unit: {$lamp['kode_unit']} - {$lamp['nama_unit']}\n"
+        . 'No. surat: ' . ($lamp['no_surat'] ?: '-') . "\n"
+        . "File: {$lamp['nama_file']}\n"
+        . 'Diunggah: ' . date('d-m-Y H.i', strtotime((string) $lamp['dibuat_tanggal'])) . ($lamp['diunggah_oleh'] ? " oleh {$lamp['diunggah_oleh']}" : '') . "\n\n"
+        . "Email ini dikirim otomatis agar lampiran tersimpan ke OneDrive oleh Power Automate. Jangan ubah subjeknya.";
+    $hasil = kirimEmailLampiran($ke, subjekArsip($lamp['kode_unit'], $lamp['nama_unit']), $pesan,
+        namaAmanOneDrive($lamp['nama_file']), isiLampiran($pdo, $lamp));
+    if (!$hasil['ok']) {
+        throw new RuntimeException('Email arsip gagal: ' . $hasil['pesan']);
+    }
+    $pdo->prepare("UPDATE lampiran SET onedrive_status = 'email', onedrive_url = NULL, onedrive_pesan = ?, onedrive_coba = onedrive_coba + 1 WHERE id = ?")
+        ->execute([potong('Dikirim ke ' . $ke . ' pada ' . date('d-m-Y H.i'), 250), (int) $lamp['id']]);
+    return ['ok' => true, 'pesan' => 'Dikirim ke arsip OneDrive'];
+}
+
 /** Salin lampiran yang baru disimpan (dipanggil setelah upload di dashboard); diam bila OneDrive belum terhubung */
 function onedriveSalinBaru(PDO $pdo, array $lampiranIds): ?array
 {
-    if (!$lampiranIds || !onedriveSiap($pdo)) {
+    if (!$lampiranIds || onedriveMode($pdo) === null) {
         return null;
     }
     $ok = 0;
@@ -447,13 +501,14 @@ function onedriveSalinBaru(PDO $pdo, array $lampiranIds): ?array
  * Dipanggil cron pengingat setiap pagi dan tombol "Salin lampiran yang belum tersimpan".
  * @return array{ok: int, gagal: int}
  */
-function onedriveSinkronTertunda(PDO $pdo, int $batas = 10): array
+function onedriveSinkronTertunda(PDO $pdo, int $batas = 10, bool $termasukLama = false): array
 {
-    if (!onedriveSiap($pdo)) {
+    if (onedriveMode($pdo) === null) {
         return ['ok' => 0, 'gagal' => 0];
     }
+    // Cron hanya mengulang yang gagal; lampiran lama (belum pernah dicoba) hanya lewat tombol di kartu OneDrive
     $stmt = $pdo->prepare(
-        "SELECT id FROM lampiran WHERE selesai = 1 AND (onedrive_status IS NULL OR onedrive_status = 'gagal')
+        "SELECT id FROM lampiran WHERE selesai = 1 AND (onedrive_status = 'gagal'" . ($termasukLama ? ' OR onedrive_status IS NULL' : '') . ")
            AND onedrive_coba < ? ORDER BY id LIMIT " . max(1, $batas)
     );
     $stmt->execute([ONEDRIVE_MAKS_COBA]);
@@ -468,7 +523,7 @@ function onedriveSinkronTertunda(PDO $pdo, int $batas = 10): array
 function onedriveRingkasan(PDO $pdo): array
 {
     $r = $pdo->query(
-        "SELECT COALESCE(SUM(onedrive_status = 'ok'), 0) AS ok,
+        "SELECT COALESCE(SUM(onedrive_status IN ('ok', 'email')), 0) AS ok,
                 COALESCE(SUM(onedrive_status = 'gagal'), 0) AS gagal,
                 COALESCE(SUM(onedrive_status IS NULL), 0) AS belum
          FROM lampiran WHERE selesai = 1"
