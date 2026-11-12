@@ -212,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'tambah_email' => 'kelola_penerima', 'edit_email' => 'kelola_penerima', 'toggle_email' => 'kelola_penerima',
         'hapus_email' => 'kelola_penerima', 'uji_email' => 'kelola_penerima',
         'onedrive_mulai' => 'kelola_penerima', 'onedrive_cek' => 'kelola_penerima', 'onedrive_putuskan' => 'kelola_penerima',
-        'onedrive_sinkron' => 'kelola_penerima',
+        'onedrive_sinkron' => 'kelola_penerima', 'onedrive_folder' => 'kelola_penerima', 'onedrive_folder_hapus' => 'kelola_penerima',
     ];
     if (!boleh($hakAksi[$aksi] ?? 'kelola_pengguna')) {
         $pesanTolak = 'Akun Anda (' . labelPeran(peranSaya()) . ') tidak punya izin untuk melakukan aksi ini.';
@@ -693,6 +693,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $status === 'terhubung'
                     ? flash('success', 'OneDrive terhubung. Lampiran baru akan otomatis disalin ke OneDrive.')
                     : flash('warning', 'Belum terdeteksi login. Selesaikan login Microsoft dengan kode di bawah, lalu klik lagi.');
+            } elseif ($aksi === 'onedrive_folder') {
+                if (!onedriveSiap($pdo)) {
+                    throw new RuntimeException('Hubungkan akun Microsoft terlebih dahulu.');
+                }
+                $tujuan = onedriveSetelLink($pdo, (string) ($_POST['link_folder'] ?? ''));
+                flash('success', 'Folder tujuan diatur: "' . $tujuan['nama'] . '". Lampiran baru akan disalin ke folder ini.');
+            } elseif ($aksi === 'onedrive_folder_hapus') {
+                onedriveHapusTujuan($pdo);
+                flash('warning', 'Link folder dihapus. Lampiran baru disalin ke folder bawaan: ' . onedriveFolder() . '.');
             } elseif ($aksi === 'onedrive_putuskan') {
                 onedrivePutuskan($pdo);
                 flash('warning', 'OneDrive diputuskan. Lampiran baru tidak lagi disalin (file yang sudah ada di OneDrive tetap aman).');
@@ -1564,8 +1573,27 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <p class="mb-2">Lampiran yang diunggah bisa otomatis disalin ke OneDrive. Fitur ini belum aktif karena <code>ONEDRIVE_CLIENT_ID</code> belum diisi.</p>
                 <p class="redup small mb-0">Isi Environment Variable <code>ONEDRIVE_CLIENT_ID</code> (dari pendaftaran aplikasi di Microsoft Entra), lalu kembali ke kartu ini untuk menghubungkan akun. Langkahnya ada di file panduan.</p>
             <?php elseif ($od_siap): $od_r = onedriveRingkasan($pdo); ?>
-                <p class="mb-2">Akun: <b><?= e((string) ambilPengaturan($pdo, 'onedrive_akun')); ?></b><br>
-                    Folder: <span class="mono small"><?= e(onedriveFolder()); ?>/&lt;kode - nama unit&gt;</span></p>
+                <?php $od_tujuan = onedriveTujuan($pdo); ?>
+                <p class="mb-2">Akun: <b class="text-break"><?= e((string) ambilPengaturan($pdo, 'onedrive_akun')); ?></b><br>
+                    Folder tujuan:
+                    <?php if ($od_tujuan): ?>
+                        <?= $od_tujuan['url'] ? '<a href="' . e($od_tujuan['url']) . '" target="_blank" rel="noopener"><b>' . e($od_tujuan['nama']) . '</b></a>' : '<b>' . e($od_tujuan['nama']) . '</b>'; ?>
+                        <span class="mono small">/&lt;kode - nama unit&gt;</span>
+                    <?php else: ?>
+                        <span class="mono small"><?= e(onedriveFolder()); ?>/&lt;kode - nama unit&gt;</span> <span class="redup small">(bawaan)</span>
+                    <?php endif; ?></p>
+                <form method="POST" action="dashboard.php" class="mb-3"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_folder">
+                    <label for="link-folder" class="small"><?= $od_tujuan ? 'Ganti folder: tempel link folder lain' : 'Tempel link folder OneDrive tujuan'; ?></label>
+                    <div class="d-flex gap-2">
+                        <input type="url" id="link-folder" name="link_folder" required maxlength="2000" class="form-control form-control-sm"
+                            placeholder="https://…sharepoint.com/:f:/g/personal/…">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">Simpan folder</button>
+                    </div>
+                </form>
+                <?php if ($od_tujuan): ?>
+                <form method="POST" action="dashboard.php" class="mb-3" onsubmit="return confirm('Hapus link folder dan kembali ke folder bawaan?')"><?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="onedrive_folder_hapus"><button type="submit" class="btn btn-link btn-sm p-0">Kembali ke folder bawaan</button></form>
+                <?php endif; ?>
                 <p class="mb-3 small">Tersimpan <b><?= $od_r['ok']; ?></b> file · menunggu <b><?= $od_r['belum']; ?></b> · gagal <b class="<?= $od_r['gagal'] ? 'teks-merah' : ''; ?>"><?= $od_r['gagal']; ?></b></p>
                 <div class="d-flex gap-2 flex-wrap">
                     <?php if ($od_r['belum'] + $od_r['gagal']): ?>

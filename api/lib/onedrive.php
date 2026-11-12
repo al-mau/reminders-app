@@ -17,7 +17,12 @@
  * Environment Variables:
  *   ONEDRIVE_CLIENT_ID  Application (client) ID dari Microsoft Entra (wajib)
  *   ONEDRIVE_TENANT     common (bawaan: akun pribadi & kantor), organizations, consumers, atau ID tenant kantor
- *   ONEDRIVE_FOLDER     folder tujuan, bawaan "Aplikasi Pengingat Deadline/Lampiran"
+ *   ONEDRIVE_FOLDER     folder bawaan bila belum ada link folder: "Aplikasi Pengingat Deadline/Lampiran"
+ *                       (di OneDrive akun yang login)
+ *   ONEDRIVE_FOLDER_LINK link folder OneDrive/SharePoint tujuan (opsional). Bisa juga ditempel
+ *                       langsung di kartu OneDrive; link diubah otomatis menjadi ID drive + ID folder.
+ *   ONEDRIVE_IZIN       "semua" bila akun yang login BUKAN pemilik folder dari link (folder dibagikan
+ *                       orang lain) → meminta izin Files.ReadWrite.All. Bawaan: Files.ReadWrite.
  *
  * Bila upload gagal (jaringan, token kedaluwarsa), lampiran ditandai "gagal" dan dicoba lagi
  * otomatis oleh cron pengingat setiap pagi (maks. ONEDRIVE_MAKS_COBA kali).
@@ -26,10 +31,16 @@
 require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/skema.php';
 
-const ONEDRIVE_SCOPE      = 'offline_access Files.ReadWrite User.Read';
 const ONEDRIVE_MAKS_COBA  = 5;
 const ONEDRIVE_BATAS_SATU = 4 * 1024 * 1024;   // di atas ini pakai upload session (aturan Microsoft Graph)
 const ONEDRIVE_POTONGAN   = 320 * 1024 * 10;   // potongan upload session harus kelipatan 320 KiB
+
+/** Izin yang diminta ke Microsoft (sekecil mungkin) */
+function onedriveScope(): string
+{
+    $semua = strtolower(trim((string) env('ONEDRIVE_IZIN', ''))) === 'semua';
+    return 'offline_access User.Read ' . ($semua ? 'Files.ReadWrite.All' : 'Files.ReadWrite');
+}
 
 /** Sudah ada ONEDRIVE_CLIENT_ID? (fitur bisa diaktifkan) */
 function onedriveDiatur(): bool
@@ -162,7 +173,7 @@ function onedriveMulaiHubung(PDO $pdo): array
 {
     [$kode, $json, $mentah] = httpMicrosoft('POST', urlLoginMicrosoft('devicecode'),
         ['Content-Type: application/x-www-form-urlencoded'],
-        http_build_query(['client_id' => env('ONEDRIVE_CLIENT_ID'), 'scope' => ONEDRIVE_SCOPE]));
+        http_build_query(['client_id' => env('ONEDRIVE_CLIENT_ID'), 'scope' => onedriveScope()]));
     if ($kode !== 200 || empty($json['device_code'])) {
         throw new RuntimeException(pesanMicrosoft($json, $kode ? "Microsoft menolak permintaan (HTTP $kode)." : $mentah));
     }
@@ -204,6 +215,14 @@ function onedriveCekHubung(PDO $pdo): string
         [$k2, $me] = httpMicrosoft('GET', urlGraph('/me'), ['Authorization: Bearer ' . $json['access_token']]);
         $akun = $k2 === 200 ? trim(($me['displayName'] ?? '') . ' (' . ($me['userPrincipalName'] ?? $me['mail'] ?? '') . ')', ' ()') : '';
         simpanPengaturan($pdo, 'onedrive_akun', $akun !== '' ? $akun : 'akun Microsoft');
+        $linkBawaan = trim((string) env('ONEDRIVE_FOLDER_LINK', ''));
+        if ($linkBawaan !== '' && onedriveTujuan($pdo) === null) {
+            try {
+                onedriveSetelLink($pdo, $linkBawaan);
+            } catch (Throwable $e) {
+                error_log('ONEDRIVE_FOLDER_LINK tidak bisa dipakai: ' . $e->getMessage());
+            }
+        }
         return 'terhubung';
     }
     $err = $json['error'] ?? '';
@@ -235,7 +254,7 @@ function onedriveTokenAkses(PDO $pdo): string
     [$kode, $json, $mentah] = httpMicrosoft('POST', urlLoginMicrosoft('token'),
         ['Content-Type: application/x-www-form-urlencoded'],
         http_build_query(['grant_type' => 'refresh_token', 'client_id' => env('ONEDRIVE_CLIENT_ID'),
-            'refresh_token' => $refresh, 'scope' => ONEDRIVE_SCOPE]));
+            'refresh_token' => $refresh, 'scope' => onedriveScope()]));
     if ($kode !== 200 || empty($json['access_token'])) {
         throw new RuntimeException('Token OneDrive tidak berlaku, hubungkan ulang: ' . pesanMicrosoft($json, $kode ? "HTTP $kode" : $mentah));
     }
@@ -243,6 +262,80 @@ function onedriveTokenAkses(PDO $pdo): string
         simpanPengaturan($pdo, 'onedrive_refresh', $json['refresh_token'], true);
     }
     return $token = $json['access_token'];
+}
+
+// -------------------------------------------------------------------
+// Folder tujuan dari link OneDrive / SharePoint
+// -------------------------------------------------------------------
+
+/** Folder tujuan tersimpan. @return array{drive: string, item: string, nama: string, url: string, link: string}|null */
+function onedriveTujuan(PDO $pdo): ?array
+{
+    $data = json_decode((string) ambilPengaturan($pdo, 'onedrive_tujuan'), true);
+    return is_array($data) && !empty($data['drive']) && !empty($data['item']) ? $data : null;
+}
+
+/** Link berbagi → kode "shares" Microsoft Graph (u! + base64url) */
+function kodeLinkBerbagi(string $link): string
+{
+    return 'u!' . rtrim(strtr(base64_encode($link), '+/', '-_'), '=');
+}
+
+/**
+ * Ubah link folder (mis. https://xxx-my.sharepoint.com/:f:/g/personal/...) menjadi ID drive + ID folder
+ * dan simpan sebagai tujuan salinan lampiran. Butuh akun yang sudah terhubung.
+ * @return array{drive: string, item: string, nama: string, url: string, link: string}
+ */
+function onedriveSetelLink(PDO $pdo, string $link): array
+{
+    $link = trim($link);
+    $host = strtolower((string) parse_url($link, PHP_URL_HOST));
+    $dikenal = $host === '1drv.ms' || $host === 'onedrive.live.com'
+        || str_ends_with($host, '.sharepoint.com') || str_ends_with($host, '.sharepoint.cn');
+    if (!preg_match('#^https://#i', $link) || !$dikenal || strlen($link) > 2000) {
+        throw new RuntimeException('Link tidak dikenali. Gunakan link folder dari OneDrive/SharePoint (Bagikan → Salin link).');
+    }
+    $token = onedriveTokenAkses($pdo);
+    [$kode, $json, $mentah] = httpMicrosoft('GET',
+        urlGraph('/shares/' . kodeLinkBerbagi($link) . '/driveItem?$select=id,name,webUrl,folder,parentReference'),
+        ['Authorization: Bearer ' . $token, 'Prefer: redeemSharingLink']);
+    if ($kode === 401 || $kode === 403) {
+        throw new RuntimeException('Akun yang terhubung tidak punya akses ke folder ini. Login dengan akun pemilik folder, '
+            . 'atau minta pemilik memberi izin edit (lalu isi ONEDRIVE_IZIN=semua dan hubungkan ulang).');
+    }
+    if ($kode === 404) {
+        throw new RuntimeException('Folder dari link tidak ditemukan (link salah, kedaluwarsa, atau folder dihapus).');
+    }
+    if ($kode !== 200 || empty($json['id'])) {
+        throw new RuntimeException(pesanMicrosoft($json, $kode ? "Link tidak bisa dibuka (HTTP $kode)." : $mentah));
+    }
+    if (!isset($json['folder'])) {
+        throw new RuntimeException('Link tersebut menuju file, bukan folder. Bagikan link foldernya.');
+    }
+    $drive = (string) ($json['parentReference']['driveId'] ?? '');
+    if ($drive === '') {
+        throw new RuntimeException('ID drive folder tidak terbaca dari link.');
+    }
+    $tujuan = ['drive' => $drive, 'item' => (string) $json['id'], 'nama' => (string) ($json['name'] ?? 'Folder'),
+        'url' => (string) ($json['webUrl'] ?? ''), 'link' => $link];
+    simpanPengaturan($pdo, 'onedrive_tujuan', json_encode($tujuan));
+    return $tujuan;
+}
+
+function onedriveHapusTujuan(PDO $pdo): void
+{
+    simpanPengaturan($pdo, 'onedrive_tujuan', null);
+}
+
+/** Alamat Graph untuk file di folder tujuan; $jalurUrl = "<folder unit>/<nama file>" (sudah di-encode) */
+function urlItemTujuan(PDO $pdo, string $jalurUrl, string $akhiran): string
+{
+    $tujuan = onedriveTujuan($pdo);
+    if ($tujuan) {
+        return urlGraph('/drives/' . rawurlencode($tujuan['drive']) . '/items/' . rawurlencode($tujuan['item']) . ':/' . $jalurUrl . ':/' . $akhiran);
+    }
+    $bawaan = implode('/', array_map('rawurlencode', explode('/', onedriveFolder())));
+    return urlGraph('/me/drive/root:/' . $bawaan . '/' . $jalurUrl . ':/' . $akhiran);
 }
 
 // -------------------------------------------------------------------
@@ -289,15 +382,14 @@ function onedriveUnggah(PDO $pdo, int $lampiranId): array
     try {
         $token = onedriveTokenAkses($pdo);
         $isi   = isiLampiran($pdo, $lamp);
-        $jalur = onedriveFolder() . '/' . namaAmanOneDrive($lamp['kode_unit'] . ' - ' . $lamp['nama_unit']) . '/' . namaAmanOneDrive($lamp['nama_file']);
-        $jalurUrl = implode('/', array_map('rawurlencode', explode('/', $jalur)));
+        $jalurUrl = rawurlencode(namaAmanOneDrive($lamp['kode_unit'] . ' - ' . $lamp['nama_unit'])) . '/' . rawurlencode(namaAmanOneDrive($lamp['nama_file']));
 
         if (strlen($isi) <= ONEDRIVE_BATAS_SATU) {
-            [$kode, $json, $mentah] = httpMicrosoft('PUT', urlGraph('/me/drive/root:/' . $jalurUrl . ':/content?@microsoft.graph.conflictBehavior=rename'),
+            [$kode, $json, $mentah] = httpMicrosoft('PUT', urlItemTujuan($pdo, $jalurUrl, 'content?@microsoft.graph.conflictBehavior=rename'),
                 ['Authorization: Bearer ' . $token, 'Content-Type: application/octet-stream'], $isi, 60);
         } else {
             // File besar: buat sesi upload, lalu kirim per potongan
-            [$kode, $sesi, $mentah] = httpMicrosoft('POST', urlGraph('/me/drive/root:/' . $jalurUrl . ':/createUploadSession'),
+            [$kode, $sesi, $mentah] = httpMicrosoft('POST', urlItemTujuan($pdo, $jalurUrl, 'createUploadSession'),
                 ['Authorization: Bearer ' . $token, 'Content-Type: application/json'],
                 json_encode(['item' => ['@microsoft.graph.conflictBehavior' => 'rename']]));
             if ($kode !== 200 || empty($sesi['uploadUrl'])) {
