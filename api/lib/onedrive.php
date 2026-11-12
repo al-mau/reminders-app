@@ -360,7 +360,37 @@ function periksaLinkOneDrive(string $link): string
     return $link;
 }
 
-/** Link folder OneDrive untuk upload manual (tombol "Buka folder OneDrive"); cadangan ONEDRIVE_FOLDER_LINK */
+/** Domain resmi TeraBox (link berbagi: hanya untuk melihat/mengunduh, tidak bisa diunggahi lewat link) */
+const DOMAIN_TERABOX = ['terabox.com', '1024terabox.com', '1024tera.com', 'teraboxapp.com', 'terabox.app',
+    'freeterabox.com', 'teraboxshare.com', '4funbox.com', 'mirrobox.com', 'nephobox.com', 'momerybox.com', 'tibibox.com'];
+
+/** Jenis link folder manual: 'terabox' atau 'onedrive' */
+function jenisLinkFolder(string $link): string
+{
+    $host = strtolower((string) parse_url($link, PHP_URL_HOST));
+    foreach (DOMAIN_TERABOX as $d) {
+        if ($host === $d || str_ends_with($host, '.' . $d)) {
+            return 'terabox';
+        }
+    }
+    return 'onedrive';
+}
+
+/** Link folder untuk upload manual: OneDrive/SharePoint atau TeraBox (https). @throws RuntimeException */
+function periksaLinkFolderManual(string $link): string
+{
+    $link = trim($link);
+    if (preg_match('#^https://#i', $link) && strlen($link) <= 2000 && jenisLinkFolder($link) === 'terabox') {
+        return $link;
+    }
+    try {
+        return periksaLinkOneDrive($link);
+    } catch (RuntimeException $e) {
+        throw new RuntimeException('Link tidak dikenali. Gunakan link folder OneDrive/SharePoint (Bagikan → Salin link) atau link berbagi TeraBox.');
+    }
+}
+
+/** Link folder untuk upload manual (tombol "Buka folder ..."); cadangan ONEDRIVE_FOLDER_LINK */
 function linkFolderManual(PDO $pdo): string
 {
     return trim((string) (ambilPengaturan($pdo, 'onedrive_link_manual') ?? env('ONEDRIVE_FOLDER_LINK', '')));

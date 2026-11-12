@@ -111,12 +111,17 @@ sama seperti WhatsApp dan Telegram. Tombol **Kirim email percobaan** di panel it
 Tambahkan `email` di `NOTIF_VIA` agar pengingat otomatis jam 07.00 juga dikirim lewat email.
 Batas Gmail sekitar 500 email/hari; untuk pemakaian resmi sebaiknya memakai SMTP kantor agar tidak masuk Spam.
 
-## Folder OneDrive untuk upload manual (opsional)
+## Folder arsip untuk upload manual (opsional)
 
-Menu **Penerima → Arsip Lampiran** (Akses Penuh): tempel link folder OneDrive/SharePoint
-(*Bagikan → Salin link*) → **Simpan link**. Di jendela **Lampiran** setiap unit muncul tombol **Buka folder OneDrive**
-beserta saran nama subfolder (`<kode unit> - <nama unit>`). Pengguna mengunggah file sendiri di OneDrive (tombol
-*Unggah* atau seret file). Aplikasi tidak mengirim file apa pun; yang membuka folder harus punya izin di OneDrive.
+Menu **Penerima → Arsip Lampiran** (Akses Penuh): tempel link folder **OneDrive/SharePoint** (*Bagikan → Salin link*)
+atau **link berbagi TeraBox** → **Simpan link**. Di jendela **Lampiran** setiap unit muncul tombol **Buka folder OneDrive**
+/ **Buka folder TeraBox** beserta saran nama subfolder (`<kode unit> - <nama unit>`). Aplikasi tidak mengirim file apa pun.
+
+- **OneDrive**: yang membuka folder (dengan izin edit) bisa langsung mengunggah di OneDrive (*Unggah* atau seret file).
+- **TeraBox**: link berbagi hanya untuk **melihat dan mengunduh**. File ditambahkan oleh pemilik akun: login di
+  terabox.com → buka folder → *Unggah*. TeraBox adalah layanan konsumen di luar Microsoft 365 kantor: gunakan untuk data
+  contoh, bukan dokumen dinas asli.
+
 Link juga bisa diisi lewat Environment Variable `ONEDRIVE_FOLDER_LINK`.
 
 ## Arsip lampiran ke grup Telegram (opsional, untuk demo / data contoh)
