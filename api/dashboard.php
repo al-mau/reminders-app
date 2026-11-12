@@ -733,14 +733,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($aksi === 'folder_manual_simpan' || $aksi === 'folder_manual_hapus') {
         try {
             if ($aksi === 'folder_manual_simpan') {
-                simpanPengaturan($pdo, 'onedrive_link_manual', periksaLinkOneDrive((string) ($_POST['link_manual'] ?? '')));
-                flash('success', 'Link folder OneDrive disimpan. Tombol "Buka folder OneDrive" kini tampil di jendela Lampiran setiap unit.');
+                $link  = periksaLinkFolderManual((string) ($_POST['link_manual'] ?? ''));
+                $label = jenisLinkFolder($link) === 'terabox' ? 'TeraBox' : 'OneDrive';
+                simpanPengaturan($pdo, 'onedrive_link_manual', $link);
+                flash('success', "Link folder $label disimpan. Tombol \"Buka folder $label\" kini tampil di jendela Lampiran setiap unit."
+                    . ($label === 'TeraBox' ? ' Catatan: link TeraBox hanya untuk melihat; file ditambahkan oleh pemilik akun di terabox.com.' : ''));
             } else {
                 simpanPengaturan($pdo, 'onedrive_link_manual', null);
-                flash('warning', 'Link folder OneDrive dihapus dari aplikasi (folder di OneDrive tidak berubah).');
+                flash('warning', 'Link folder dihapus dari aplikasi (isi folder tidak berubah).');
             }
         } catch (Throwable $e) {
-            flash('danger', 'Folder OneDrive: ' . $e->getMessage());
+            flash('danger', 'Folder arsip: ' . $e->getMessage());
         }
         header('Location: ' . kembaliKe('penerima', [], 'onedrive'));
         exit;
@@ -990,6 +993,8 @@ $od_diatur = onedriveDiatur();
 $od_siap   = $od_diatur && onedriveSiap($pdo);
 $od_mode   = onedriveMode($pdo);
 $od_manual = linkFolderManual($pdo);
+$od_manual_tb = $od_manual !== '' && jenisLinkFolder($od_manual) === 'terabox';
+$od_manual_label = $od_manual_tb ? 'TeraBox' : 'OneDrive';
 $tg_arsip  = arsipTelegram($pdo);
 $tg_arsip_ditemukan = $_SESSION['tg_arsip_ditemukan'] ?? [];
 unset($_SESSION['tg_arsip_ditemukan']);
@@ -1680,10 +1685,10 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <span><?= ['graph' => 'otomatis · OneDrive', 'email' => 'otomatis · email', 'telegram' => 'otomatis · Telegram'][$od_mode] ?? ($od_manual !== '' ? 'manual' : 'belum aktif'); ?></span>
             </div>
             <div class="form-tambah">
-                <p class="mb-2"><b>Folder OneDrive (upload manual)</b><br>
-                    <span>Simpan link folder tujuan. Di jendela Lampiran setiap unit akan muncul tombol <b>Buka folder OneDrive</b> untuk mengunggah file ke sana secara manual.</span></p>
+                <p class="mb-2"><b>Folder arsip (upload manual)</b><br>
+                    <span>Simpan link folder OneDrive atau TeraBox. Di jendela Lampiran setiap unit akan muncul tombol <b>Buka folder</b> untuk membuka folder itu.</span></p>
                 <form method="POST" action="dashboard.php" class="mb-2"><?= csrf_field(); ?><input type="hidden" name="aksi" value="folder_manual_simpan">
-                    <label for="link-manual" class="small">Link folder OneDrive (Bagikan → Salin link)</label>
+                    <label for="link-manual" class="small">Link folder OneDrive (Bagikan → Salin link) atau link berbagi TeraBox</label>
                     <div class="d-flex gap-2">
                         <input type="url" id="link-manual" name="link_manual" required maxlength="2000" class="form-control form-control-sm"
                             value="<?= e($od_manual); ?>" placeholder="https://…sharepoint.com/:f:/g/personal/…">
@@ -1693,9 +1698,13 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <?php if ($od_manual !== ''): ?>
                 <div class="d-flex gap-3 align-items-center mb-1">
                     <a href="<?= e($od_manual); ?>" target="_blank" rel="noopener" class="small"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Coba buka folder</a>
-                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus link folder OneDrive dari aplikasi?')"><?= csrf_field(); ?>
+                    <span class="badge tanda"><?= $od_manual_label; ?></span>
+                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus link folder dari aplikasi?')"><?= csrf_field(); ?>
                         <input type="hidden" name="aksi" value="folder_manual_hapus"><button type="submit" class="btn btn-link btn-sm p-0">Hapus link</button></form>
                 </div>
+                <?php if ($od_manual_tb): ?>
+                <p class="small redup mt-2 mb-0">Link berbagi TeraBox hanya untuk <b>melihat dan mengunduh</b>. File ditambahkan oleh pemilik akun: login di terabox.com → buka folder ini → Unggah. Gunakan untuk data contoh, bukan dokumen dinas asli.</p>
+                <?php endif; ?>
                 <?php endif; ?>
                 <hr>
                 <p class="small mb-2"><b>Arsip otomatis</b> (opsional)</p>
@@ -2316,9 +2325,14 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                     <?php if ($od_manual !== ''): ?>
                     <div class="od-manual">
                         <a href="<?= e($od_manual); ?>" target="_blank" rel="noopener" class="btn btn-outline-secondary w-100">
-                            <i class="fa-solid fa-folder-open" aria-hidden="true"></i> Buka folder OneDrive</a>
+                            <i class="fa-solid fa-folder-open" aria-hidden="true"></i> Buka folder <?= $od_manual_label; ?></a>
+                        <?php if ($od_manual_tb): ?>
+                        <div class="form-text">Link TeraBox hanya untuk melihat/mengunduh arsip. Untuk menambah file, pemilik akun login di <b>terabox.com</b>, buka folder ini, lalu klik <b>Unggah</b>.
+                            Saran nama subfolder: <span class="mono od-subfolder"><?= e(namaAmanOneDrive($row['kode_unit'] . ' - ' . $row['nama_unit'])); ?></span></div>
+                        <?php else: ?>
                         <div class="form-text">Unggah file secara manual di OneDrive (tombol <b>Unggah</b> atau seret file ke folder).
                             Saran nama subfolder: <span class="mono od-subfolder"><?= e(namaAmanOneDrive($row['kode_unit'] . ' - ' . $row['nama_unit'])); ?></span></div>
+                        <?php endif; ?>
                     </div>
                     <?php endif; ?>
                 </div>
