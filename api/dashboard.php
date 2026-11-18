@@ -210,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'hapus_penerima' => 'kelola_penerima', 'tambah_telegram' => 'kelola_penerima', 'ubah_nama_telegram' => 'kelola_penerima',
         'toggle_telegram' => 'kelola_penerima', 'hapus_telegram' => 'kelola_penerima', 'cari_telegram' => 'kelola_penerima',
         'tambah_email' => 'kelola_penerima', 'edit_email' => 'kelola_penerima', 'toggle_email' => 'kelola_penerima',
-        'hapus_email' => 'kelola_penerima', 'uji_email' => 'kelola_penerima',
+        'hapus_email' => 'kelola_penerima', 'uji_email' => 'kelola_penerima', 'uji_wa' => 'kelola_penerima', 'uji_telegram' => 'kelola_penerima',
         'onedrive_mulai' => 'kelola_penerima', 'onedrive_cek' => 'kelola_penerima', 'onedrive_putuskan' => 'kelola_penerima',
         'arsip_tg_simpan' => 'kelola_penerima', 'arsip_tg_hapus' => 'kelola_penerima', 'arsip_tg_uji' => 'kelola_penerima', 'arsip_tg_cari' => 'kelola_penerima',
         'folder_manual_simpan' => 'kelola_penerima', 'folder_manual_hapus' => 'kelola_penerima',
@@ -670,6 +670,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Kirim email percobaan ke penerima aktif untuk memastikan pengaturan SMTP benar (tidak dicatat di riwayat)
+    // Pesan percobaan ke penerima aktif WhatsApp / Telegram (tidak dicatat di Riwayat Kirim, sama seperti email percobaan)
+    if ($aksi === 'uji_wa' || $aksi === 'uji_telegram') {
+        $wa    = $aksi === 'uji_wa';
+        $pesan = "*PESAN PERCOBAAN*\n\nPengaturan " . ($wa ? 'WhatsApp' : 'Telegram') . " Aplikasi Pengingat Deadline sudah benar.\n"
+            . 'Pengingat deadline akan dikirim ke ' . ($wa ? 'nomor' : 'chat') . ' ini setiap hari pukul 07.00 WIB.';
+        $hasil = $wa ? kirimKeFonnte($pesan, implode(',', daftarNomorPenerima())) : kirimKeTelegram($pesan, daftarChatTelegram());
+        $nama  = $wa ? 'WhatsApp' : 'Telegram';
+        flash($hasil['ok'] ? 'success' : 'danger', ($hasil['ok'] ? "$nama percobaan: " : "$nama percobaan gagal: ") . $hasil['pesan']);
+        header('Location: ' . kembaliKe('penerima', [], $wa ? 'penerima' : 'telegram'));
+        exit;
+    }
+
     if ($aksi === 'uji_email') {
         $hasil = kirimKeEmail(
             "*EMAIL PERCOBAAN*\n\nPengaturan email Aplikasi Pengingat Jadwal sudah benar.\nPengingat deadline akan dikirim ke alamat ini.",
@@ -1529,17 +1541,24 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
             <?php endforeach; ?>
             </div>
             <?php if ($kelola_penerima): ?>
-            <form method="POST" action="dashboard.php" class="form-tambah">
-                <?= csrf_field(); ?>
-                <input type="hidden" name="aksi" value="tambah_penerima">
-                <div class="label-kecil">Tambah nomor</div>
-                <input type="text" name="nama" class="form-control mb-2" placeholder="Nama penerima, contoh: Admin Kantor" maxlength="100" required aria-label="Nama penerima WhatsApp">
-                <div class="baris-input">
-                    <input type="tel" name="nomor" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +" required aria-label="Nomor WhatsApp">
-                    <button type="submit" class="btn btn-primary">Tambah</button>
-                </div>
-                <div class="form-text">Nomor HP Indonesia yang diawali 08.</div>
-            </form>
+            <div class="form-tambah">
+                <form method="POST" action="dashboard.php">
+                    <?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="tambah_penerima">
+                    <div class="label-kecil">Tambah nomor</div>
+                    <input type="text" name="nama" class="form-control mb-2" placeholder="Nama penerima, contoh: Admin Kantor" maxlength="100" required aria-label="Nama penerima WhatsApp">
+                    <div class="baris-input">
+                        <input type="tel" name="nomor" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +" required aria-label="Nomor WhatsApp">
+                        <button type="submit" class="btn btn-primary">Tambah</button>
+                    </div>
+                    <div class="form-text">Nomor HP Indonesia yang diawali 08.</div>
+                </form>
+                <form method="POST" action="dashboard.php" class="mt-3">
+                    <?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="uji_wa">
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= env('FONNTE_TOKEN') ? '' : 'disabled title="Isi FONNTE_TOKEN dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim percobaan ke penerima aktif</button>
+                </form>
+            </div>
             <?php endif; ?>
         </section>
         </div>
@@ -1605,6 +1624,11 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 </form>
                 <form method="POST" action="dashboard.php" class="mt-3">
                     <?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="uji_telegram">
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= env('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim percobaan ke penerima aktif</button>
+                </form>
+                <form method="POST" action="dashboard.php" class="mt-2">
+                    <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="cari_telegram">
                     <button type="submit" class="btn btn-outline-secondary w-100" <?= env('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN dulu"'; ?>><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Cari chat yang sudah klik Start di bot</button>
                 </form>
@@ -1659,7 +1683,7 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <form method="POST" action="dashboard.php" class="mt-3">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="uji_email">
-                    <button type="submit" class="btn btn-outline-secondary w-100" <?= emailSiap() ? '' : 'disabled title="Isi SMTP_HOST, SMTP_USER, dan SMTP_PASS dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim email percobaan ke penerima aktif</button>
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= emailSiap() ? '' : 'disabled title="Isi SMTP_HOST, SMTP_USER, dan SMTP_PASS dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim percobaan ke penerima aktif</button>
                 </form>
             </div>
             <?php endif; ?>
