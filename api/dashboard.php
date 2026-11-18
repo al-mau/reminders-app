@@ -1178,6 +1178,22 @@ function statusSingkat(int $sisa): array
 }
 
 /** Tautan ke satu unit di Daftar Unit (pindah ke halamannya lalu baris unit disorot) */
+/** Menu "⋯" untuk satu penerima: ubah, aktif/nonaktif, hapus (formulir & modal sama seperti sebelumnya) */
+function menuPenerima(int $id, bool $aktif, string $aksiToggle, string $aksiHapus, string $konfirmasi, string $labelUbah, string $atributUbah): string
+{
+    $csrf = csrf_field();
+    return '<div class="dropdown">'
+        . '<button type="button" class="btn btn-outline-secondary btn-sm btn-titik" data-bs-toggle="dropdown" data-bs-popper-config=\'{"strategy":"fixed"}\' aria-expanded="false" aria-label="Aksi penerima" title="Aksi">&#8943;</button>'
+        . '<ul class="dropdown-menu dropdown-menu-end menu-aksi">'
+        . '<li><button type="button" class="dropdown-item" data-bs-toggle="modal" ' . $atributUbah . '>' . e($labelUbah) . '</button></li>'
+        . '<li><form method="POST" action="dashboard.php">' . $csrf . '<input type="hidden" name="aksi" value="' . e($aksiToggle) . '"><input type="hidden" name="id" value="' . $id . '">'
+        . '<button type="submit" class="dropdown-item">' . ($aktif ? 'Nonaktifkan' : 'Aktifkan') . '</button></form></li>'
+        . '<li><hr class="dropdown-divider"></li>'
+        . '<li><form method="POST" action="dashboard.php" onsubmit="return confirm(\'' . e($konfirmasi) . '\')">' . $csrf . '<input type="hidden" name="aksi" value="' . e($aksiHapus) . '"><input type="hidden" name="id" value="' . $id . '">'
+        . '<button type="submit" class="dropdown-item teks-merah">Hapus</button></form></li>'
+        . '</ul></div>';
+}
+
 function tautanFokus(int $id): string
 {
     return 'dashboard.php?fokus=' . $id . '#unit-' . $id;
@@ -1478,17 +1494,24 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
 
 <?php elseif ($menu === 'penerima'): ?>
     <!-- ================= PENERIMA ================= -->
-    <?php $kelola_penerima = boleh('kelola_penerima'); ?>
-    <div class="row align-items-start">
-        <div class="col-lg-6">
-        <section class="card" id="penerima">
+    <?php
+    $kelola_penerima  = boleh('kelola_penerima');
+    $telegram_dipakai = in_array('telegram', $saluran_notif, true);
+    $email_dipakai    = in_array('email', $saluran_notif, true);
+    ?>
+    <div class="label-bagian">Penerima pengingat</div>
+    <div class="row">
+        <!-- WhatsApp -->
+        <div class="col-xl-4 col-lg-6 d-flex">
+        <section class="card kartu-saluran flex-fill" id="penerima">
             <div class="card-header d-flex justify-content-between align-items-baseline">
-                <h2>WhatsApp</h2>
+                <h2><i class="fa-brands fa-whatsapp" aria-hidden="true"></i> WhatsApp</h2>
                 <span><?= $penerima_aktif; ?> aktif<?= in_array('wa', $saluran_notif, true) ? '' : ' · tidak dipakai'; ?></span>
             </div>
             <?php if (!in_array('wa', $saluran_notif, true)): ?>
-                <p class="catatan">WhatsApp sedang tidak dipakai (<code>NOTIF_VIA=telegram</code>). Pengingat hanya dikirim ke Telegram.</p>
+                <p class="catatan">WhatsApp sedang tidak dipakai (<code>NOTIF_VIA</code> tanpa <code>wa</code>). Pengingat dikirim lewat saluran lain.</p>
             <?php endif; ?>
+            <div class="daftar-penerima">
             <?php if (!$penerima_list): ?>
                 <p class="catatan">Belum ada nomor.<?php if ($wa_target_env !== ''): ?> Saat ini pengingat dikirim ke nomor dari pengaturan server (<b><?= e($wa_target_env); ?></b>).<?php endif; ?></p>
             <?php endif; ?>
@@ -1499,50 +1522,39 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                         <div class="kode">+<?= e($p['nomor']); ?></div>
                     </div>
                     <?php if ($kelola_penerima): ?>
-                    <div class="aksi">
-                        <button type="button" class="btn btn-link btn-sm" data-bs-toggle="modal" data-bs-target="#modalEditWa"
-                                data-id="<?= (int) $p['id']; ?>" data-nama="<?= e($p['nama']); ?>" data-nomor="<?= e($p['nomor']); ?>">Edit</button>
-                        <form method="POST" action="dashboard.php">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="toggle_penerima">
-                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
-                            <button type="submit" class="btn btn-link btn-sm"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
-                        </form>
-                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus nomor ini dari penerima WhatsApp?')">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="hapus_penerima">
-                            <input type="hidden" name="id" value="<?= (int) $p['id']; ?>">
-                            <button type="submit" class="btn btn-outline-danger btn-sm">Hapus</button>
-                        </form>
-                    </div>
+                    <?= menuPenerima((int) $p['id'], $aktif, 'toggle_penerima', 'hapus_penerima', 'Hapus nomor ini dari penerima WhatsApp?',
+                        'Edit', 'data-bs-target="#modalEditWa" data-id="' . (int) $p['id'] . '" data-nama="' . e($p['nama']) . '" data-nomor="' . e($p['nomor']) . '"'); ?>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
+            </div>
             <?php if ($kelola_penerima): ?>
             <form method="POST" action="dashboard.php" class="form-tambah">
                 <?= csrf_field(); ?>
                 <input type="hidden" name="aksi" value="tambah_penerima">
                 <div class="label-kecil">Tambah nomor</div>
+                <input type="text" name="nama" class="form-control mb-2" placeholder="Nama penerima, contoh: Admin Kantor" maxlength="100" required aria-label="Nama penerima WhatsApp">
                 <div class="baris-input">
-                    <input type="text" name="nama" class="form-control" placeholder="Nama, contoh: Admin Kantor" maxlength="100" required>
-                    <input type="tel" name="nomor" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +" required>
+                    <input type="tel" name="nomor" class="form-control" placeholder="08xxxxxxxxxx" inputmode="numeric" maxlength="20" pattern="[0-9+\(\)\s.\-]+" title="Hanya angka, boleh memakai spasi, tanda - atau +" required aria-label="Nomor WhatsApp">
                     <button type="submit" class="btn btn-primary">Tambah</button>
                 </div>
+                <div class="form-text">Nomor HP Indonesia yang diawali 08.</div>
             </form>
             <?php endif; ?>
         </section>
         </div>
 
-        <?php $telegram_dipakai = in_array('telegram', $saluran_notif, true); ?>
-        <div class="col-lg-6">
-        <section class="card" id="telegram">
+        <!-- Telegram -->
+        <div class="col-xl-4 col-lg-6 d-flex">
+        <section class="card kartu-saluran flex-fill" id="telegram">
             <div class="card-header d-flex justify-content-between align-items-baseline">
-                <h2>Telegram</h2>
+                <h2><i class="fa-brands fa-telegram" aria-hidden="true"></i> Telegram</h2>
                 <span><?= $telegram_aktif; ?> aktif<?= $telegram_dipakai ? '' : ' · tidak dipakai'; ?></span>
             </div>
             <?php if (!$telegram_dipakai): ?>
-                <p class="catatan">Telegram belum dipakai. Isi <code>NOTIF_VIA=wa,telegram</code> dan <code>TELEGRAM_BOT_TOKEN</code> di pengaturan server agar pengingat juga dikirim ke chat di bawah.</p>
+                <p class="catatan">Telegram belum dipakai. Isi <code>TELEGRAM_BOT_TOKEN</code> dan tambahkan <code>telegram</code> pada <code>NOTIF_VIA</code> di pengaturan server.</p>
             <?php endif; ?>
+            <div class="daftar-penerima">
             <?php if (!$telegram_list): ?>
                 <p class="catatan">Belum ada chat.<?php if ($telegram_env): ?> Saat ini pengingat dikirim ke Chat ID dari pengaturan server (<b><?= e(implode(', ', $telegram_env)); ?></b>).<?php endif; ?></p>
             <?php endif; ?>
@@ -1553,29 +1565,14 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                         <div class="kode">ID <?= e($t['chat_id']); ?><?= strncmp($t['chat_id'], '-', 1) === 0 ? ' · grup' : ''; ?></div>
                     </div>
                     <?php if ($kelola_penerima): ?>
-                    <div class="aksi">
-                        <button type="button" class="btn btn-link btn-sm" data-bs-toggle="modal" data-bs-target="#modalNamaPenerima"
-                                data-aksi="ubah_nama_telegram" data-id="<?= (int) $t['id']; ?>" data-nama="<?= e($t['nama']); ?>" data-info="Telegram ID <?= e($t['chat_id']); ?>">Ubah nama</button>
-                        <form method="POST" action="dashboard.php">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="toggle_telegram">
-                            <input type="hidden" name="id" value="<?= (int) $t['id']; ?>">
-                            <button type="submit" class="btn btn-link btn-sm"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
-                        </form>
-                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus chat ini dari penerima Telegram?')">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="hapus_telegram">
-                            <input type="hidden" name="id" value="<?= (int) $t['id']; ?>">
-                            <button type="submit" class="btn btn-outline-danger btn-sm">Hapus</button>
-                        </form>
-                    </div>
+                    <?= menuPenerima((int) $t['id'], $aktif, 'toggle_telegram', 'hapus_telegram', 'Hapus chat ini dari penerima Telegram?',
+                        'Ubah nama', 'data-bs-target="#modalNamaPenerima" data-aksi="ubah_nama_telegram" data-id="' . (int) $t['id'] . '" data-nama="' . e($t['nama']) . '" data-info="Telegram ID ' . e($t['chat_id']) . '"'); ?>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
-
             <?php // Hasil tombol "Cari chat": klik Tambah untuk langsung menyimpan ?>
             <?php if ($tg_ditemukan && $kelola_penerima): ?>
-                <div class="label-kecil mt-3">Chat ditemukan</div>
+                <div class="label-kecil px-20 mt-3">Chat ditemukan</div>
                 <?php foreach ($tg_ditemukan as $cid => $c): ?>
                     <div class="baris-penerima ditemukan">
                         <div>
@@ -1592,37 +1589,41 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
-
+            </div>
             <?php if ($kelola_penerima): ?>
             <div class="form-tambah">
-                <div class="label-kecil">Tambah chat</div>
-                <form method="POST" action="dashboard.php" class="mb-2">
-                    <?= csrf_field(); ?>
-                    <input type="hidden" name="aksi" value="cari_telegram">
-                    <button type="submit" class="btn btn-outline-secondary w-100" <?= env('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN dulu"'; ?>>Cari chat yang sudah klik Start di bot</button>
-                </form>
-                <form method="POST" action="dashboard.php" class="baris-input">
+                <form method="POST" action="dashboard.php">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="tambah_telegram">
-                    <input type="text" name="nama" class="form-control" placeholder="Nama, contoh: Grup Admin" maxlength="100" required>
-                    <input type="text" name="chat_id" class="form-control" placeholder="Chat ID" inputmode="numeric" pattern="-?[0-9]{3,20}" title="Angka; grup diawali tanda minus" required>
-                    <button type="submit" class="btn btn-primary">Tambah</button>
+                    <div class="label-kecil">Tambah chat</div>
+                    <input type="text" name="nama" class="form-control mb-2" placeholder="Nama penerima, contoh: Grup Admin" maxlength="100" required aria-label="Nama penerima Telegram">
+                    <div class="baris-input">
+                        <input type="text" name="chat_id" class="form-control" placeholder="Chat ID, contoh: -100123…" inputmode="numeric" pattern="-?[0-9]{3,20}" title="Angka; grup diawali tanda minus" required aria-label="Chat ID Telegram">
+                        <button type="submit" class="btn btn-primary">Tambah</button>
+                    </div>
+                    <div class="form-text">Chat ID grup diawali tanda minus.</div>
+                </form>
+                <form method="POST" action="dashboard.php" class="mt-3">
+                    <?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="cari_telegram">
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= env('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN dulu"'; ?>><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Cari chat yang sudah klik Start di bot</button>
                 </form>
             </div>
             <?php endif; ?>
         </section>
         </div>
 
-        <?php $email_dipakai = in_array('email', $saluran_notif, true); ?>
-        <div class="col-lg-6">
-        <section class="card" id="email">
+        <!-- Email -->
+        <div class="col-xl-4 col-lg-6 d-flex">
+        <section class="card kartu-saluran flex-fill" id="email">
             <div class="card-header d-flex justify-content-between align-items-baseline">
-                <h2>Email</h2>
+                <h2><i class="fa-solid fa-envelope" aria-hidden="true"></i> Email</h2>
                 <span><?= $email_aktif; ?> aktif<?= $email_dipakai ? '' : ' · tidak dipakai'; ?></span>
             </div>
             <?php if (!$email_dipakai): ?>
-                <p class="catatan">Email belum dipakai untuk pengingat otomatis. Isi <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>, lalu tambahkan <code>email</code> pada <code>NOTIF_VIA</code> (contoh <code>wa,telegram,email</code>) di pengaturan server.</p>
+                <p class="catatan">Email belum dipakai untuk pengingat otomatis. Isi <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>, lalu tambahkan <code>email</code> pada <code>NOTIF_VIA</code> di pengaturan server.</p>
             <?php endif; ?>
+            <div class="daftar-penerima">
             <?php if (!$email_list): ?>
                 <p class="catatan">Belum ada alamat email.<?php if ($email_env): ?> Saat ini pengingat dikirim ke email dari pengaturan server (<b><?= e(implode(', ', $email_env)); ?></b>).<?php endif; ?></p>
             <?php endif; ?>
@@ -1633,33 +1634,20 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                         <div class="kode"><?= e($m['email']); ?></div>
                     </div>
                     <?php if ($kelola_penerima): ?>
-                    <div class="aksi">
-                        <button type="button" class="btn btn-link btn-sm" data-bs-toggle="modal" data-bs-target="#modalEditEmail"
-                                data-id="<?= (int) $m['id']; ?>" data-nama="<?= e($m['nama']); ?>" data-email="<?= e(emailTampil($m['email'])); ?>">Edit</button>
-                        <form method="POST" action="dashboard.php">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="toggle_email">
-                            <input type="hidden" name="id" value="<?= (int) $m['id']; ?>">
-                            <button type="submit" class="btn btn-link btn-sm"><?= $aktif ? 'Nonaktifkan' : 'Aktifkan'; ?></button>
-                        </form>
-                        <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus alamat ini dari penerima Email?')">
-                            <?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="hapus_email">
-                            <input type="hidden" name="id" value="<?= (int) $m['id']; ?>">
-                            <button type="submit" class="btn btn-outline-danger btn-sm">Hapus</button>
-                        </form>
-                    </div>
+                    <?= menuPenerima((int) $m['id'], $aktif, 'toggle_email', 'hapus_email', 'Hapus alamat ini dari penerima Email?',
+                        'Edit', 'data-bs-target="#modalEditEmail" data-id="' . (int) $m['id'] . '" data-nama="' . e($m['nama']) . '" data-email="' . e(emailTampil($m['email'])) . '"'); ?>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
+            </div>
             <?php if ($kelola_penerima): ?>
             <div class="form-tambah">
                 <form method="POST" action="dashboard.php">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="tambah_email">
                     <div class="label-kecil">Tambah email</div>
+                    <input type="text" name="nama" class="form-control mb-2" placeholder="Nama penerima, contoh: Admin Kantor" maxlength="100" required aria-label="Nama penerima Email">
                     <div class="baris-input">
-                        <input type="text" name="nama" class="form-control" placeholder="Nama, contoh: Admin Kantor" maxlength="100" required>
                         <div class="input-group input-email">
                             <input type="text" name="email" class="form-control" placeholder="nama" maxlength="150" autocomplete="off" autocapitalize="off" spellcheck="false" required aria-label="Alamat email">
                             <span class="input-group-text">@gmail.com</span>
@@ -1668,67 +1656,83 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                     </div>
                     <div class="form-text">Email selain Gmail: ketik alamat lengkapnya.</div>
                 </form>
-                <form method="POST" action="dashboard.php" class="mt-2">
+                <form method="POST" action="dashboard.php" class="mt-3">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="uji_email">
-                    <button type="submit" class="btn btn-outline-secondary w-100" <?= emailSiap() ? '' : 'disabled title="Isi SMTP_HOST, SMTP_USER, dan SMTP_PASS dulu"'; ?>>Kirim email percobaan ke penerima aktif</button>
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= emailSiap() ? '' : 'disabled title="Isi SMTP_HOST, SMTP_USER, dan SMTP_PASS dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim email percobaan ke penerima aktif</button>
                 </form>
             </div>
             <?php endif; ?>
         </section>
         </div>
-        <?php if ($kelola_penerima): $od_kode = $od_diatur && !$od_siap ? onedriveKodeMenunggu($pdo) : null; ?>
-        <div class="col-lg-6">
-        <section class="card" id="onedrive">
-            <div class="card-header d-flex justify-content-between align-items-baseline">
-                <h2><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Arsip Lampiran</h2>
-                <span><?= ['graph' => 'otomatis · OneDrive', 'email' => 'otomatis · email', 'telegram' => 'otomatis · Telegram'][$od_mode] ?? ($od_manual !== '' ? 'manual' : 'belum aktif'); ?></span>
-            </div>
-            <div class="form-tambah">
-                <p class="mb-2"><b>Folder arsip (upload manual)</b><br>
-                    <span>Simpan link folder OneDrive atau TeraBox. Di jendela Lampiran setiap unit akan muncul tombol <b>Buka folder</b> untuk membuka folder itu.</span></p>
-                <form method="POST" action="dashboard.php" class="mb-2"><?= csrf_field(); ?><input type="hidden" name="aksi" value="folder_manual_simpan">
-                    <label for="link-manual" class="small">Link folder OneDrive (Bagikan → Salin link) atau link berbagi TeraBox</label>
-                    <div class="d-flex gap-2">
-                        <input type="url" id="link-manual" name="link_manual" required maxlength="2000" class="form-control form-control-sm"
-                            value="<?= e($od_manual); ?>" placeholder="https://…sharepoint.com/:f:/g/personal/…">
-                        <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">Simpan link</button>
+    </div>
+    <?php if (!$kelola_penerima): ?>
+        <p class="catatan mx-0">Daftar penerima hanya bisa diubah oleh pengguna dengan Akses Penuh. Hubungi pengelola aplikasi bila ada nomor atau chat yang perlu ditambah atau diganti.</p>
+    <?php endif; ?>
+
+    <?php if ($kelola_penerima): $od_kode = $od_diatur && !$od_siap ? onedriveKodeMenunggu($pdo) : null; ?>
+    <!-- Arsip lampiran -->
+    <div class="row mt-2">
+    <div class="col-12">
+    <section class="card" id="onedrive">
+        <div class="card-header d-flex justify-content-between align-items-baseline">
+            <h2><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Arsip Lampiran</h2>
+            <span><?= ['graph' => 'otomatis · OneDrive', 'email' => 'otomatis · email', 'telegram' => 'otomatis · Telegram'][$od_mode] ?? ($od_manual !== '' ? 'manual' : 'belum aktif'); ?></span>
+        </div>
+        <p class="arsip-intro">Folder manual hanya menampilkan tombol <b>Buka folder</b> di jendela Lampiran. Arsip otomatis menyalin setiap lampiran baru memakai satu cara yang aktif, dengan urutan prioritas OneDrive langsung → Email → Telegram.</p>
+        <div class="row g-0">
+
+            <!-- 1. Folder manual -->
+            <div class="col-lg-4 panel-arsip">
+                <h3 class="judul-panel"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Folder arsip <span class="badge tanda">manual</span>
+                    <?php if ($od_manual !== ''): ?><span class="badge tanda aktif">tersimpan</span><?php endif; ?></h3>
+                <p class="ket">Simpan link folder OneDrive atau TeraBox. Di jendela Lampiran setiap unit muncul tombol <b>Buka folder</b>.</p>
+                <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="folder_manual_simpan">
+                    <label for="link-manual" class="label-kecil">Link folder</label>
+                    <div class="baris-input">
+                        <input type="url" id="link-manual" name="link_manual" required maxlength="2000" class="form-control"
+                            value="<?= e($od_manual); ?>" placeholder="https://…sharepoint.com/:f:/g/…">
+                        <button type="submit" class="btn btn-outline-secondary">Simpan</button>
                     </div>
+                    <div class="form-text">OneDrive: Bagikan → Salin link. TeraBox: link berbagi.</div>
                 </form>
                 <?php if ($od_manual !== ''): ?>
-                <div class="d-flex gap-3 align-items-center mb-1">
-                    <a href="<?= e($od_manual); ?>" target="_blank" rel="noopener" class="small"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Coba buka folder</a>
-                    <span class="badge tanda"><?= $od_manual_label; ?></span>
+                <div class="aksi-panel">
+                    <a href="<?= e($od_manual); ?>" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Buka folder <?= $od_manual_label; ?></a>
                     <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus link folder dari aplikasi?')"><?= csrf_field(); ?>
-                        <input type="hidden" name="aksi" value="folder_manual_hapus"><button type="submit" class="btn btn-link btn-sm p-0">Hapus link</button></form>
+                        <input type="hidden" name="aksi" value="folder_manual_hapus"><button type="submit" class="btn btn-link btn-sm">Hapus link</button></form>
                 </div>
                 <?php if ($od_manual_tb): ?>
-                <p class="small redup mt-2 mb-0">Link berbagi TeraBox hanya untuk <b>melihat dan mengunduh</b>. File ditambahkan oleh pemilik akun: login di terabox.com → buka folder ini → Unggah. Gunakan untuk data contoh, bukan dokumen dinas asli.</p>
+                <p class="ket mt-2 mb-0">Link TeraBox hanya untuk melihat dan mengunduh. File ditambahkan pemilik akun di terabox.com. Gunakan untuk data contoh.</p>
                 <?php endif; ?>
                 <?php endif; ?>
-                <hr>
-                <p class="small mb-2"><b>Arsip otomatis</b> (opsional)</p>
-                <div class="od-bagian">
-                <p class="mb-2"><i class="fa-brands fa-telegram" aria-hidden="true"></i> <b>Grup Telegram</b><br>
-                    <span>Bot pengingat mengirim setiap lampiran baru sebagai file ke grup arsip. Untuk demo / data contoh.</span></p>
+            </div>
+
+            <!-- 2. Grup Telegram -->
+            <div class="col-lg-4 panel-arsip">
+                <h3 class="judul-panel"><i class="fa-brands fa-telegram" aria-hidden="true"></i> Grup Telegram <span class="badge tanda">otomatis</span>
+                    <?php if ($od_mode === 'telegram'): ?><span class="badge tanda aktif">aktif</span><?php endif; ?></h3>
+                <p class="ket">Bot pengingat mengirim setiap lampiran baru sebagai file ke grup arsip. Untuk demo / data contoh.</p>
                 <?php if (!env('TELEGRAM_BOT_TOKEN')): ?>
-                    <p class="teks-merah small mb-0">TELEGRAM_BOT_TOKEN belum diatur.</p>
+                    <p class="ket teks-merah mb-0">TELEGRAM_BOT_TOKEN belum diatur.</p>
                 <?php else: ?>
                     <?php if ($tg_arsip !== ''): $tg_nama = ambilPengaturan($pdo, 'arsip_telegram_nama'); ?>
-                    <p class="mb-2 small">Grup: <b><?= e($tg_nama ?: 'Grup arsip'); ?></b> <span class="mono">(<?= e($tg_arsip); ?>)</span>
-                        <?php if ($od_mode !== 'telegram' && $od_mode !== null): ?><br><span class="teks-merah">Tidak dipakai sekarang karena <?= $od_mode === 'graph' ? 'OneDrive langsung' : 'arsip email'; ?> sedang aktif.</span><?php endif; ?></p>
-                    <?php if ($od_mode === 'telegram'): $od_r = onedriveRingkasan($pdo); ?>
-                    <p class="mb-2 small">Terarsip <b><?= $od_r['ok']; ?></b> file · gagal <b class="<?= $od_r['gagal'] ? 'teks-merah' : ''; ?>"><?= $od_r['gagal']; ?></b> · lampiran lama belum diarsipkan <b><?= $od_r['belum']; ?></b></p>
-                    <?php endif; ?>
-                    <div class="d-flex gap-2 flex-wrap mb-2">
+                    <div class="status-panel">
+                        Grup: <b><?= e($tg_nama ?: 'Grup arsip'); ?></b> <span class="mono">(<?= e($tg_arsip); ?>)</span>
+                        <?php if ($od_mode !== 'telegram' && $od_mode !== null): ?><br><span class="teks-merah">Tidak dipakai karena <?= $od_mode === 'graph' ? 'OneDrive langsung' : 'arsip email'; ?> sedang aktif.</span><?php endif; ?>
+                        <?php if ($od_mode === 'telegram'): $od_r = onedriveRingkasan($pdo); ?>
+                        <br>Terarsip <b><?= $od_r['ok']; ?></b> · gagal <b class="<?= $od_r['gagal'] ? 'teks-merah' : ''; ?>"><?= $od_r['gagal']; ?></b> · lampiran lama <b><?= $od_r['belum']; ?></b>
+                        <?php endif; ?>
+                    </div>
+                    <div class="aksi-panel">
                         <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_tg_uji">
                             <button type="submit" class="btn btn-outline-secondary btn-sm">Kirim file uji</button></form>
                         <?php if ($od_mode === 'telegram' && $od_r['belum'] + $od_r['gagal']): ?>
                         <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_sinkron">
-                            <button type="submit" class="btn btn-outline-secondary btn-sm">Kirim lampiran yang belum diarsipkan</button></form>
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">Arsipkan lampiran lama</button></form>
                         <?php endif; ?>
                         <form method="POST" action="dashboard.php" onsubmit="return confirm('Hentikan arsip ke grup Telegram?')"><?= csrf_field(); ?>
-                            <input type="hidden" name="aksi" value="arsip_tg_hapus"><button type="submit" class="btn btn-outline-danger btn-sm">Hentikan</button></form>
+                            <input type="hidden" name="aksi" value="arsip_tg_hapus"><button type="submit" class="btn btn-link btn-sm teks-merah">Hentikan</button></form>
                     </div>
                     <?php endif; ?>
                     <?php foreach ($tg_arsip_ditemukan as $cid => $c): ?>
@@ -1739,104 +1743,107 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                             <button type="submit" class="btn btn-outline-secondary btn-sm">Pakai grup ini</button></form>
                     </div>
                     <?php endforeach; ?>
-                    <form method="POST" action="dashboard.php" class="mb-2"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_tg_cari">
-                        <button type="submit" class="btn btn-outline-secondary btn-sm w-100"><?= $tg_arsip !== '' ? 'Ganti grup: cari grup yang ada botnya' : 'Cari grup yang sudah ada botnya'; ?></button></form>
-                    <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_tg_simpan">
-                        <label for="tg-arsip" class="small">atau isi Chat ID grup</label>
-                        <div class="d-flex gap-2">
-                            <input type="text" id="tg-arsip" name="chat_id" required maxlength="25" inputmode="numeric" class="form-control form-control-sm mono" placeholder="-1001234567890">
-                            <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">Simpan</button>
+                    <form method="POST" action="dashboard.php" class="mt-3"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_tg_simpan">
+                        <label for="tg-arsip" class="label-kecil"><?= $tg_arsip !== '' ? 'Ganti grup (Chat ID)' : 'Chat ID grup'; ?></label>
+                        <div class="baris-input">
+                            <input type="text" id="tg-arsip" name="chat_id" required maxlength="25" inputmode="numeric" class="form-control mono" placeholder="-1001234567890">
+                            <button type="submit" class="btn btn-outline-secondary">Simpan</button>
                         </div>
                     </form>
+                    <form method="POST" action="dashboard.php" class="mt-2"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_tg_cari">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm w-100"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Cari grup yang sudah ada botnya</button></form>
                 <?php endif; ?>
-                </div>
-                <hr>
-                <p class="mb-2"><i class="fa-solid fa-envelope" aria-hidden="true"></i> <b>Email + Power Automate</b> (OneDrive kantor)</p>
-            <?php if ($od_siap): $od_r = onedriveRingkasan($pdo); ?>
-                <?php $od_tujuan = onedriveTujuan($pdo); ?>
-                <p class="mb-2">Akun: <b class="text-break"><?= e((string) ambilPengaturan($pdo, 'onedrive_akun')); ?></b><br>
-                    Folder tujuan:
+            </div>
+
+            <!-- 3. OneDrive kantor (email + Power Automate, atau langsung) -->
+            <div class="col-lg-4 panel-arsip">
+            <?php if ($od_siap): $od_r = onedriveRingkasan($pdo); $od_tujuan = onedriveTujuan($pdo); ?>
+                <h3 class="judul-panel"><i class="fa-brands fa-microsoft" aria-hidden="true"></i> OneDrive langsung <span class="badge tanda">otomatis</span> <span class="badge tanda aktif">aktif</span></h3>
+                <div class="status-panel">
+                    Akun: <b class="text-break"><?= e((string) ambilPengaturan($pdo, 'onedrive_akun')); ?></b><br>
+                    Folder:
                     <?php if ($od_tujuan): ?>
                         <?= $od_tujuan['url'] ? '<a href="' . e($od_tujuan['url']) . '" target="_blank" rel="noopener"><b>' . e($od_tujuan['nama']) . '</b></a>' : '<b>' . e($od_tujuan['nama']) . '</b>'; ?>
-                        <span class="mono small">/&lt;kode - nama unit&gt;</span>
                     <?php else: ?>
-                        <span class="mono small"><?= e(onedriveFolder()); ?>/&lt;kode - nama unit&gt;</span> <span class="redup small">(bawaan)</span>
-                    <?php endif; ?></p>
-                <form method="POST" action="dashboard.php" class="mb-3"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_folder">
-                    <label for="link-folder" class="small"><?= $od_tujuan ? 'Ganti folder: tempel link folder lain' : 'Tempel link folder OneDrive tujuan'; ?></label>
-                    <div class="d-flex gap-2">
-                        <input type="url" id="link-folder" name="link_folder" required maxlength="2000" class="form-control form-control-sm"
-                            placeholder="https://…sharepoint.com/:f:/g/personal/…">
-                        <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">Simpan folder</button>
+                        <span class="mono"><?= e(onedriveFolder()); ?></span> <span class="redup">(bawaan)</span>
+                    <?php endif; ?><br>
+                    Tersimpan <b><?= $od_r['ok']; ?></b> · menunggu <b><?= $od_r['belum']; ?></b> · gagal <b class="<?= $od_r['gagal'] ? 'teks-merah' : ''; ?>"><?= $od_r['gagal']; ?></b>
+                </div>
+                <form method="POST" action="dashboard.php" class="mt-3"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_folder">
+                    <label for="link-folder" class="label-kecil"><?= $od_tujuan ? 'Ganti folder tujuan' : 'Link folder tujuan'; ?></label>
+                    <div class="baris-input">
+                        <input type="url" id="link-folder" name="link_folder" required maxlength="2000" class="form-control" placeholder="https://…sharepoint.com/:f:/g/…">
+                        <button type="submit" class="btn btn-outline-secondary">Simpan</button>
                     </div>
                 </form>
-                <?php if ($od_tujuan): ?>
-                <form method="POST" action="dashboard.php" class="mb-3" onsubmit="return confirm('Hapus link folder dan kembali ke folder bawaan?')"><?= csrf_field(); ?>
-                    <input type="hidden" name="aksi" value="onedrive_folder_hapus"><button type="submit" class="btn btn-link btn-sm p-0">Kembali ke folder bawaan</button></form>
-                <?php endif; ?>
-                <p class="mb-3 small">Tersimpan <b><?= $od_r['ok']; ?></b> file · menunggu <b><?= $od_r['belum']; ?></b> · gagal <b class="<?= $od_r['gagal'] ? 'teks-merah' : ''; ?>"><?= $od_r['gagal']; ?></b></p>
-                <div class="d-flex gap-2 flex-wrap">
+                <div class="aksi-panel">
                     <?php if ($od_r['belum'] + $od_r['gagal']): ?>
                     <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_sinkron">
-                        <button type="submit" class="btn btn-outline-secondary btn-sm">Salin lampiran yang belum tersimpan</button></form>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Salin yang belum tersimpan</button></form>
+                    <?php endif; ?>
+                    <?php if ($od_tujuan): ?>
+                    <form method="POST" action="dashboard.php" onsubmit="return confirm('Hapus link folder dan kembali ke folder bawaan?')"><?= csrf_field(); ?>
+                        <input type="hidden" name="aksi" value="onedrive_folder_hapus"><button type="submit" class="btn btn-link btn-sm">Folder bawaan</button></form>
                     <?php endif; ?>
                     <form method="POST" action="dashboard.php" onsubmit="return confirm('Putuskan OneDrive? Lampiran baru tidak akan disalin lagi.')"><?= csrf_field(); ?>
-                        <input type="hidden" name="aksi" value="onedrive_putuskan"><button type="submit" class="btn btn-outline-danger btn-sm">Putuskan</button></form>
+                        <input type="hidden" name="aksi" value="onedrive_putuskan"><button type="submit" class="btn btn-link btn-sm teks-merah">Putuskan</button></form>
                 </div>
-                <p class="redup small mt-3 mb-0">Lampiran baru langsung disalin saat diunggah; yang gagal dicoba lagi otomatis setiap pagi. Menghapus lampiran di aplikasi tidak menghapus salinannya di OneDrive.</p>
+                <p class="ket mt-2 mb-0">Lampiran baru langsung disalin saat diunggah; yang gagal dicoba lagi setiap pagi.</p>
             <?php else: $od_arsip = arsipEmail($pdo); $od_r = onedriveRingkasan($pdo); ?>
-                <p class="mb-2">Setiap lampiran yang diunggah dikirim sebagai email ke alamat arsip. <b>Power Automate</b> di akun Microsoft tersebut menyimpannya otomatis ke folder OneDrive tujuan.</p>
+                <h3 class="judul-panel"><i class="fa-solid fa-envelope" aria-hidden="true"></i> Email + Power Automate <span class="badge tanda">otomatis</span>
+                    <?php if ($od_mode === 'email'): ?><span class="badge tanda aktif">aktif</span><?php endif; ?></h3>
+                <p class="ket">Setiap lampiran dikirim sebagai email ke alamat arsip, lalu <b>Power Automate</b> menyimpannya ke folder OneDrive kantor.</p>
                 <?php if (!emailSiap()): ?>
-                    <p class="teks-merah small">Pengaturan SMTP (SMTP_HOST, SMTP_USER, SMTP_PASS) belum lengkap, jadi email arsip belum bisa dikirim.</p>
+                    <p class="ket teks-merah">Pengaturan SMTP belum lengkap, jadi email arsip belum bisa dikirim.</p>
                 <?php endif; ?>
-                <form method="POST" action="dashboard.php" class="mb-3"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_email_simpan">
-                    <label for="arsip-email" class="small">Alamat email arsip (akun pemilik alur Power Automate)</label>
-                    <div class="d-flex gap-2">
-                        <input type="email" id="arsip-email" name="arsip_email" required maxlength="190" class="form-control form-control-sm"
+                <?php if ($od_mode === 'email'): ?>
+                <div class="status-panel">Terkirim <b><?= $od_r['ok']; ?></b> · gagal <b class="<?= $od_r['gagal'] ? 'teks-merah' : ''; ?>"><?= $od_r['gagal']; ?></b> · lampiran lama <b><?= $od_r['belum']; ?></b></div>
+                <?php endif; ?>
+                <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_email_simpan">
+                    <label for="arsip-email" class="label-kecil">Alamat email arsip</label>
+                    <div class="baris-input">
+                        <input type="email" id="arsip-email" name="arsip_email" required maxlength="190" class="form-control"
                             value="<?= e($od_arsip); ?>" placeholder="corsec@brksyariah.co.id">
-                        <button type="submit" class="btn btn-outline-secondary btn-sm text-nowrap">Simpan</button>
+                        <button type="submit" class="btn btn-outline-secondary">Simpan</button>
                     </div>
+                    <div class="form-text">Subjek: <span class="mono"><?= e(ARSIP_TAG); ?> &lt;kode&gt; - &lt;nama unit&gt;</span>. Panduan alur ada di README.</div>
                 </form>
                 <?php if ($od_mode === 'email'): ?>
-                <p class="mb-3 small">Terkirim ke arsip <b><?= $od_r['ok']; ?></b> file · gagal <b class="<?= $od_r['gagal'] ? 'teks-merah' : ''; ?>"><?= $od_r['gagal']; ?></b> · lampiran lama belum diarsipkan <b><?= $od_r['belum']; ?></b></p>
-                <div class="d-flex gap-2 flex-wrap">
+                <div class="aksi-panel">
                     <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="arsip_email_uji">
                         <button type="submit" class="btn btn-outline-secondary btn-sm">Kirim email uji</button></form>
                     <?php if ($od_r['belum'] + $od_r['gagal']): ?>
                     <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_sinkron">
-                        <button type="submit" class="btn btn-outline-secondary btn-sm">Kirim lampiran yang belum diarsipkan</button></form>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Arsipkan lampiran lama</button></form>
                     <?php endif; ?>
                     <form method="POST" action="dashboard.php" onsubmit="return confirm('Hentikan pengiriman arsip lewat email?')"><?= csrf_field(); ?>
-                        <input type="hidden" name="aksi" value="arsip_email_hapus"><button type="submit" class="btn btn-outline-danger btn-sm">Hentikan</button></form>
+                        <input type="hidden" name="aksi" value="arsip_email_hapus"><button type="submit" class="btn btn-link btn-sm teks-merah">Hentikan</button></form>
                 </div>
                 <?php endif; ?>
-                <p class="redup small mt-3 mb-0">Subjek email: <span class="mono"><?= e(ARSIP_TAG); ?> &lt;kode&gt; - &lt;nama unit&gt;</span>, dipakai Power Automate sebagai nama subfolder. Langkah membuat alurnya ada di README bagian "Arsip lampiran lewat Power Automate".</p>
                 <?php if ($od_diatur): ?>
-                <hr>
-                <p class="small mb-2"><b>Cara langsung</b> (tanpa email, memakai Client ID dari tim IT):</p>
-                <?php if ($od_kode): ?>
-                <ol class="mb-3 small ps-3">
-                    <li>Buka <a href="<?= e($od_kode['url']); ?>" target="_blank" rel="noopener"><?= e(preg_replace('#^https?://#', '', $od_kode['url'])); ?></a></li>
-                    <li>Masukkan kode <b class="mono od-kode"><?= e($od_kode['kode']); ?></b>, lalu login dengan akun Microsoft pemilik OneDrive.</li>
-                    <li>Kembali ke sini dan klik tombol di bawah.</li>
-                </ol>
-                <form method="POST" action="dashboard.php" class="d-inline"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_cek">
-                    <button type="submit" class="btn btn-primary btn-sm">Saya sudah login</button></form>
-                <span class="redup small ms-2">Kode berlaku sampai <?= date('H.i', (int) $od_kode['berlaku']); ?></span>
-                <?php else: ?>
-                <p class="mb-3">Hubungkan akun Microsoft agar setiap lampiran yang diunggah otomatis disalin ke OneDrive.</p>
-                <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_mulai">
-                    <button type="submit" class="btn btn-primary btn-sm"><i class="fa-brands fa-microsoft" aria-hidden="true"></i> Hubungkan OneDrive</button></form>
-                <?php endif; ?>
+                <div class="sub-panel">
+                    <div class="label-kecil">Cara langsung (Client ID dari tim IT)</div>
+                    <?php if ($od_kode): ?>
+                    <ol class="ket ps-3 mb-2">
+                        <li>Buka <a href="<?= e($od_kode['url']); ?>" target="_blank" rel="noopener"><?= e(preg_replace('#^https?://#', '', $od_kode['url'])); ?></a></li>
+                        <li>Masukkan kode <b class="mono od-kode"><?= e($od_kode['kode']); ?></b>, lalu login dengan akun Microsoft pemilik OneDrive.</li>
+                        <li>Kembali ke sini dan klik tombol di bawah.</li>
+                    </ol>
+                    <form method="POST" action="dashboard.php" class="d-inline"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_cek">
+                        <button type="submit" class="btn btn-primary btn-sm">Saya sudah login</button></form>
+                    <span class="ket ms-2">Kode berlaku sampai <?= date('H.i', (int) $od_kode['berlaku']); ?></span>
+                    <?php else: ?>
+                    <form method="POST" action="dashboard.php"><?= csrf_field(); ?><input type="hidden" name="aksi" value="onedrive_mulai">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm w-100"><i class="fa-brands fa-microsoft" aria-hidden="true"></i> Hubungkan OneDrive</button></form>
+                    <?php endif; ?>
+                </div>
                 <?php endif; ?>
             <?php endif; ?>
             </div>
-        </section>
         </div>
-        <?php endif; ?>
+    </section>
     </div>
-    <?php if (!$kelola_penerima): ?>
-        <p class="catatan mx-0">Daftar penerima hanya bisa diubah oleh pengguna dengan Akses Penuh. Hubungi pengelola aplikasi bila ada nomor atau chat yang perlu ditambah atau diganti.</p>
+    </div>
     <?php endif; ?>
 
 <?php else: ?>

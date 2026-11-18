@@ -370,3 +370,31 @@ body.auth .kaki { padding: 16px 0 0; color: var(--side-redup); }
 .od-manual { border-top: 1px solid var(--garis); margin-top: 14px; padding-top: 14px; }
 .od-manual .form-text { margin-top: 6px; }
 .od-subfolder { user-select: all; background: var(--latar-redup, #f5f3f2); padding: 0 4px; border-radius: 3px; }
+
+/* ===== Halaman Penerima: susunan rapi ===== */
+.label-bagian { font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--tinta3); margin: 0 0 -6px; }
+.kartu-saluran { display: flex; flex-direction: column; }
+.kartu-saluran .card-header h2 i, #onedrive .card-header h2 i { color: var(--tinta3); margin-right: 4px; }
+.kartu-saluran .daftar-penerima { flex: none; }
+.kartu-saluran .daftar-penerima .baris-penerima:last-child { border-bottom: 0; }
+.kartu-saluran .form-tambah { flex: 1 1 auto; border-top: 1px solid var(--garis2); background: #fcfcfc; border-radius: 0 0 6px 6px; }
+.kartu-saluran .form-tambah .form-control { font-size: 14px; }
+.kartu-saluran .form-text, .panel-arsip .form-text { font-size: 12.5px; margin-top: 6px; }
+.baris-input > .form-control { flex: 1 1 auto; min-width: 0; }
+.px-20 { padding-left: 20px; padding-right: 20px; }
+.arsip-intro { margin: 0; padding: 12px 20px; font-size: 14px; color: var(--tinta2); border-bottom: 1px solid var(--garis2); }
+.panel-arsip { padding: 18px 20px 20px; }
+@media (min-width: 992px) { .panel-arsip + .panel-arsip { border-left: 1px solid var(--garis2); } }
+@media (max-width: 991.98px) { .panel-arsip + .panel-arsip { border-top: 1px solid var(--garis2); } }
+.judul-panel { font-size: 15px; font-weight: 600; margin: 0 0 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.judul-panel i { color: var(--tinta3); width: 18px; text-align: center; }
+.badge.tanda.aktif { --bs-badge-color: var(--hijau); border-color: currentColor; }
+.panel-arsip .ket { font-size: 13.5px; color: var(--tinta2); margin-bottom: 12px; }
+.panel-arsip .label-kecil { display: block; margin-bottom: 6px; }
+.panel-arsip .form-control { font-size: 14px; }
+.status-panel { font-size: 13.5px; background: #f7f7f7; border-radius: 4px; padding: 8px 10px; margin-bottom: 12px; line-height: 1.6; }
+.aksi-panel { display: flex; gap: 6px 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.aksi-panel form { margin: 0; }
+.aksi-panel .btn-link { padding-left: 0; padding-right: 0; }
+.panel-arsip .baris-penerima { padding: 10px 0; }
+.sub-panel { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--garis); }
