@@ -1451,10 +1451,11 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
             </table>
         </div>
 
-        <div class="card-footer">
-            <span>Menampilkan <?= $total_rows ? ($offset + 1) . '–' . ($offset + count($data_tampil)) : 0; ?> dari <?= (int) $total_rows; ?> unit</span>
+        <?php if ($jumlah_hal > 1): ?>
+        <div class="card-footer justify-content-end">
             <?= tombolHalaman($hal, $jumlah_hal, 'hal', 'daftar'); ?>
         </div>
+        <?php endif; ?>
     </section>
 
     <?php // Bilah info: pengingat otomatis terakhir + saluran yang aktif ?>
@@ -1954,10 +1955,11 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 </tbody>
             </table>
         </div>
-        <div class="card-footer">
-            <span><?= $total_wa; ?> pengiriman</span>
+        <?php if ($jumlah_hal_wa > 1): ?>
+        <div class="card-footer justify-content-end">
             <?= tombolHalaman($hal_wa, $jumlah_hal_wa, 'hal_wa', 'riwayat'); ?>
         </div>
+        <?php endif; ?>
     </section>
 <?php endif; ?>
 
