@@ -1,11 +1,13 @@
 <?php
 /**
- * Struktur tabel tambahan + fungsi bantu fitur-fitur aplikasi.
+ * Struktur seluruh tabel database + fungsi bantu fitur-fitur aplikasi.
  * Tabel dibuat otomatis saat pertama kali dibutuhkan, tidak perlu setup manual.
+ * (database/reminders_db.sql berisi struktur yang sama + contoh data untuk import XAMPP.)
  *
  * Isi file ini:
- *  - pastikanTabelTambahan() -> membuat tabel wa_penerima, telegram_penerima, email_penerima, lampiran, lampiran_bagian,
- *                               log_pengiriman, login_gagal (jika belum ada) + kolom selesai di deadline
+ *  - pastikanTabelTambahan() -> membuat semua tabel (users, deadline, sessions, wa_penerima, telegram_penerima,
+ *                               email_penerima, lampiran, lampiran_bagian, log_pengiriman, login_gagal, pengaturan)
+ *                               jika belum ada + kolom yang ditambahkan belakangan
  *  - LAMPIRAN ...            -> simpan / hapus dokumen per unit (upload per potongan)
  *  - RIWAYAT PENGIRIMAN      -> catatPengiriman() mencatat setiap pengiriman WhatsApp/Telegram/Email
  *  - PEMBATASAN LOGIN        -> kunci login 15 menit setelah salah password berkali-kali
@@ -45,9 +47,37 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v14'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v15'])) {
         return;
     }
+
+    // Tabel utama: users (akun login), deadline (data unit), sessions (sesi login)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS users (
+        id             INT AUTO_INCREMENT PRIMARY KEY,
+        username       VARCHAR(50)  NOT NULL UNIQUE,
+        password       VARCHAR(255) NOT NULL,
+        nama_lengkap   VARCHAR(100) NOT NULL,
+        peran          VARCHAR(20)  NOT NULL DEFAULT 'pemantau',
+        dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS deadline (
+        id               INT AUTO_INCREMENT PRIMARY KEY,
+        kode_unit        VARCHAR(50)  NOT NULL,
+        nama_unit        VARCHAR(150) NOT NULL,
+        tanggal_awal     DATE         NOT NULL,
+        tanggal_akhir    DATE         NOT NULL,
+        pengingat        VARCHAR(20)  NOT NULL DEFAULT 'pending',
+        terakhir_dikirim DATE         NULL,
+        INDEX idx_tanggal_akhir (tanggal_akhir)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS sessions (
+        id            VARCHAR(128) NOT NULL PRIMARY KEY,
+        data          MEDIUMTEXT   NOT NULL,
+        last_accessed INT UNSIGNED NOT NULL,
+        INDEX idx_last_accessed (last_accessed)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // Daftar nomor WhatsApp penerima pengingat (diatur dari dashboard)
     $pdo->exec("CREATE TABLE IF NOT EXISTS wa_penerima (
@@ -76,8 +106,8 @@ function pastikanTabelTambahan(PDO $pdo): void
         dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    // Data lampiran per unit (nama file, ukuran, dll). Isi file ada di lampiran_bagian.
-    // Kolom isi hanya dipakai file lama (sebelum upload per potongan).
+    // Data lampiran per unit (nama file, ukuran, dll). File berpotongan disimpan di lampiran_bagian;
+    // file yang diunggah sekaligus (tanpa JavaScript) disimpan di kolom isi.
     // selesai = 0 berarti upload sedang berjalan / terputus.
     $pdo->exec("CREATE TABLE IF NOT EXISTS lampiran (
         id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -93,15 +123,6 @@ function pastikanTabelTambahan(PDO $pdo): void
         INDEX idx_deadline_id (deadline_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    // Database lama: tambah kolom untuk lampiran berpotongan
-    $kolomLampiran = $pdo->query("SHOW COLUMNS FROM lampiran")->fetchAll(PDO::FETCH_COLUMN);
-    if (!in_array('jumlah_bagian', $kolomLampiran, true)) {
-        $pdo->exec("ALTER TABLE lampiran ADD COLUMN jumlah_bagian INT NOT NULL DEFAULT 0");
-    }
-    if (!in_array('selesai', $kolomLampiran, true)) {
-        $pdo->exec("ALTER TABLE lampiran ADD COLUMN selesai TINYINT(1) NOT NULL DEFAULT 1");
-    }
-
     // Potongan isi file (lampiran > 768 KB disimpan beberapa baris)
     $pdo->exec("CREATE TABLE IF NOT EXISTS lampiran_bagian (
         id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -110,18 +131,6 @@ function pastikanTabelTambahan(PDO $pdo): void
         isi         MEDIUMBLOB NOT NULL,
         UNIQUE KEY uk_lampiran_urutan (lampiran_id, urutan)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-    // Tabel riwayat dulu bernama wa_log (saat aplikasi hanya mengirim lewat WhatsApp).
-    // Database lama: ganti namanya sekali menjadi log_pengiriman; isi riwayat tetap utuh.
-    if ($pdo->query("SHOW TABLES LIKE 'wa\\_log'")->fetchColumn() !== false
-        && $pdo->query("SHOW TABLES LIKE 'log\\_pengiriman'")->fetchColumn() === false) {
-        try {
-            $pdo->exec("RENAME TABLE wa_log TO log_pengiriman");
-        } catch (PDOException $e) {
-            // Bisa terjadi bila dua request bersamaan mengganti nama; request lain sudah menyelesaikannya
-            error_log('Ganti nama wa_log -> log_pengiriman: ' . $e->getMessage());
-        }
-    }
 
     // Riwayat pengiriman WhatsApp/Telegram/Email (otomatis & manual).
     // Satu pengiriman = satu baris; detail = hasil per saluran (JSON) bila lewat beberapa saluran sekaligus.
@@ -138,13 +147,6 @@ function pastikanTabelTambahan(PDO $pdo): void
         INDEX idx_waktu (waktu)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    // Database lama: tambah kolom detail, lalu satukan riwayat lama yang terpisah WA & Telegram
-    $kolomLog = $pdo->query("SHOW COLUMNS FROM log_pengiriman")->fetchAll(PDO::FETCH_COLUMN);
-    if (!in_array('detail', $kolomLog, true)) {
-        $pdo->exec("ALTER TABLE log_pengiriman ADD COLUMN detail VARCHAR(1000) NULL AFTER keterangan");
-        gabungRiwayatLama($pdo);
-    }
-
     // Status selesai per unit (tombol "Tandai selesai" di Daftar Unit).
     // Selama terisi, cron tidak mengirim pengingat untuk unit ini.
     $kolomDeadline = $pdo->query("SHOW COLUMNS FROM deadline")->fetchAll(PDO::FETCH_COLUMN);
@@ -152,16 +154,6 @@ function pastikanTabelTambahan(PDO $pdo): void
         $pdo->exec("ALTER TABLE deadline ADD COLUMN selesai_tanggal DATETIME NULL, ADD COLUMN selesai_oleh VARCHAR(100) NULL");
     }
     // Keterangan unit (opsional, mis. "Menggantikan SPV Operasional"), email, dan No HP unit.
-    // Database lama menyimpan keterangan di kolom `jabatan` -> diganti nama menjadi `keterangan` (data tetap utuh).
-    if (in_array('jabatan', $kolomDeadline, true) && !in_array('keterangan', $kolomDeadline, true)) {
-        try {
-            $pdo->exec("ALTER TABLE deadline CHANGE jabatan keterangan VARCHAR(100) NULL");
-        } catch (PDOException $e) {
-            // Bisa terjadi bila dua request bersamaan mengganti nama; request lain sudah menyelesaikannya
-            error_log('Ganti nama kolom deadline.jabatan -> keterangan: ' . $e->getMessage());
-        }
-        $kolomDeadline = $pdo->query("SHOW COLUMNS FROM deadline")->fetchAll(PDO::FETCH_COLUMN);
-    }
     foreach (['keterangan' => 'VARCHAR(100)', 'email' => 'VARCHAR(150)', 'no_hp' => 'VARCHAR(20)'] as $kolom => $tipe) {
         if (!in_array($kolom, $kolomDeadline, true)) {
             $pdo->exec("ALTER TABLE deadline ADD COLUMN $kolom $tipe NULL");
@@ -206,7 +198,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v14'] = true;
+        $_SESSION['skema_tambahan_v15'] = true;
     }
 }
 
@@ -505,44 +497,6 @@ function catatPengiriman(PDO $pdo, string $jenis, string $ringkasan, array $hasi
             ]);
     } catch (PDOException $e) {
         error_log('Gagal mencatat log_pengiriman: ' . $e->getMessage());
-    }
-}
-
-/**
- * Sekali jalan (saat kolom detail baru ditambahkan): satukan riwayat lama yang tercatat 2 baris,
- * yaitu baris WhatsApp lalu baris Telegram (id berurutan) dengan jenis & unit yang sama.
- */
-function gabungRiwayatLama(PDO $pdo): void
-{
-    $pasangan = $pdo->query(
-        "SELECT w.id AS id_wa, t.id AS id_tg,
-                w.penerima AS penerima_wa, t.penerima AS penerima_tg,
-                w.status AS status_wa, t.status AS status_tg,
-                w.keterangan AS ket_wa, t.keterangan AS ket_tg
-         FROM log_pengiriman w
-         JOIN log_pengiriman t ON t.id = w.id + 1
-         WHERE t.penerima LIKE 'tg:%' AND w.penerima NOT LIKE 'tg:%'
-           AND t.jenis = w.jenis AND t.ringkasan = w.ringkasan
-           AND ABS(TIMESTAMPDIFF(SECOND, w.waktu, t.waktu)) <= 120"
-    )->fetchAll();
-
-    $ubah  = $pdo->prepare("UPDATE log_pengiriman SET penerima = ?, status = ?, keterangan = ?, detail = ? WHERE id = ?");
-    $hapus = $pdo->prepare("DELETE FROM log_pengiriman WHERE id = ?");
-    foreach ($pasangan as $p) {
-        $hasil = [
-            ['saluran' => 'wa', 'ok' => $p['status_wa'] === 'berhasil', 'pesan' => (string) $p['ket_wa']],
-            ['saluran' => 'telegram', 'ok' => $p['status_tg'] === 'berhasil', 'pesan' => (string) $p['ket_tg']],
-        ];
-        $jumlahOk = count(array_filter($hasil, static fn($h) => $h['ok']));
-        $penerima = array_filter([$p['penerima_wa'], $p['penerima_tg']], static fn($x) => $x !== '' && $x !== '-');
-        $ubah->execute([
-            potong(implode(',', $penerima) ?: '-', 500),
-            $jumlahOk === 2 ? 'berhasil' : ($jumlahOk === 0 ? 'gagal' : 'sebagian'),
-            potong('WhatsApp: ' . $p['ket_wa'] . '; Telegram: ' . $p['ket_tg'], 255),
-            json_encode(array_map(static fn($h) => array_merge($h, ['pesan' => potong($h['pesan'], 200)]), $hasil), JSON_UNESCAPED_UNICODE),
-            $p['id_wa'],
-        ]);
-        $hapus->execute([$p['id_tg']]);
     }
 }
 

@@ -2,10 +2,9 @@ CARA MEMASANG DATABASE APLIKASI PENGINGAT JADWAL DI XAMPP
 ===============================================
 
 Isi folder ini:
-  - reminders_db.sql       : file database (tabel users, deadline, sessions + 3 contoh data)
+  - reminders_db.sql       : file database (semua tabel aplikasi + 3 contoh data)
   - import_ke_xampp.bat    : klik 2x untuk import otomatis (XAMPP di C:/D:/E:/F: terdeteksi otomatis)
   - sync_dari_aiven.bat    : klik 2x untuk menyalin data Aiven -> XAMPP
-  - schema.sql             : skema untuk Aiven (dipakai versi online, tidak perlu disentuh)
 
 PENTING: Folder ini TIDAK di-paste ke C:\xampp\mysql\data.
 Menyalin folder langsung ke sana akan membuat tabel rusak / error

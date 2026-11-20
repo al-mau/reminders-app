@@ -61,20 +61,7 @@ if ($rows) {
     $pesan  = "*PENGINGAT DEADLINE UNIT*\n";
     $pesan .= "Halo Admin, berikut " . count($rows) . " unit yang perlu segera di-update:\n";
     foreach ($rows as $row) {
-        $pesan .= "\n";
-        // Nomor surat dari kolom No. Surat unit, ditulis paling atas; baris dilewati bila kosong
-        if (trim((string) ($row['no_surat'] ?? '')) !== '') {
-            $pesan .= "*Berdasarkan Nomor Surat:* " . trim($row['no_surat']) . "\n";
-        }
-        $pesan .= "*Kode Unit:* " . $row['kode_unit'] . "\n";
-        $pesan .= "*Nama Unit:* " . $row['nama_unit'] . "\n";
-        // Keterangan unit (contoh "Menggantikan SPV Operasional"); email & No HP unit sengaja tidak ditulis di pesan
-        if (trim((string) ($row['keterangan'] ?? '')) !== '') {
-            $pesan .= "*Keterangan:* " . trim($row['keterangan']) . "\n";
-        }
-        $pesan .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($row['tanggal_awal'])) . "\n";
-        $pesan .= "*Tanggal Akhir:* " . date('d-m-Y', strtotime($row['tanggal_akhir'])) . "\n";
-        $pesan .= "*Sisa Waktu:* " . keteranganSisaHari(hitungSisaHari($row['tanggal_akhir'])) . "\n";
+        $pesan .= "\n" . detailUnitPesan($row);   // lib/fonnte.php
     }
     // Kalimat penutup berisi tanggal akhir. Jika pesan berisi unit HARI INI dan BESOK
     // sekaligus, kedua tanggal disebutkan agar tidak membingungkan.

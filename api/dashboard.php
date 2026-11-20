@@ -118,28 +118,14 @@ function tombolHalaman(int $hal, int $jumlah, string $param, string $jangkar): s
     return '<div class="halaman d-flex align-items-center gap-2">' . $sebelum . '<span class="mono">' . $hal . ' / ' . $jumlah . '</span>' . $sesudah . '</div>';
 }
 
-/**
- * Pecah kolom ringkasan riwayat WA menjadi daftar unit "(kode) nama".
- * Format baru: satu unit per baris. Format lama: "kode nama, kode nama" -> diubah ke "(kode) nama".
- */
+/** Pecah kolom ringkasan riwayat menjadi daftar unit "(kode) nama" (satu unit per baris) */
 function daftarUnitRiwayat(string $ringkasan): array
 {
     $ringkasan = trim($ringkasan);
     if ($ringkasan === '' || $ringkasan === '-') {
         return ['-'];
     }
-    if (str_contains($ringkasan, "\n")) {
-        return array_values(array_filter(array_map('trim', explode("\n", $ringkasan)), 'strlen'));
-    }
-    $hasil = [];
-    foreach (array_filter(array_map('trim', explode(', ', $ringkasan)), 'strlen') as $unit) {
-        if ($unit[0] !== '(' && str_contains($unit, ' ')) {
-            [$kode, $nama] = explode(' ', $unit, 2);
-            $unit = "($kode) $nama";
-        }
-        $hasil[] = $unit;
-    }
-    return $hasil;
+    return array_values(array_filter(array_map('trim', explode("\n", $ringkasan)), 'strlen'));
 }
 
 /**
@@ -375,24 +361,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        // Hitung sisa hari untuk ditulis di pesan (0 = hari ini, negatif = sudah lewat)
-        $ket_sisa = keteranganSisaHari(hitungSisaHari($data_wa['tanggal_akhir']));
-
         $pesan  = "*NOTIFIKASI PENGINGAT DEADLINE*\n\n";
         $pesan .= "Halo Admin, berikut detail unit:\n\n";
-        // Nomor surat dari kolom No. Surat unit, ditulis paling atas; baris dilewati bila kosong
-        if (trim((string) ($data_wa['no_surat'] ?? '')) !== '') {
-            $pesan .= "*Berdasarkan Nomor Surat:* " . trim($data_wa['no_surat']) . "\n";
-        }
-        $pesan .= "*Kode Unit:* " . $data_wa['kode_unit'] . "\n";
-        $pesan .= "*Nama Unit:* " . $data_wa['nama_unit'] . "\n";
-        // Keterangan unit (contoh "Menggantikan SPV Operasional"); email & No HP unit sengaja tidak ditulis di pesan
-        if (trim((string) ($data_wa['keterangan'] ?? '')) !== '') {
-            $pesan .= "*Keterangan:* " . trim($data_wa['keterangan']) . "\n";
-        }
-        $pesan .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($data_wa['tanggal_awal'])) . "\n";
-        $pesan .= "*Tanggal Akhir:* " . date('d-m-Y', strtotime($data_wa['tanggal_akhir'])) . "\n";
-        $pesan .= "*Sisa Waktu:* " . $ket_sisa . "\n\n";
+        $pesan .= detailUnitPesan($data_wa) . "\n";   // isi sama dengan pesan otomatis (lib/fonnte.php)
         // Kalimat penutup sama dengan pesan otomatis (cron_wa_reminder.php)
         $pesan .= "Mohon segera update kembali usernya sebelum tanggal " . date('d-m-Y', strtotime($data_wa['tanggal_akhir']));
 

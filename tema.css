@@ -103,8 +103,6 @@ body.app .kaki { margin-top: auto; text-align: right; }
     --bs-btn-hover-color: var(--merah); --bs-btn-hover-bg: #fdecec; --bs-btn-hover-border-color: var(--merah);
     --bs-btn-active-color: var(--merah); --bs-btn-active-bg: #fdecec; --bs-btn-active-border-color: var(--merah); }
 .btn-titik { width: 30px; padding-left: 0; padding-right: 0; text-align: center; font-weight: 600; }
-.btn-tautan { background: none; border: 0; padding: 0; color: var(--aksen); font-size: 13px; font-family: 'IBM Plex Sans', sans-serif; }
-.btn-tautan:hover { text-decoration: underline; }
 .btn:focus-visible, .form-control:focus, .form-select:focus { outline: 2px solid #e9aeb1; outline-offset: 1px; box-shadow: none; border-color: var(--aksen); }
 
 /* ---------- Panel (class Bootstrap: card, card-header, card-footer) ---------- */
@@ -192,10 +190,9 @@ body.app .kaki { margin-top: auto; text-align: right; }
 /* Menu titik tiga (class Bootstrap: dropdown-menu) */
 .menu-aksi { --bs-dropdown-font-size: 14px; --bs-dropdown-min-width: 230px; --bs-dropdown-border-color: var(--garis);
     --bs-dropdown-border-radius: 6px; --bs-dropdown-padding-y: 6px; --bs-dropdown-item-padding-x: 14px; --bs-dropdown-item-padding-y: 6px;
-    --bs-dropdown-header-color: var(--tinta3); box-shadow: 0 6px 20px rgba(29, 37, 40, .12); }
+    box-shadow: 0 6px 20px rgba(29, 37, 40, .12); }
 .menu-aksi form { margin: 0; }
 .menu-aksi .dropdown-item small { color: var(--tinta3); }
-.menu-aksi .dropdown-header { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; padding: 6px 14px 2px; }
 .menu-aksi .angka { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--tinta3); margin-left: 4px; }
 
 /* ---------- Lonceng: unit belum ditandai selesai (kiri tombol Tambah unit) ---------- */
