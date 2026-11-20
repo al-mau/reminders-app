@@ -15,16 +15,14 @@ Aplikasi pengingat deadline unit (PHP + MySQL Aiven) dengan notifikasi WhatsApp 
 | `api/lib/koneksi.php` | Koneksi PDO + helper (CSRF, escape) |
 | `api/lib/session_handler.php` | Session disimpan di tabel `sessions` (wajib di serverless) |
 | `api/lib/fonnte.php` | Helper kirim WhatsApp |
-| `api/lib/skema.php` | Tabel tambahan + helper lampiran, riwayat WA, pembatasan login |
+| `api/lib/skema.php` | Struktur semua tabel (dibuat otomatis) + helper lampiran, riwayat pengiriman, pembatasan login |
 | `api/lib/peran.php` | Hak akses user (Akses Penuh, Akses Kerja, Akses Lihat) dan pengecekannya (lihat [Hak akses user](#hak-akses-user)) |
 | `api/setup.php` | Membuat tabel database otomatis (sekali jalan) |
-| `database/schema.sql` | Skema tabel `users`, `deadline`, `sessions` |
+| `database/reminders_db.sql` | Struktur tabel + contoh data untuk import ke XAMPP |
 | `database/sync_dari_aiven.*` | Salin data Aiven ke MySQL XAMPP (backup lokal) |
 | `vercel.json` | Pengaturan Vercel (lihat penjelasan di bawah) |
 | `sw.js`, `manifest.json` | PWA: aplikasi bisa di-"Install" di HP/laptop |
 | `xampp/` | Bahan versi XAMPP: `bash xampp/build.sh` membuat `reminders-app-xampp.zip` (lihat `xampp/CARA_PAKAI_XAMPP.txt`) |
-| `herd/` | Bahan versi Laravel Herd: `bash herd/build.sh` membuat `reminders-app-herd.zip` (halaman di `public/`, database tetap MySQL XAMPP; lihat `herd/CARA_PAKAI_HERD.txt`) |
-| `laragon/` | Bahan versi Laragon: `bash laragon/build.sh` membuat `reminders-app-laragon.zip` (susunan sama dengan XAMPP, file `.bat` mencari PHP & MySQL di `laragon\bin`; lihat `laragon/CARA_PAKAI_LARAGON.txt`) |
 | `vendor/` | Pratinjau lampiran tanpa unduh: `pratinjau.html` + library Word (mammoth) & Excel (SheetJS) |
 
 ### Penjelasan `vercel.json`
@@ -42,7 +40,7 @@ File JSON tidak bisa diberi komentar, jadi penjelasannya ditulis di sini:
 
 ## Setup
 
-1. **Database** — setelah deploy, buka `https://<domain-vercel>/setup.php?key=<CRON_SECRET>` sekali (atau jalankan `database/schema.sql` manual).
+1. **Database** — setelah deploy, buka `https://<domain-vercel>/setup.php?key=<CRON_SECRET>` sekali. Tabel juga dibuat otomatis saat aplikasi pertama kali dibuka (lihat `api/lib/skema.php`).
 2. **Environment Variables** — di Vercel: *Project → Settings → Environment Variables*, isi semua variabel dari `.env.example`
    (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `FONNTE_TOKEN`, `WA_TARGET`, `CRON_SECRET`). Lalu **Redeploy**.
 3. **Cron** — di cron-job.org set URL:

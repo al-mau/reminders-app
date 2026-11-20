@@ -3,12 +3,11 @@
  * SETUP DATABASE (membuat tabel jika belum ada) + pembersihan data tidak terpakai.
  * Buka: https://<domain-vercel>/setup.php?key=<CRON_SECRET>
  * Aman dijalankan berulang kali (data yang sudah ada TIDAK dihapus).
- * Isi SQL sama dengan database/schema.sql.
+ * Struktur tabel ada di lib/skema.php (pastikanTabelTambahan).
  *
  * Opsi tambahan di akhir URL:
  *   &bersihkan=1              -> hapus sesi login lama, catatan login gagal lama,
- *                                upload lampiran yang terputus, tabel audit_log lama,
- *                                kolom lampiran.thumbnail lama
+ *                                upload lampiran yang terputus
  *   &bersihkan=1&hapus=a,b    -> hapus tabel a & b (hanya tabel yang TIDAK dipakai aplikasi)
  */
 require_once __DIR__ . '/lib/koneksi.php';
@@ -24,52 +23,8 @@ if (!$secret || !is_string($key) || !hash_equals($secret, $key)) {
     exit("Unauthorized. Tambahkan ?key=<CRON_SECRET> di URL.\n");
 }
 
-// Tabel utama: users (akun login), deadline (data unit), sessions (sesi login)
-$queries = [
-    "CREATE TABLE IF NOT EXISTS users (
-        id             INT AUTO_INCREMENT PRIMARY KEY,
-        username       VARCHAR(50)  NOT NULL UNIQUE,
-        password       VARCHAR(255) NOT NULL,
-        nama_lengkap   VARCHAR(100) NOT NULL,
-        peran          VARCHAR(20)  NOT NULL DEFAULT 'pemantau',
-        dibuat_tanggal DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-
-    "CREATE TABLE IF NOT EXISTS deadline (
-        id               INT AUTO_INCREMENT PRIMARY KEY,
-        kode_unit        VARCHAR(50)  NOT NULL,
-        nama_unit        VARCHAR(150) NOT NULL,
-        tanggal_awal     DATE         NOT NULL,
-        tanggal_akhir    DATE         NOT NULL,
-        pengingat        VARCHAR(20)  NOT NULL DEFAULT 'pending',
-        terakhir_dikirim DATE         NULL,
-        INDEX idx_tanggal_akhir (tanggal_akhir)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-
-    "CREATE TABLE IF NOT EXISTS sessions (
-        id            VARCHAR(128) NOT NULL PRIMARY KEY,
-        data          MEDIUMTEXT   NOT NULL,
-        last_accessed INT UNSIGNED NOT NULL,
-        INDEX idx_last_accessed (last_accessed)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-];
-
 try {
-    foreach ($queries as $sql) {
-        $pdo->exec($sql);
-    }
-    pastikanTabelTambahan($pdo); // wa_penerima, telegram_penerima & lampiran
-
-    // Tabel lama mungkin belum punya kolom-kolom untuk cron
-    $kolom = $pdo->query("SHOW COLUMNS FROM deadline")->fetchAll(PDO::FETCH_COLUMN);
-    if (!in_array('pengingat', $kolom, true)) {
-        $pdo->exec("ALTER TABLE deadline ADD COLUMN pengingat VARCHAR(20) NOT NULL DEFAULT 'pending'");
-        echo "+ Kolom deadline.pengingat ditambahkan\n";
-    }
-    if (!in_array('terakhir_dikirim', $kolom, true)) {
-        $pdo->exec("ALTER TABLE deadline ADD COLUMN terakhir_dikirim DATE NULL");
-        echo "+ Kolom deadline.terakhir_dikirim ditambahkan\n";
-    }
+    pastikanTabelTambahan($pdo); // semua tabel aplikasi (lib/skema.php)
 
     echo "SETUP BERHASIL\n";
 
@@ -81,19 +36,6 @@ try {
 
     if (!empty($_GET['bersihkan'])) {
         echo "\n=== PEMBERSIHAN ===\n";
-
-        // Sisa fitur Aktivitas User yang sudah dihapus
-        if ($pdo->query("SHOW TABLES LIKE 'audit_log'")->fetchColumn()) {
-            $pdo->exec("DROP TABLE audit_log");
-            echo "- Tabel audit_log dihapus\n";
-        }
-
-        // Sisa fitur thumbnail lampiran yang sudah dihapus
-        $kolomLampiran = $pdo->query("SHOW COLUMNS FROM lampiran")->fetchAll(PDO::FETCH_COLUMN);
-        if (in_array('thumbnail', $kolomLampiran, true)) {
-            $pdo->exec("ALTER TABLE lampiran DROP COLUMN thumbnail");
-            echo "- Kolom lampiran.thumbnail dihapus\n";
-        }
 
         // Sesi login yang tidak dipakai > 1 hari
         $n = $pdo->exec("DELETE FROM sessions WHERE last_accessed < " . (time() - 86400));

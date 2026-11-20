@@ -485,3 +485,25 @@ function hitungSisaHari(?string $tanggal_akhir): int
 
     return ($diff->invert == 1) ? -$diff->days : $diff->days;
 }
+
+/**
+ * Baris detail satu unit di pesan pengingat (dipakai pesan otomatis/cron & kirim manual):
+ * Nomor Surat, Kode Unit, Nama Unit, Keterangan, Tanggal Awal, Tanggal Akhir, Sisa Waktu.
+ * Baris No. Surat & Keterangan dilewati bila kosong; email & No HP unit sengaja tidak ditulis.
+ */
+function detailUnitPesan(array $unit): string
+{
+    $teks = '';
+    if (trim((string) ($unit['no_surat'] ?? '')) !== '') {
+        $teks .= "*Berdasarkan Nomor Surat:* " . trim($unit['no_surat']) . "\n";
+    }
+    $teks .= "*Kode Unit:* " . $unit['kode_unit'] . "\n";
+    $teks .= "*Nama Unit:* " . $unit['nama_unit'] . "\n";
+    if (trim((string) ($unit['keterangan'] ?? '')) !== '') {
+        $teks .= "*Keterangan:* " . trim($unit['keterangan']) . "\n";
+    }
+    $teks .= "*Tanggal Awal:* " . date('d-m-Y', strtotime($unit['tanggal_awal'])) . "\n";
+    $teks .= "*Tanggal Akhir:* " . date('d-m-Y', strtotime($unit['tanggal_akhir'])) . "\n";
+    $teks .= "*Sisa Waktu:* " . keteranganSisaHari(hitungSisaHari($unit['tanggal_akhir'])) . "\n";
+    return $teks;
+}
