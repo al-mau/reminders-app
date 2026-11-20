@@ -4,11 +4,16 @@
  *  - kepalaHalaman()   -> isi <head> (Bootstrap, ikon, font IBM Plex, tema.css)
  *  - sidebarAplikasi() -> menu samping (logo BRK Syariah + nama aplikasi): Daftar Unit, Penerima, Riwayat Kirim, User
  *  - merekAuth()       -> nama aplikasi di atas form Login & Daftar
+ *  - kakiHalaman()     -> baris hak cipta di bawah halaman
+ *  - skripBootstrap()  -> <script> Bootstrap (popup, dropdown, tombol tutup pesan)
  * Fungsi e() berasal dari koneksi.php.
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 46;
+const VERSI_TEMA = 47;
+
+/** Alamat Bootstrap 5.3 (CSS & JS) di CDN; versi cukup diganti di sini */
+const BOOTSTRAP_CDN = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist';
 
 /** Isi <head> bersama. $judul = judul tab browser, contoh "Daftar Unit" */
 function kepalaHalaman(string $judul): string
@@ -18,7 +23,7 @@ function kepalaHalaman(string $judul): string
     <title>' . e($judul) . ' · Pengingat Deadline</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#5a171c">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="' . BOOTSTRAP_CDN . '/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -63,4 +68,16 @@ function merekAuth(): string
     return '<div class="auth-merek">'
         . '<img src="logo-brk-syariah.webp" alt="BRK Syariah" width="180" height="37">'
         . '<div class="auth-judul">Pengingat Deadline<small>Monitoring User Aplikasi Naskah Dinas</small></div></div>';
+}
+
+/** Baris hak cipta di bawah halaman */
+function kakiHalaman(): string
+{
+    return '<div class="kaki">&copy; ' . date('Y') . ' Aplikasi Pengingat Jadwal</div>';
+}
+
+/** Skrip Bootstrap, diletakkan sebelum </body> */
+function skripBootstrap(): string
+{
+    return '<script src="' . BOOTSTRAP_CDN . '/js/bootstrap.bundle.min.js"></script>';
 }

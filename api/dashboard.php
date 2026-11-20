@@ -150,6 +150,13 @@ function kembaliKe(string $menu, array $tambah = [], string $jangkar = ''): stri
     return 'dashboard.php' . ($q ? '?' . http_build_query($q) : '') . ($jangkar !== '' ? '#' . $jangkar : '');
 }
 
+/** Arahkan browser ke alamat kembaliKe() lalu hentikan skrip (dipakai setelah setiap aksi POST) */
+function kembali(string $menu, array $tambah = [], string $jangkar = ''): void
+{
+    header('Location: ' . kembaliKe($menu, $tambah, $jangkar));
+    exit;
+}
+
 /** Menu halaman asal form (dari alamat halaman sebelumnya), untuk aksi yang bisa datang dari menu mana saja */
 function menuAsal(): string
 {
@@ -170,8 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Upload melebihi post_max_size -> PHP mengosongkan $_POST
     if (empty($_POST) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
         flash('danger', 'Ukuran upload terlalu besar. Maksimal ' . formatUkuran(LAMPIRAN_MAKS_BYTE) . ' per file.');
-        header('Location: ' . kembaliKe('unit'));
-        exit;
+        kembali('unit');
     }
 
     $ajax = !empty($_POST['ajax']);
@@ -180,8 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($ajax) {
             jsonKeluar(['ok' => false, 'pesan' => 'Sesi formulir kedaluwarsa, muat ulang halaman.'], 403);
         }
-        header('Location: ' . kembaliKe(menuAsal(), ['status' => 'csrf']));
-        exit;
+        kembali(menuAsal(), ['status' => 'csrf']);
     }
 
     $aksi = $_POST['aksi'] ?? '';
@@ -208,8 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             jsonKeluar(['ok' => false, 'pesan' => $pesanTolak], 403);
         }
         flash('danger', $pesanTolak);
-        header('Location: ' . kembaliKe(menuAsal()));
-        exit;
+        kembali(menuAsal());
     }
 
     // --- UPLOAD LAMPIRAN BERPOTONGAN (dipanggil JavaScript) ---
@@ -275,8 +279,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 jsonKeluar(['ok' => false, 'pesan' => $salahKontak], 422);
             }
             flash('danger', $salahKontak);
-            header('Location: ' . kembaliKe('unit'));
-            exit;
+            kembali('unit');
         }
         $no_surat = $no_surat === '' ? null : $no_surat;
         $keterangan = $keterangan === '' ? null : $keterangan;
@@ -287,15 +290,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($ajax) {
                 jsonKeluar(['ok' => false, 'pesan' => 'Data tidak valid. Pastikan semua kolom terisi dengan benar.'], 422);
             }
-            header('Location: ' . kembaliKe('unit', ['status' => 'invalid']));
-            exit;
+            kembali('unit', ['status' => 'invalid']);
         }
         if ($tanggal_akhir < $tanggal_awal) {
             if ($ajax) {
                 jsonKeluar(['ok' => false, 'pesan' => 'Tanggal akhir tidak boleh lebih awal dari tanggal awal.'], 422);
             }
-            header('Location: ' . kembaliKe('unit', ['status' => 'invalid_tanggal']));
-            exit;
+            kembali('unit', ['status' => 'invalid_tanggal']);
         }
 
         if ($aksi === 'simpan') {
@@ -319,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash('warning', 'Lampiran belum masuk arsip (dicoba lagi otomatis): ' . $od['alasan']);
                 }
             }
-            header('Location: ' . kembaliKe('unit', ['status' => 'success_add']));
+            kembali('unit', ['status' => 'success_add']);
         } else {
             // Jika tanggal akhir diubah (deadline diperpanjang), reset status pengingat & status selesai
             // agar cron kembali mengingatkan menjelang deadline yang baru.
@@ -336,9 +337,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  WHERE id = ?"
             );
             $stmt->execute([$kode_unit, $nama_unit, $no_surat, $keterangan, $email, $no_hp, $tanggal_awal, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $tanggal_akhir, $id]);
-            header('Location: ' . kembaliKe('unit', ['status' => 'success_update']));
+            kembali('unit', ['status' => 'success_update']);
         }
-        exit;
     }
 
     // --- 3. HAPUS DATA ---
@@ -346,8 +346,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int) ($_POST['id'] ?? 0);
         hapusLampiranUnit($pdo, $id);
         $pdo->prepare("DELETE FROM deadline WHERE id = ?")->execute([$id]);
-        header('Location: ' . kembaliKe('unit', ['status' => 'success_delete']));
-        exit;
+        kembali('unit', ['status' => 'success_delete']);
     }
 
     // --- 4. KIRIM WA MANUAL ---
@@ -357,8 +356,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data_wa = $stmt->fetch();
 
         if (!$data_wa) {
-            header('Location: ' . kembaliKe('unit', ['status' => 'not_found']));
-            exit;
+            kembali('unit', ['status' => 'not_found']);
         }
 
         $pesan  = "*NOTIFIKASI PENGINGAT DEADLINE*\n\n";
@@ -373,8 +371,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $via = array_values(array_intersect(saluranSiap(), (array) ($_POST['via'] ?? [])));
         if (!$via) {
             flash('warning', 'Pilih minimal satu saluran pengiriman yang sudah diatur.');
-            header('Location: ' . kembaliKe('unit'));
-            exit;
+            kembali('unit');
         }
 
         // Kirim manual tidak mengubah status pengingat unit (pengingat otomatis tetap berjalan sesuai jadwal)
@@ -384,8 +381,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             flash('success', $hasil['pesan'] . '.');
         }
-        header('Location: ' . kembaliKe('unit', ['status' => $hasil['ok'] ? 'wa_sent' : 'wa_failed']));
-        exit;
+        kembali('unit', ['status' => $hasil['ok'] ? 'wa_sent' : 'wa_failed']);
     }
 
     // --- 4b. TANDAI SELESAI / BATALKAN ---
@@ -403,8 +399,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("UPDATE deadline SET selesai_tanggal = NULL, selesai_oleh = NULL WHERE id = ?")->execute([$id]);
             flash('info', "Status selesai unit $label dibatalkan.");
         }
-        header('Location: ' . kembaliKe('unit'));
-        exit;
+        kembali('unit');
     }
 
     // --- 5. UPLOAD LAMPIRAN KE UNIT YANG SUDAH ADA ---
@@ -414,8 +409,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cek->execute([$deadlineId]);
 
         if (!$cek->fetchColumn()) {
-            header('Location: ' . kembaliKe('unit', ['status' => 'not_found']));
-            exit;
+            kembali('unit', ['status' => 'not_found']);
         }
 
         $files = daftarFileUpload('lampiran');
@@ -434,8 +428,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('danger', 'Lampiran gagal — ' . $pesan);
             }
         }
-        header('Location: ' . kembaliKe('unit', ['lampiran' => $deadlineId]));
-        exit;
+        kembali('unit', ['lampiran' => $deadlineId]);
     }
 
     // --- 6. HAPUS LAMPIRAN ---
@@ -447,8 +440,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         hapusLampiranLengkap($pdo, (int) ($_POST['id'] ?? 0));
         flash('warning', 'Lampiran dihapus.');
-        header('Location: ' . kembaliKe('unit', $deadlineId ? ['lampiran' => $deadlineId] : []));
-        exit;
+        kembali('unit', $deadlineId ? ['lampiran' => $deadlineId] : []);
     }
 
     // --- 7. KELOLA PENERIMA WA ---
@@ -469,7 +461,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         . ((int) $ada['aktif'] === 1 ? 'aktif' : 'nonaktif — klik tombol ▶ untuk mengaktifkan') . ').');
                 } else {
                     $pdo->prepare("INSERT INTO wa_penerima (nama, nomor, dibuat_tanggal) VALUES (?, ?, ?)")
-                        ->execute([function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100), $nomor, date('Y-m-d H:i:s')]);
+                        ->execute([potong($nama, 100), $nomor, date('Y-m-d H:i:s')]);
                     flash('success', "Nomor $nomor ($nama) ditambahkan sebagai penerima WA.");
                 }
             } catch (PDOException $e) {
@@ -478,8 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('danger', 'Gagal menyimpan nomor: ' . $e->getMessage());
             }
         }
-        header('Location: ' . kembaliKe('penerima', [], 'penerima'));
-        exit;
+        kembali('penerima', [], 'penerima');
     }
 
     // Edit penerima WA: nama dan nomor (misalnya user mengganti nomor HP)
@@ -497,13 +488,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($ada !== false) {
                 flash('warning', "Nomor $nomor sudah terdaftar atas nama \"$ada\".");
             } else {
-                $nama = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
+                $nama = potong($nama, 100);
                 $pdo->prepare("UPDATE wa_penerima SET nama = ?, nomor = ? WHERE id = ?")->execute([$nama, $nomor, $pid]);
                 flash('success', "Penerima \"$nama\" disimpan dengan nomor +$nomor.");
             }
         }
-        header('Location: ' . kembaliKe('penerima', [], 'penerima'));
-        exit;
+        kembali('penerima', [], 'penerima');
     }
 
     // Edit nama penerima Telegram (chat id tidak berubah)
@@ -512,27 +502,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($nama === '') {
             flash('danger', 'Nama penerima tidak boleh kosong.');
         } else {
-            $nama = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
+            $nama = potong($nama, 100);
             $pdo->prepare("UPDATE telegram_penerima SET nama = ? WHERE id = ?")->execute([$nama, (int) ($_POST['id'] ?? 0)]);
             flash('success', "Nama penerima diubah menjadi \"$nama\".");
         }
-        header('Location: ' . kembaliKe('penerima', [], 'telegram'));
-        exit;
+        kembali('penerima', [], 'telegram');
     }
 
-    if ($aksi === 'toggle_penerima') {
+    // Aktif/nonaktifkan atau hapus penerima WhatsApp / Telegram / Email (satu pola untuk ketiga saluran)
+    $salurPenerima = [
+        'penerima' => ['wa_penerima', 'penerima', 'Nomor penerima dihapus.'],
+        'telegram' => ['telegram_penerima', 'telegram', 'Chat Telegram penerima dihapus.'],
+        'email'    => ['email_penerima', 'email', 'Email penerima dihapus.'],
+    ];
+    if (preg_match('/^(toggle|hapus)_(penerima|telegram|email)$/', $aksi, $m)) {
+        [$tabel, $jangkar, $pesanHapus] = $salurPenerima[$m[2]];
         $pid = (int) ($_POST['id'] ?? 0);
-        $pdo->prepare("UPDATE wa_penerima SET aktif = 1 - aktif WHERE id = ?")->execute([$pid]);
-        header('Location: ' . kembaliKe('penerima', [], 'penerima'));
-        exit;
-    }
-
-    if ($aksi === 'hapus_penerima') {
-        $pid = (int) ($_POST['id'] ?? 0);
-        $pdo->prepare("DELETE FROM wa_penerima WHERE id = ?")->execute([$pid]);
-        flash('warning', 'Nomor penerima dihapus.');
-        header('Location: ' . kembaliKe('penerima', [], 'penerima'));
-        exit;
+        if ($m[1] === 'toggle') {
+            $pdo->prepare("UPDATE $tabel SET aktif = 1 - aktif WHERE id = ?")->execute([$pid]);
+        } else {
+            $pdo->prepare("DELETE FROM $tabel WHERE id = ?")->execute([$pid]);
+            flash('warning', $pesanHapus);
+        }
+        kembali('penerima', [], $jangkar);
     }
 
     // --- 8. KELOLA PENERIMA TELEGRAM ---
@@ -553,7 +545,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         . ((int) $ada['aktif'] === 1 ? 'aktif' : 'nonaktif — klik tombol ▶ untuk mengaktifkan') . ').');
                 } else {
                     $pdo->prepare("INSERT INTO telegram_penerima (nama, chat_id, dibuat_tanggal) VALUES (?, ?, ?)")
-                        ->execute([function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100), $chatId, date('Y-m-d H:i:s')]);
+                        ->execute([potong($nama, 100), $chatId, date('Y-m-d H:i:s')]);
                     flash('success', "Chat Telegram $nama ($chatId) ditambahkan sebagai penerima.");
                 }
             } catch (PDOException $e) {
@@ -561,21 +553,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('danger', 'Gagal menyimpan Chat ID: ' . $e->getMessage());
             }
         }
-        header('Location: ' . kembaliKe('penerima', [], 'telegram'));
-        exit;
-    }
-
-    if ($aksi === 'toggle_telegram') {
-        $pdo->prepare("UPDATE telegram_penerima SET aktif = 1 - aktif WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
-        header('Location: ' . kembaliKe('penerima', [], 'telegram'));
-        exit;
-    }
-
-    if ($aksi === 'hapus_telegram') {
-        $pdo->prepare("DELETE FROM telegram_penerima WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
-        flash('warning', 'Chat Telegram penerima dihapus.');
-        header('Location: ' . kembaliKe('penerima', [], 'telegram'));
-        exit;
+        kembali('penerima', [], 'telegram');
     }
 
     // Cari chat yang baru mengirim pesan ke bot -> ditampilkan sekali di panel Telegram (tombol "Tambah")
@@ -588,8 +566,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $_SESSION['tg_ditemukan'] = $hasil['chat'];
         }
-        header('Location: ' . kembaliKe('penerima', [], 'telegram'));
-        exit;
+        kembali('penerima', [], 'telegram');
     }
 
     // --- 9. KELOLA PENERIMA EMAIL ---
@@ -605,7 +582,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $cek = $pdo->prepare("SELECT nama, aktif FROM email_penerima WHERE email = ? AND id <> ?");
                 $cek->execute([$email, $aksi === 'edit_email' ? $pid : 0]);
                 $ada  = $cek->fetch();
-                $nama = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
+                $nama = potong($nama, 100);
 
                 if ($ada) {
                     flash('warning', "Email $email sudah terdaftar atas nama \"{$ada['nama']}\" (status: "
@@ -623,21 +600,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('danger', 'Gagal menyimpan email: ' . $e->getMessage());
             }
         }
-        header('Location: ' . kembaliKe('penerima', [], 'email'));
-        exit;
-    }
-
-    if ($aksi === 'toggle_email') {
-        $pdo->prepare("UPDATE email_penerima SET aktif = 1 - aktif WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
-        header('Location: ' . kembaliKe('penerima', [], 'email'));
-        exit;
-    }
-
-    if ($aksi === 'hapus_email') {
-        $pdo->prepare("DELETE FROM email_penerima WHERE id = ?")->execute([(int) ($_POST['id'] ?? 0)]);
-        flash('warning', 'Email penerima dihapus.');
-        header('Location: ' . kembaliKe('penerima', [], 'email'));
-        exit;
+        kembali('penerima', [], 'email');
     }
 
     // Kirim email percobaan ke penerima aktif untuk memastikan pengaturan SMTP benar (tidak dicatat di riwayat)
@@ -649,8 +612,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hasil = $wa ? kirimKeFonnte($pesan, implode(',', daftarNomorPenerima())) : kirimKeTelegram($pesan, daftarChatTelegram());
         $nama  = $wa ? 'WhatsApp' : 'Telegram';
         flash($hasil['ok'] ? 'success' : 'danger', ($hasil['ok'] ? "$nama percobaan: " : "$nama percobaan gagal: ") . $hasil['pesan']);
-        header('Location: ' . kembaliKe('penerima', [], $wa ? 'penerima' : 'telegram'));
-        exit;
+        kembali('penerima', [], $wa ? 'penerima' : 'telegram');
     }
 
     if ($aksi === 'uji_email') {
@@ -660,8 +622,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'Percobaan email Pengingat Deadline'
         );
         flash($hasil['ok'] ? 'success' : 'danger', ($hasil['ok'] ? 'Email percobaan: ' : 'Email percobaan gagal: ') . $hasil['pesan']);
-        header('Location: ' . kembaliKe('penerima', [], 'email'));
-        exit;
+        kembali('penerima', [], 'email');
     }
 
     // --- 10b. ARSIP LAMPIRAN KE GRUP TELEGRAM (Akses Penuh) ---
@@ -708,8 +669,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Throwable $e) {
             flash('danger', 'Arsip Telegram: ' . $e->getMessage());
         }
-        header('Location: ' . kembaliKe('penerima', [], 'onedrive'));
-        exit;
+        kembali('penerima', [], 'onedrive');
     }
 
     // --- 10a. LINK FOLDER ONEDRIVE UNTUK UPLOAD MANUAL (Akses Penuh) ---
@@ -728,8 +688,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Throwable $e) {
             flash('danger', 'Folder arsip: ' . $e->getMessage());
         }
-        header('Location: ' . kembaliKe('penerima', [], 'onedrive'));
-        exit;
+        kembali('penerima', [], 'onedrive');
     }
 
     // --- 10. ARSIP ONEDRIVE LEWAT EMAIL + POWER AUTOMATE (Akses Penuh) ---
@@ -764,8 +723,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Throwable $e) {
             flash('danger', 'Arsip OneDrive: ' . $e->getMessage());
         }
-        header('Location: ' . kembaliKe('penerima', [], 'onedrive'));
-        exit;
+        kembali('penerima', [], 'onedrive');
     }
 
     // --- 11. PENYIMPANAN ONEDRIVE (Akses Penuh) ---
@@ -808,12 +766,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Throwable $e) {
             flash('danger', 'OneDrive: ' . $e->getMessage());
         }
-        header('Location: ' . kembaliKe('penerima', [], 'onedrive'));
-        exit;
+        kembali('penerima', [], 'onedrive');
     }
 
-    header('Location: ' . kembaliKe('unit'));
-    exit;
+    kembali('unit');
 }
 
 // ===================================================================
@@ -1934,7 +1890,7 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
     </section>
 <?php endif; ?>
 
-    <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
+    <?= kakiHalaman(); ?>
 </main>
 
 <?php if ($menu === 'penerima' && boleh('kelola_penerima')): ?>
@@ -2346,7 +2302,7 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
     <?php endforeach; ?>
 <?php endif; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<?= skripBootstrap(); ?>
 <script>
         // Popup "Kirim pengingat sekarang": isi unit dari tombol yang diklik; tombol Kirim aktif bila ada saluran dicentang
         const modalKirim = document.getElementById('modalKirim');

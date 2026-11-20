@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $nilai = [$username, password_hash((string) $_POST['password'], PASSWORD_DEFAULT), $peran];
             if ($adaNama) {
                 $kolom[] = 'nama_lengkap';
-                $nilai[] = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
+                $nilai[] = potong($nama, 100);
             }
             if ($adaTanggal) {
                 $kolom[] = 'dibuat_tanggal';
@@ -185,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nilai = [$baru];
         if ($adaNama) {
             $set[]   = 'nama_lengkap = ?';
-            $nilai[] = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
+            $nilai[] = potong($nama, 100);
         }
         if ($gantiPw) {
             $set[]   = 'password = ?';
@@ -386,7 +386,7 @@ unset($_SESSION['flash_user']);
         <?php endif; ?>
     </div>
 
-    <div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
+    <?= kakiHalaman(); ?>
 </main>
 
 <!-- Popup "Ubah akun": username, nama lengkap, dan password (satu popup untuk setiap user) -->
@@ -455,7 +455,7 @@ unset($_SESSION['flash_user']);
 </div>
 <?php endforeach; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<?= skripBootstrap(); ?>
 <?= skrip_mata(); ?>
 </body>
 </html>

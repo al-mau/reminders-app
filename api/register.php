@@ -133,9 +133,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="auth-bawah">Sudah punya akun? <a href="login.php">Masuk</a></div>
 </main>
-<div class="kaki">&copy; <?= date('Y'); ?> Aplikasi Pengingat Jadwal</div>
+<?= kakiHalaman(); ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<?= skripBootstrap(); ?>
 <?= skrip_mata(); ?>
 </body>
 </html>
