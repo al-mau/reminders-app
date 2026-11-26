@@ -43,6 +43,7 @@ File JSON tidak bisa diberi komentar, jadi penjelasannya ditulis di sini:
 1. **Database** — setelah deploy, buka `https://<domain-vercel>/setup.php?key=<CRON_SECRET>` sekali. Tabel juga dibuat otomatis saat aplikasi pertama kali dibuka (lihat `api/lib/skema.php`).
 2. **Environment Variables** — di Vercel: *Project → Settings → Environment Variables*, isi semua variabel dari `.env.example`
    (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `FONNTE_TOKEN`, `WA_TARGET`, `CRON_SECRET`). Lalu **Redeploy**.
+   Token Fonnte/Telegram, SMTP, dan `NOTIF_VIA` juga bisa diisi dari aplikasi (lihat *Pengaturan Environment Variable* di bawah).
 3. **Cron** — di cron-job.org set URL:
    `https://<domain-vercel>/cron_wa_reminder.php?key=<CRON_SECRET>` (misal setiap hari 07:00 WIB).
 4. **Lokal (XAMPP)** — import database lewat `database/import_ke_xampp.bat` (atau phpMyAdmin → Import `database/reminders_db.sql`), salin `.env.xampp.example` menjadi `.env`, lalu buka `http://localhost/reminders-app/api/login.php`. Detail: `database/CARA_PAKAI.txt`.
@@ -50,6 +51,19 @@ File JSON tidak bisa diberi komentar, jadi penjelasannya ditulis di sini:
 > Kredensial tidak boleh ditulis di kode. File `.env` sudah masuk `.gitignore`.
 
 > **Batas Vercel Hobby: maksimal 12 Serverless Functions per deployment.** Setiap file `.php` langsung di `api/` dihitung 1 function. File pembantu (bukan halaman) simpan di `api/lib/` agar tidak ikut dihitung.
+
+## Pengaturan Environment Variable (dari aplikasi)
+
+Akun **Akses Penuh** bisa mengisi `FONNTE_TOKEN`, `TELEGRAM_BOT_TOKEN`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`,
+`EMAIL_PENGIRIM`, `EMAIL_NAMA_PENGIRIM`, dan `NOTIF_VIA` di menu **User → Pengaturan Environment Variable** (di bawah tabel Daftar user).
+
+- Nilai dari menu ini **langsung berlaku** (tanpa ubah `.env` / Redeploy) dan **mengalahkan** nilai di `.env` / Vercel.
+  Tombol **Pakai .env** menghapusnya sehingga aplikasi kembali memakai `.env` / Vercel.
+- Token dan password disimpan **terenkripsi** (AES-256-GCM) di tabel `pengaturan`, tidak pernah ditampilkan lagi
+  (hanya 4 karakter terakhir), dan dicatat siapa yang terakhir mengubah. Kunci enkripsi diambil dari `APP_KEY` / `CRON_SECRET`;
+  bila kunci itu diganti, nilai rahasia harus disimpan ulang.
+- `DB_*`, `CRON_SECRET`, dan `APP_KEY` **tetap** di `.env` / Vercel (dibutuhkan sebelum database bisa dibaca).
+- Kode: `api/lib/setelan.php` (`setelan('FONNTE_TOKEN')` = nilai dari aplikasi, selain itu `env()`).
 
 ## Hak akses user
 

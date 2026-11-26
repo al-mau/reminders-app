@@ -12,6 +12,7 @@
  */
 require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/skema.php';
+require_once __DIR__ . '/setelan.php';   // setelan(): token & SMTP dari menu User atau .env
 require_once __DIR__ . '/phpmailer/Exception.php';
 require_once __DIR__ . '/phpmailer/PHPMailer.php';
 require_once __DIR__ . '/phpmailer/SMTP.php';
@@ -22,7 +23,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 /** Pengaturan SMTP sudah lengkap (host, user, password)? */
 function emailSiap(): bool
 {
-    return env('SMTP_HOST') && env('SMTP_USER') && env('SMTP_PASS');
+    return setelan('SMTP_HOST') && setelan('SMTP_USER') && setelan('SMTP_PASS');
 }
 
 /** Alamat tanpa "@" dianggap akun Gmail: "nama" -> "nama@gmail.com" */
@@ -104,7 +105,7 @@ function pesanKeHtmlEmail(string $pesan, string $judul): string
 function kirimKeEmail(string $pesan, array $alamat, string $subjek): array
 {
     if (!emailSiap()) {
-        return ['ok' => false, 'pesan' => 'SMTP_HOST, SMTP_USER, atau SMTP_PASS belum diatur.'];
+        return ['ok' => false, 'pesan' => 'SMTP_HOST, SMTP_USER, atau SMTP_PASS belum diatur (isi di menu User).'];
     }
     if (!$alamat) {
         return ['ok' => false, 'pesan' => 'Belum ada alamat email penerima (tambahkan di dashboard atau isi EMAIL_TARGET).'];
@@ -125,14 +126,14 @@ function kirimKeEmail(string $pesan, array $alamat, string $subjek): array
 function siapkanMailer(): PHPMailer
 {
     $mail = new PHPMailer(true);
-    $port = (int) env('SMTP_PORT', 587);
+    $port = (int) setelan('SMTP_PORT', 587);
     $mail->setLanguage('id', __DIR__ . '/phpmailer/language/');
     $mail->isSMTP();
-    $mail->Host       = (string) env('SMTP_HOST');
+    $mail->Host       = (string) setelan('SMTP_HOST');
     $mail->Port       = $port;
     $mail->SMTPAuth   = true;
-    $mail->Username   = (string) env('SMTP_USER');
-    $mail->Password   = (string) env('SMTP_PASS');
+    $mail->Username   = (string) setelan('SMTP_USER');
+    $mail->Password   = (string) setelan('SMTP_PASS');
     // Port 465 = SSL sejak awal; port lain (587) = STARTTLS
     $mail->SMTPSecure = $port === 465 ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
     // Batas waktu agar halaman/cron tidak menggantung bila server SMTP lambat
@@ -144,7 +145,7 @@ function siapkanMailer(): PHPMailer
     if ($ca !== '') {
         $mail->SMTPOptions = ['ssl' => ['cafile' => $ca]];
     }
-    $mail->setFrom((string) (env('EMAIL_PENGIRIM') ?: env('SMTP_USER')), (string) env('EMAIL_NAMA_PENGIRIM', 'Pengingat Deadline'));
+    $mail->setFrom((string) (setelan('EMAIL_PENGIRIM') ?: setelan('SMTP_USER')), (string) setelan('EMAIL_NAMA_PENGIRIM', 'Pengingat Deadline'));
     $mail->isHTML(true);
     return $mail;
 }
@@ -188,7 +189,7 @@ function kirimKeSemua(PHPMailer $mail, array $alamat): array
 function kirimEmailLampiran(string $ke, string $subjek, string $pesan, string $namaFile, string $isi): array
 {
     if (!emailSiap()) {
-        return ['ok' => false, 'pesan' => 'SMTP_HOST, SMTP_USER, atau SMTP_PASS belum diatur.'];
+        return ['ok' => false, 'pesan' => 'SMTP_HOST, SMTP_USER, atau SMTP_PASS belum diatur (isi di menu User).'];
     }
     try {
         $mail = siapkanMailer();
