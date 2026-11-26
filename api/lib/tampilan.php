@@ -10,7 +10,7 @@
  */
 
 /** Versi tema.css: naikkan angka ini setelah mengubah tema.css agar browser memuat versi baru */
-const VERSI_TEMA = 47;
+const VERSI_TEMA = 48;
 
 /** Alamat Bootstrap 5.3 (CSS & JS) di CDN; versi cukup diganti di sini */
 const BOOTSTRAP_CDN = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist';

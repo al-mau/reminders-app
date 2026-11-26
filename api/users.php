@@ -315,9 +315,8 @@ unset($_SESSION['flash_user']);
         </div>
     <?php endforeach; ?>
 
-    <?php // Akses Penuh: daftar pengguna + form tambah; Akses Kerja & Akses Lihat: hanya akun sendiri. Lihat README.md ?>
-    <div class="<?= $admin ? 'row align-items-start' : ''; ?>">
-        <div class="<?= $admin ? 'col-lg kolom-lebar' : ''; ?>">
+    <?php // Akses Penuh: Daftar user, Tambah user, lalu Pengaturan Environment Variable (bersusun ke bawah).
+          // Akses Kerja & Akses Lihat: hanya akun sendiri. Lihat README.md ?>
         <section class="card">
             <div class="card-header d-flex justify-content-between align-items-baseline"><h2><?= $admin ? 'Daftar user' : 'Akun Anda'; ?></h2><?php if ($admin): ?><span><?= count($users); ?> akun</span><?php endif; ?></div>
             <div class="table-responsive">
@@ -360,6 +359,59 @@ unset($_SESSION['flash_user']);
                 </table>
             </div>
         </section>
+
+        <?php if ($admin): ?>
+        <section class="card mt-3" id="tambah">
+            <div class="card-header d-flex justify-content-between align-items-baseline"><h2>Tambah user</h2></div>
+            <form method="POST" action="users.php" autocomplete="off" class="form-tambah">
+                <?= csrf_field(); ?>
+                <input type="hidden" name="aksi" value="tambah">
+                <div class="row g-3">
+                <?php if ($adaNama): ?>
+                <div class="col-md-6 col-xl-4">
+                    <label class="form-label">Nama lengkap</label>
+                    <input type="text" name="nama_lengkap" class="form-control" maxlength="100" required>
+                </div>
+                <?php endif; ?>
+                <div class="col-md-6 col-xl-4">
+                    <label class="form-label">Username</label>
+                    <input type="text" name="username" class="form-control" maxlength="50" pattern="[A-Za-z0-9_.]{3,50}" title="3-50 karakter: huruf, angka, titik, underscore" required>
+                </div>
+                <div class="col-md-6 col-xl-4">
+                    <label class="form-label" for="peranBaru">Hak akses</label>
+                    <select id="peranBaru" name="peran" class="form-select" required>
+                        <?php foreach (PERAN as $kode => $label): ?>
+                            <option value="<?= $kode; ?>" <?= $kode === 'staf' ? 'selected' : ''; ?>><?= e($label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-6 col-xl-4">
+                    <label class="form-label">Password</label>
+                    <div class="input-group">
+                        <input type="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
+                        <?= tombol_mata(); ?>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-4">
+                    <label class="form-label">Konfirmasi password</label>
+                    <div class="input-group">
+                        <input type="password" name="konfirmasi" class="form-control" minlength="6" autocomplete="new-password" required>
+                        <?= tombol_mata(); ?>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-4 d-flex align-items-end"><button type="submit" class="btn btn-primary w-100">Simpan user</button></div>
+                </div>
+            </form>
+            <p class="catatan mb-2">
+                Halaman Daftar publik: <b class="<?= pendaftaranDibuka() ? 'teks-merah' : 'teks-hijau'; ?>"><?= pendaftaranDibuka() ? 'terbuka' : 'ditutup'; ?></b>.
+                <?php if (pendaftaranDibuka()): ?>
+                    Siapa pun yang tahu link bisa membuat akun. Tutup dengan menghapus <code>ALLOW_REGISTER</code> atau mengisinya <code>false</code> di Vercel.
+                <?php else: ?>
+                    Akun baru hanya bisa dibuat dari halaman ini.
+                <?php endif; ?>
+            </p>
+        </section>
+        <?php endif; ?>
 
         <?php if ($admin): ?>
         <!-- Pengaturan Environment Variable: diisi dari aplikasi, mengalahkan .env / Vercel (lib/setelan.php) -->
@@ -419,61 +471,6 @@ unset($_SESSION['flash_user']);
             </p>
         </section>
         <?php endif; ?>
-        </div>
-
-        <?php if ($admin): ?>
-        <div class="col-lg">
-        <section class="card">
-            <div class="card-header d-flex justify-content-between align-items-baseline"><h2>Tambah user</h2></div>
-            <form method="POST" action="users.php" autocomplete="off" class="form-tambah">
-                <?= csrf_field(); ?>
-                <input type="hidden" name="aksi" value="tambah">
-                <?php if ($adaNama): ?>
-                <div class="mb-3">
-                    <label class="form-label">Nama lengkap</label>
-                    <input type="text" name="nama_lengkap" class="form-control" maxlength="100" required>
-                </div>
-                <?php endif; ?>
-                <div class="mb-3">
-                    <label class="form-label">Username</label>
-                    <input type="text" name="username" class="form-control" maxlength="50" pattern="[A-Za-z0-9_.]{3,50}" title="3-50 karakter: huruf, angka, titik, underscore" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Password</label>
-                    <div class="input-group">
-                        <input type="password" name="password" class="form-control" minlength="6" autocomplete="new-password" required>
-                        <?= tombol_mata(); ?>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Konfirmasi password</label>
-                    <div class="input-group">
-                        <input type="password" name="konfirmasi" class="form-control" minlength="6" autocomplete="new-password" required>
-                        <?= tombol_mata(); ?>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="peranBaru">Hak akses</label>
-                    <select id="peranBaru" name="peran" class="form-select" required>
-                        <?php foreach (PERAN as $kode => $label): ?>
-                            <option value="<?= $kode; ?>" <?= $kode === 'staf' ? 'selected' : ''; ?>><?= e($label); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary w-100">Simpan user</button>
-            </form>
-            <p class="catatan mb-2">
-                Halaman Daftar publik: <b class="<?= pendaftaranDibuka() ? 'teks-merah' : 'teks-hijau'; ?>"><?= pendaftaranDibuka() ? 'terbuka' : 'ditutup'; ?></b>.
-                <?php if (pendaftaranDibuka()): ?>
-                    Siapa pun yang tahu link bisa membuat akun. Tutup dengan menghapus <code>ALLOW_REGISTER</code> atau mengisinya <code>false</code> di Vercel.
-                <?php else: ?>
-                    Akun baru hanya bisa dibuat dari halaman ini.
-                <?php endif; ?>
-            </p>
-        </section>
-        </div>
-        <?php endif; ?>
-    </div>
 
     <?= kakiHalaman(); ?>
 </main>
