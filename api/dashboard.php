@@ -1499,7 +1499,7 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <span><?= $telegram_aktif; ?> aktif<?= $telegram_dipakai ? '' : ' · tidak dipakai'; ?></span>
             </div>
             <?php if (!$telegram_dipakai): ?>
-                <p class="catatan">Telegram belum dipakai. Isi <code>TELEGRAM_BOT_TOKEN</code> dan tambahkan <code>telegram</code> pada <code>NOTIF_VIA</code> di pengaturan server.</p>
+                <p class="catatan">Telegram belum dipakai. Isi <code>TELEGRAM_BOT_TOKEN</code> dan tambahkan <code>telegram</code> pada <code>NOTIF_VIA</code> di menu User (Pengaturan Environment Variable).</p>
             <?php endif; ?>
             <div class="daftar-penerima">
             <?php if (!$telegram_list): ?>
@@ -1573,7 +1573,7 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <span><?= $email_aktif; ?> aktif<?= $email_dipakai ? '' : ' · tidak dipakai'; ?></span>
             </div>
             <?php if (!$email_dipakai): ?>
-                <p class="catatan">Email belum dipakai untuk pengingat otomatis. Isi <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>, lalu tambahkan <code>email</code> pada <code>NOTIF_VIA</code> di pengaturan server.</p>
+                <p class="catatan">Email belum dipakai untuk pengingat otomatis. Isi <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>, lalu tambahkan <code>email</code> pada <code>NOTIF_VIA</code> di menu User (Pengaturan Environment Variable).</p>
             <?php endif; ?>
             <div class="daftar-penerima">
             <?php if (!$email_list): ?>

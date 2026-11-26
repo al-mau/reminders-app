@@ -416,7 +416,9 @@ unset($_SESSION['flash_user']);
         <?php if ($admin): ?>
         <!-- Pengaturan Environment Variable: diisi dari aplikasi, mengalahkan .env / Vercel (lib/setelan.php) -->
         <section class="card mt-3" id="setelan">
-            <div class="card-header d-flex justify-content-between align-items-baseline"><h2>Pengaturan Environment Variable</h2><span><?= count($setelanApp); ?> dari <?= count(SETELAN_APP); ?> diisi di sini</span></div>
+            <div class="card-header d-flex justify-content-between align-items-baseline"><h2>Pengaturan Environment Variable
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-bs-toggle="modal" data-bs-target="#modalBantuanSetelan"
+                        title="Ringkasan variabel" aria-label="Ringkasan variabel"><i class="fa-regular fa-circle-question" aria-hidden="true"></i></button></h2><span><?= count($setelanApp); ?> dari <?= count(SETELAN_APP); ?> diisi di sini</span></div>
             <div class="table-responsive">
                 <table class="tabel-a">
                     <thead>
@@ -540,6 +542,41 @@ unset($_SESSION['flash_user']);
     </div>
 </div>
 <?php endforeach; ?>
+
+<?php if ($admin): ?>
+<!-- Popup ringkasan (tombol ? di judul Pengaturan Environment Variable) -->
+<div class="modal fade" id="modalBantuanSetelan" tabindex="-1" aria-labelledby="judulBantuanSetelan" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="judulBantuanSetelan">Ringkasan Environment Variable</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-3 tabel-ringkas">
+                        <thead class="d-none d-sm-table-header-group"><tr><th>Variabel</th><th>Didapat dari</th></tr></thead>
+                        <tbody>
+                        <?php foreach (SETELAN_APP as $nama => $info): ?>
+                            <tr>
+                                <?php // Di HP kedua sel bersusun (d-block) agar nama variabel tidak terpotong ?>
+                                <td class="d-block d-sm-table-cell"><span class="mono"><?= e($nama); ?></span><div class="small text-body-secondary"><?= e($info['untuk']); ?></div></td>
+                                <td class="d-block d-sm-table-cell"><?= e($info['sumber']); ?><div class="small text-body-secondary"><?= e($info['wajib']); ?></div></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mb-2"><b>Setelah mengisi:</b> buka menu <b>Penerima</b>, lalu tekan <b>Kirim percobaan ke penerima aktif</b> di setiap saluran. Bila gagal, alasannya tampil di pesan merah atau di <b>Riwayat Kirim</b>.</p>
+                <p class="mb-0 text-body-secondary">Token dan password bersifat rahasia; jangan dibagikan lewat chat. Aplikasi menyimpannya terenkripsi dan hanya menampilkan 4 karakter terakhir.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Mengerti</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php // Popup "Ubah" untuk setiap Environment Variable (hanya Akses Penuh) ?>
 <?php foreach ($admin ? SETELAN_APP : [] as $nama => $info): $isi = $setelanApp[$nama] ?? null; ?>

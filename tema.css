@@ -392,3 +392,6 @@ body.auth .kaki { padding: 16px 0 0; color: var(--side-redup); }
 .aksi-panel .btn-link { padding-left: 0; padding-right: 0; }
 .panel-arsip .baris-penerima { padding: 10px 0; }
 .sub-panel { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--garis); }
+
+/* Popup ringkasan Environment Variable (users.php): di HP nama variabel dan keterangannya bersusun */
+@media (max-width: 575.98px) { .tabel-ringkas td:first-child { border-bottom: 0; padding-bottom: 0; } }
