@@ -11,7 +11,7 @@
  */
 require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/skema.php';
-require_once __DIR__ . '/setelan.php';   // setelan(): token & SMTP dari menu User atau .env
+require_once __DIR__ . '/setelan.php';   // setelan(): token & SMTP dari menu Pengaturan atau .env
 require_once __DIR__ . '/email.php';
 
 /**
@@ -139,7 +139,7 @@ function cariChatTelegram(): array
 {
     $token = setelan('TELEGRAM_BOT_TOKEN');
     if (!$token) {
-        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur (isi di menu User).', 'chat' => []];
+        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur (isi di menu Pengaturan).', 'chat' => []];
     }
 
     $url  = rtrim((string) env('TELEGRAM_API', 'https://api.telegram.org'), '/') . '/bot' . $token . '/getUpdates';
@@ -287,7 +287,7 @@ function kirimKeTelegram(string $pesan, array $chatIds): array
 {
     $token = setelan('TELEGRAM_BOT_TOKEN');
     if (!$token) {
-        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur (isi di menu User).'];
+        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur (isi di menu Pengaturan).'];
     }
     if (!$chatIds) {
         return ['ok' => false, 'pesan' => 'Belum ada chat Telegram penerima (tambahkan di dashboard atau isi TELEGRAM_CHAT_ID).'];
@@ -347,7 +347,7 @@ function kirimDokumenTelegram(string $chatId, string $namaFile, string $isi, str
 {
     $token = setelan('TELEGRAM_BOT_TOKEN');
     if (!$token) {
-        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur (isi di menu User).'];
+        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur (isi di menu Pengaturan).'];
     }
     $url = rtrim((string) env('TELEGRAM_API', 'https://api.telegram.org'), '/') . '/bot' . $token . '/sendDocument';
 
@@ -405,7 +405,7 @@ function kirimKeFonnte(string $pesan, string $target): array
     $token = setelan('FONNTE_TOKEN');
 
     if (!$token) {
-        return ['ok' => false, 'pesan' => 'FONNTE_TOKEN belum diatur (isi di menu User).'];
+        return ['ok' => false, 'pesan' => 'FONNTE_TOKEN belum diatur (isi di menu Pengaturan).'];
     }
     if ($target === '') {
         return ['ok' => false, 'pesan' => 'Belum ada nomor penerima WA yang aktif. Tambahkan di dashboard.'];

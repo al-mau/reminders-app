@@ -183,7 +183,7 @@ function pastikanTabelTambahan(PDO $pdo): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // Pengaturan aplikasi (kunci-nilai): token OneDrive, arsip lampiran, dan Environment Variable
-    // yang diisi Akses Penuh di menu User (lib/setelan.php). diubah_oleh = username yang terakhir mengubah.
+    // yang diisi Akses Penuh di menu Pengaturan (lib/setelan.php). diubah_oleh = username yang terakhir mengubah.
     $pdo->exec("CREATE TABLE IF NOT EXISTS pengaturan (
         kunci       VARCHAR(50)  NOT NULL PRIMARY KEY,
         nilai       TEXT         NULL,

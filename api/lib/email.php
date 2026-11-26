@@ -12,7 +12,7 @@
  */
 require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/skema.php';
-require_once __DIR__ . '/setelan.php';   // setelan(): token & SMTP dari menu User atau .env
+require_once __DIR__ . '/setelan.php';   // setelan(): token & SMTP dari menu Pengaturan atau .env
 require_once __DIR__ . '/phpmailer/Exception.php';
 require_once __DIR__ . '/phpmailer/PHPMailer.php';
 require_once __DIR__ . '/phpmailer/SMTP.php';
@@ -105,7 +105,7 @@ function pesanKeHtmlEmail(string $pesan, string $judul): string
 function kirimKeEmail(string $pesan, array $alamat, string $subjek): array
 {
     if (!emailSiap()) {
-        return ['ok' => false, 'pesan' => 'SMTP_HOST, SMTP_USER, atau SMTP_PASS belum diatur (isi di menu User).'];
+        return ['ok' => false, 'pesan' => 'SMTP_HOST, SMTP_USER, atau SMTP_PASS belum diatur (isi di menu Pengaturan).'];
     }
     if (!$alamat) {
         return ['ok' => false, 'pesan' => 'Belum ada alamat email penerima (tambahkan di dashboard atau isi EMAIL_TARGET).'];
@@ -189,7 +189,7 @@ function kirimKeSemua(PHPMailer $mail, array $alamat): array
 function kirimEmailLampiran(string $ke, string $subjek, string $pesan, string $namaFile, string $isi): array
 {
     if (!emailSiap()) {
-        return ['ok' => false, 'pesan' => 'SMTP_HOST, SMTP_USER, atau SMTP_PASS belum diatur (isi di menu User).'];
+        return ['ok' => false, 'pesan' => 'SMTP_HOST, SMTP_USER, atau SMTP_PASS belum diatur (isi di menu Pengaturan).'];
     }
     try {
         $mail = siapkanMailer();

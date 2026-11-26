@@ -34,8 +34,7 @@ PENTING
 2. PENGATURAN (file .env di folder reminders-app)
 ---------------------------------------------------------------------
 CARA MUDAH: token Fonnte/Telegram, SMTP, dan NOTIF_VIA bisa diisi langsung
-dari aplikasi (login Akses Penuh -> menu User -> tabel "Pengaturan
-Environment Variable" di bawah Daftar user). Nilainya langsung berlaku dan
+dari aplikasi (login Akses Penuh -> menu Pengaturan). Nilainya langsung berlaku dan
 mengalahkan isi file .env. Yang tetap harus di .env: DB_* dan CRON_SECRET.
 
 Atau isi lewat file .env (buka dengan Notepad):
@@ -106,7 +105,7 @@ Catatan: MySQL XAMPP harus sudah START saat jam 07.00.
 - "Koneksi database gagal"  -> MySQL di XAMPP belum START / DB_* di .env salah.
 - Halaman "Not Found"       -> pastikan foldernya htdocs\reminders-app
                                dan alamatnya http://localhost/reminders-app/
-- WA tidak terkirim         -> cek FONNTE_TOKEN (menu User atau .env), internet, dan status device
+- WA tidak terkirim         -> cek FONNTE_TOKEN (menu Pengaturan atau .env), internet, dan status device
                                di fonnte.com. Keterangan error ada di
                                Riwayat Pengiriman WA (dashboard).
 - Tabel kurang / error tabel -> buka http://localhost/reminders-app/setup.php?key=<CRON_SECRET>

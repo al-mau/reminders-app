@@ -1,11 +1,11 @@
 <?php
 /**
- * PENGATURAN YANG BISA DIUBAH ADMIN DARI APLIKASI (menu User → "Pengaturan Environment Variable")
+ * PENGATURAN YANG BISA DIUBAH ADMIN DARI APLIKASI (menu Pengaturan, pengaturan.php)
  *
  * Token Fonnte, token bot Telegram, SMTP, dan saluran aktif bisa diisi Akses Penuh langsung
  * dari aplikasi, tanpa membuka file .env (XAMPP) atau Redeploy di Vercel.
  *
- *  - setelan('FONNTE_TOKEN')  -> nilai dari halaman User bila diisi, selain itu dari .env / Vercel.
+ *  - setelan('FONNTE_TOKEN')  -> nilai dari menu Pengaturan bila diisi, selain itu dari .env / Vercel.
  *  - Nilai rahasia (token, password SMTP) disimpan terenkripsi AES-256-GCM di tabel `pengaturan`;
  *    kuncinya dari APP_KEY / CRON_SECRET yang hanya ada di server, bukan di database.
  *  - DB_* dan CRON_SECRET / APP_KEY TETAP di .env / Vercel: aplikasi harus terhubung ke database
@@ -50,7 +50,7 @@ function kunciSetelan(string $nama): string
 }
 
 /**
- * Nilai pengaturan: dari halaman User bila diisi, selain itu dari .env / Environment Variables.
+ * Nilai pengaturan: dari menu Pengaturan bila diisi, selain itu dari .env / Environment Variables.
  * Dibaca dari database sekali per request. Database tidak bisa dibaca -> tetap memakai .env.
  */
 function setelan(string $nama, $default = null)
@@ -63,7 +63,7 @@ function setelan(string $nama, $default = null)
 }
 
 /**
- * Semua pengaturan yang disimpan dari halaman User: nama => [nilai, diubah, oleh, rusak].
+ * Semua pengaturan yang disimpan dari menu Pengaturan: nama => [nilai, diubah, oleh, rusak].
  * rusak = true bila nilai rahasia tidak bisa dibuka (misalnya CRON_SECRET / APP_KEY diganti).
  */
 function setelanTersimpan(bool $muatUlang = false): array
@@ -139,7 +139,7 @@ function periksaSetelan(string $nama, $masukan): array
     return [null, 'Pengaturan tidak dikenal.'];
 }
 
-/** Simpan / hapus (null) satu pengaturan dari halaman User, dicatat siapa yang mengubah */
+/** Simpan / hapus (null) satu pengaturan dari menu Pengaturan, dicatat siapa yang mengubah */
 function simpanSetelan(PDO $pdo, string $nama, ?string $nilai, string $oleh): void
 {
     simpanPengaturan($pdo, kunciSetelan($nama), $nilai, SETELAN_APP[$nama]['rahasia']);
