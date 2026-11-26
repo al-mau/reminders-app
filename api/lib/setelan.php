@@ -1,11 +1,11 @@
 <?php
 /**
- * PENGATURAN YANG BISA DIUBAH ADMIN DARI APLIKASI (menu User → "Pengaturan Environment Variable")
+ * PENGATURAN YANG BISA DIUBAH ADMIN DARI APLIKASI (menu Pengaturan, pengaturan.php)
  *
  * Token Fonnte, token bot Telegram, SMTP, dan saluran aktif bisa diisi Akses Penuh langsung
  * dari aplikasi, tanpa membuka file .env (XAMPP) atau Redeploy di Vercel.
  *
- *  - setelan('FONNTE_TOKEN')  -> nilai dari halaman User bila diisi, selain itu dari .env / Vercel.
+ *  - setelan('FONNTE_TOKEN')  -> nilai dari menu Pengaturan bila diisi, selain itu dari .env / Vercel.
  *  - Nilai rahasia (token, password SMTP) disimpan terenkripsi AES-256-GCM di tabel `pengaturan`;
  *    kuncinya dari APP_KEY / CRON_SECRET yang hanya ada di server, bukan di database.
  *  - DB_* dan CRON_SECRET / APP_KEY TETAP di .env / Vercel: aplikasi harus terhubung ke database
@@ -20,17 +20,27 @@ require_once __DIR__ . '/skema.php';   // potong()
 /**
  * Daftar Environment Variable yang bisa diatur dari aplikasi, urut seperti tampil di tabel.
  * rahasia = disimpan terenkripsi dan tidak pernah ditampilkan lagi (hanya 4 karakter terakhir).
+ * wajib / sumber = isi popup ringkasan (tombol ? di judul tabel): perlu diisi atau tidak, dan dari mana didapat.
  */
 const SETELAN_APP = [
-    'FONNTE_TOKEN'        => ['untuk' => 'WhatsApp', 'ket' => 'Token device dari dashboard fonnte.com', 'rahasia' => true],
-    'TELEGRAM_BOT_TOKEN'  => ['untuk' => 'Telegram', 'ket' => 'Token bot dari @BotFather, contoh 123456:ABC-xyz', 'rahasia' => true],
-    'SMTP_HOST'           => ['untuk' => 'Email', 'ket' => 'Server SMTP, contoh smtp.gmail.com', 'rahasia' => false],
-    'SMTP_PORT'           => ['untuk' => 'Email', 'ket' => '587 (STARTTLS) atau 465 (SSL)', 'rahasia' => false],
-    'SMTP_USER'           => ['untuk' => 'Email', 'ket' => 'Alamat email untuk login SMTP', 'rahasia' => false],
-    'SMTP_PASS'           => ['untuk' => 'Email', 'ket' => 'App Password Gmail (16 huruf), bukan password biasa', 'rahasia' => true],
-    'EMAIL_PENGIRIM'      => ['untuk' => 'Email', 'ket' => 'Alamat pengirim; kosong = sama dengan SMTP_USER', 'rahasia' => false],
-    'EMAIL_NAMA_PENGIRIM' => ['untuk' => 'Email', 'ket' => 'Nama pengirim yang tampil di kotak masuk', 'rahasia' => false],
-    'NOTIF_VIA'           => ['untuk' => 'Saluran', 'ket' => 'Saluran yang dipakai: wa, telegram, email', 'rahasia' => false],
+    'FONNTE_TOKEN'        => ['untuk' => 'WhatsApp', 'ket' => 'Token device dari dashboard fonnte.com', 'rahasia' => true,
+                              'wajib' => 'Wajib bila pakai WA', 'sumber' => 'fonnte.com → Device → Token'],
+    'TELEGRAM_BOT_TOKEN'  => ['untuk' => 'Telegram', 'ket' => 'Token bot dari @BotFather, contoh 123456:ABC-xyz', 'rahasia' => true,
+                              'wajib' => 'Wajib bila pakai Telegram', 'sumber' => '@BotFather → /newbot'],
+    'SMTP_HOST'           => ['untuk' => 'Email', 'ket' => 'Server SMTP, contoh smtp.gmail.com', 'rahasia' => false,
+                              'wajib' => 'Wajib bila pakai email', 'sumber' => 'smtp.gmail.com (Gmail)'],
+    'SMTP_PORT'           => ['untuk' => 'Email', 'ket' => '587 (STARTTLS) atau 465 (SSL)', 'rahasia' => false,
+                              'wajib' => 'Tidak (bawaan 587)', 'sumber' => '587 atau 465'],
+    'SMTP_USER'           => ['untuk' => 'Email', 'ket' => 'Alamat email untuk login SMTP', 'rahasia' => false,
+                              'wajib' => 'Wajib bila pakai email', 'sumber' => 'Alamat Gmail pengirim'],
+    'SMTP_PASS'           => ['untuk' => 'Email', 'ket' => 'App Password Gmail (16 huruf), bukan password biasa', 'rahasia' => true,
+                              'wajib' => 'Wajib bila pakai email', 'sumber' => 'myaccount.google.com/apppasswords'],
+    'EMAIL_PENGIRIM'      => ['untuk' => 'Email', 'ket' => 'Alamat pengirim; kosong = sama dengan SMTP_USER', 'rahasia' => false,
+                              'wajib' => 'Tidak', 'sumber' => 'Kosongkan (= SMTP_USER)'],
+    'EMAIL_NAMA_PENGIRIM' => ['untuk' => 'Email', 'ket' => 'Nama pengirim yang tampil di kotak masuk', 'rahasia' => false,
+                              'wajib' => 'Tidak', 'sumber' => 'Bebas, bawaan "Pengingat Deadline"'],
+    'NOTIF_VIA'           => ['untuk' => 'Saluran', 'ket' => 'Saluran yang dipakai: wa, telegram, email', 'rahasia' => false,
+                              'wajib' => 'Tidak (bawaan WA)', 'sumber' => 'Centang WA / Telegram / Email'],
 ];
 
 /** Nama baris di tabel pengaturan untuk satu Environment Variable */
@@ -40,7 +50,7 @@ function kunciSetelan(string $nama): string
 }
 
 /**
- * Nilai pengaturan: dari halaman User bila diisi, selain itu dari .env / Environment Variables.
+ * Nilai pengaturan: dari menu Pengaturan bila diisi, selain itu dari .env / Environment Variables.
  * Dibaca dari database sekali per request. Database tidak bisa dibaca -> tetap memakai .env.
  */
 function setelan(string $nama, $default = null)
@@ -53,7 +63,7 @@ function setelan(string $nama, $default = null)
 }
 
 /**
- * Semua pengaturan yang disimpan dari halaman User: nama => [nilai, diubah, oleh, rusak].
+ * Semua pengaturan yang disimpan dari menu Pengaturan: nama => [nilai, diubah, oleh, rusak].
  * rusak = true bila nilai rahasia tidak bisa dibuka (misalnya CRON_SECRET / APP_KEY diganti).
  */
 function setelanTersimpan(bool $muatUlang = false): array
@@ -129,7 +139,7 @@ function periksaSetelan(string $nama, $masukan): array
     return [null, 'Pengaturan tidak dikenal.'];
 }
 
-/** Simpan / hapus (null) satu pengaturan dari halaman User, dicatat siapa yang mengubah */
+/** Simpan / hapus (null) satu pengaturan dari menu Pengaturan, dicatat siapa yang mengubah */
 function simpanSetelan(PDO $pdo, string $nama, ?string $nilai, string $oleh): void
 {
     simpanPengaturan($pdo, kunciSetelan($nama), $nilai, SETELAN_APP[$nama]['rahasia']);

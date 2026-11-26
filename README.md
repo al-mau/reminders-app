@@ -55,7 +55,8 @@ File JSON tidak bisa diberi komentar, jadi penjelasannya ditulis di sini:
 ## Pengaturan Environment Variable (dari aplikasi)
 
 Akun **Akses Penuh** bisa mengisi `FONNTE_TOKEN`, `TELEGRAM_BOT_TOKEN`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`,
-`EMAIL_PENGIRIM`, `EMAIL_NAMA_PENGIRIM`, dan `NOTIF_VIA` di menu **User → Pengaturan Environment Variable** (di bawah tabel Daftar user).
+`EMAIL_PENGIRIM`, `EMAIL_NAMA_PENGIRIM`, dan `NOTIF_VIA` di menu **Pengaturan** (`pengaturan.php`, menu terpisah yang hanya
+tampil dan bisa dibuka oleh Akses Penuh; tombol **?** di judul tabel menampilkan ringkasan tiap variabel).
 
 - Nilai dari menu ini **langsung berlaku** (tanpa ubah `.env` / Redeploy) dan **mengalahkan** nilai di `.env` / Vercel.
   Tombol **Pakai .env** menghapusnya sehingga aplikasi kembali memakai `.env` / Vercel.
@@ -63,7 +64,7 @@ Akun **Akses Penuh** bisa mengisi `FONNTE_TOKEN`, `TELEGRAM_BOT_TOKEN`, `SMTP_HO
   (hanya 4 karakter terakhir), dan dicatat siapa yang terakhir mengubah. Kunci enkripsi diambil dari `APP_KEY` / `CRON_SECRET`;
   bila kunci itu diganti, nilai rahasia harus disimpan ulang.
 - `DB_*`, `CRON_SECRET`, dan `APP_KEY` **tetap** di `.env` / Vercel (dibutuhkan sebelum database bisa dibaca).
-- Kode: `api/lib/setelan.php` (`setelan('FONNTE_TOKEN')` = nilai dari aplikasi, selain itu `env()`).
+- Kode: `api/pengaturan.php` (halaman) dan `api/lib/setelan.php` (`setelan('FONNTE_TOKEN')` = nilai dari aplikasi, selain itu `env()`).
 
 ## Hak akses user
 
@@ -79,6 +80,7 @@ Setiap akun punya satu hak akses. Hak akses diatur oleh akun **Akses Penuh** di 
 | Hapus unit & lampiran | ✓ | – | – |
 | Kelola penerima WhatsApp & Telegram | ✓ | – | – |
 | Kelola user & atur hak akses | ✓ | – | – |
+| Menu Pengaturan (token Fonnte/Telegram, SMTP, saluran) | ✓ | – | – |
 | Ubah nama, username, password akun sendiri | ✓ | ✓ | ✓ |
 
 - **Akses Penuh** — untuk pengelola aplikasi. Memegang hak yang berisiko besar: menghapus data (tidak bisa dibatalkan), menentukan ke mana pengingat dikirim, dan mengatur siapa yang boleh masuk.

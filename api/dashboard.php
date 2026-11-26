@@ -629,7 +629,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (str_starts_with($aksi, 'arsip_tg_')) {
         try {
             if (!setelan('TELEGRAM_BOT_TOKEN')) {
-                throw new RuntimeException('Isi TELEGRAM_BOT_TOKEN di menu User (Pengaturan Environment Variable) terlebih dahulu.');
+                throw new RuntimeException('Isi TELEGRAM_BOT_TOKEN di menu Pengaturan terlebih dahulu.');
             }
             if ($aksi === 'arsip_tg_cari') {
                 $hasil = cariChatTelegram();
@@ -1484,7 +1484,7 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <form method="POST" action="dashboard.php" class="mt-3">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="uji_wa">
-                    <button type="submit" class="btn btn-outline-secondary w-100" <?= setelan('FONNTE_TOKEN') ? '' : 'disabled title="Isi FONNTE_TOKEN di menu User dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim percobaan ke penerima aktif</button>
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= setelan('FONNTE_TOKEN') ? '' : 'disabled title="Isi FONNTE_TOKEN di menu Pengaturan dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim percobaan ke penerima aktif</button>
                 </form>
             </div>
             <?php endif; ?>
@@ -1499,7 +1499,7 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <span><?= $telegram_aktif; ?> aktif<?= $telegram_dipakai ? '' : ' · tidak dipakai'; ?></span>
             </div>
             <?php if (!$telegram_dipakai): ?>
-                <p class="catatan">Telegram belum dipakai. Isi <code>TELEGRAM_BOT_TOKEN</code> dan tambahkan <code>telegram</code> pada <code>NOTIF_VIA</code> di pengaturan server.</p>
+                <p class="catatan">Telegram belum dipakai. Isi <code>TELEGRAM_BOT_TOKEN</code> dan tambahkan <code>telegram</code> pada <code>NOTIF_VIA</code> di menu Pengaturan.</p>
             <?php endif; ?>
             <div class="daftar-penerima">
             <?php if (!$telegram_list): ?>
@@ -1553,12 +1553,12 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <form method="POST" action="dashboard.php" class="mt-3">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="uji_telegram">
-                    <button type="submit" class="btn btn-outline-secondary w-100" <?= setelan('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN di menu User dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim percobaan ke penerima aktif</button>
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= setelan('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN di menu Pengaturan dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim percobaan ke penerima aktif</button>
                 </form>
                 <form method="POST" action="dashboard.php" class="mt-2">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="cari_telegram">
-                    <button type="submit" class="btn btn-outline-secondary w-100" <?= setelan('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN di menu User dulu"'; ?>><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Cari chat yang sudah klik Start di bot</button>
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= setelan('TELEGRAM_BOT_TOKEN') ? '' : 'disabled title="Isi TELEGRAM_BOT_TOKEN di menu Pengaturan dulu"'; ?>><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Cari chat yang sudah klik Start di bot</button>
                 </form>
             </div>
             <?php endif; ?>
@@ -1573,7 +1573,7 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <span><?= $email_aktif; ?> aktif<?= $email_dipakai ? '' : ' · tidak dipakai'; ?></span>
             </div>
             <?php if (!$email_dipakai): ?>
-                <p class="catatan">Email belum dipakai untuk pengingat otomatis. Isi <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>, lalu tambahkan <code>email</code> pada <code>NOTIF_VIA</code> di pengaturan server.</p>
+                <p class="catatan">Email belum dipakai untuk pengingat otomatis. Isi <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>, lalu tambahkan <code>email</code> pada <code>NOTIF_VIA</code> di menu Pengaturan.</p>
             <?php endif; ?>
             <div class="daftar-penerima">
             <?php if (!$email_list): ?>
@@ -1611,7 +1611,7 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                 <form method="POST" action="dashboard.php" class="mt-3">
                     <?= csrf_field(); ?>
                     <input type="hidden" name="aksi" value="uji_email">
-                    <button type="submit" class="btn btn-outline-secondary w-100" <?= emailSiap() ? '' : 'disabled title="Isi SMTP_HOST, SMTP_USER, dan SMTP_PASS di menu User dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim percobaan ke penerima aktif</button>
+                    <button type="submit" class="btn btn-outline-secondary w-100" <?= emailSiap() ? '' : 'disabled title="Isi SMTP_HOST, SMTP_USER, dan SMTP_PASS di menu Pengaturan dulu"'; ?>><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Kirim percobaan ke penerima aktif</button>
                 </form>
             </div>
             <?php endif; ?>
@@ -1666,7 +1666,7 @@ $judul_menu = ['beranda' => 'Beranda', 'unit' => 'Daftar Unit', 'penerima' => 'P
                     <?php if ($od_mode === 'telegram'): ?><span class="badge tanda aktif">aktif</span><?php endif; ?></h3>
                 <p class="ket">Bot pengingat mengirim setiap lampiran baru sebagai file ke grup arsip. Untuk demo / data contoh.</p>
                 <?php if (!setelan('TELEGRAM_BOT_TOKEN')): ?>
-                    <p class="ket teks-merah mb-0">TELEGRAM_BOT_TOKEN belum diatur (isi di menu User).</p>
+                    <p class="ket teks-merah mb-0">TELEGRAM_BOT_TOKEN belum diatur (isi di menu Pengaturan).</p>
                 <?php else: ?>
                     <?php if ($tg_arsip !== ''): $tg_nama = ambilPengaturan($pdo, 'arsip_telegram_nama'); ?>
                     <div class="status-panel">

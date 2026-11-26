@@ -46,6 +46,9 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
         'riwayat'  => ['Riwayat Kirim', 'dashboard.php?menu=riwayat'],
         'pengguna' => [$peran === 'admin' ? 'User' : 'Akun saya', 'users.php'],
     ];
+    if ($peran === 'admin') {
+        $menu['pengaturan'] = ['Pengaturan', 'pengaturan.php'];   // hanya Akses Penuh (lihat pengaturan.php)
+    }
     $html = '<aside class="side"><div class="side-isi">'
         . '<a class="brand" href="dashboard.php?menu=beranda">'
         . '<span class="brand-logo"><img src="logo-brk-syariah.webp" alt="BRK Syariah" width="160" height="33"></span>'
@@ -55,7 +58,10 @@ function sidebarAplikasi(string $aktif, array $angka = []): string
         $html .= '<a href="' . $url . '"' . ($kunci === $aktif ? ' class="on" aria-current="page"' : '') . '>'
             . e($label) . (isset($angka[$kunci]) ? '<span>' . (int) $angka[$kunci] . '</span>' : '') . '</a>';
     }
-    return $html . '</nav>'
+    // Di HP menu bisa digeser ke samping: geser otomatis agar menu yang sedang dibuka terlihat
+    $html .= '</nav><script>(function(){var n=document.currentScript.previousElementSibling,a=n.querySelector(\'a.on\');'
+        . 'if(a&&a.offsetLeft+a.offsetWidth>n.clientWidth){n.scrollLeft=a.offsetLeft+a.offsetWidth-n.clientWidth+16;}})();</script>';
+    return $html
         . '<div class="side-bawah"><b>' . e($_SESSION['username'] ?? 'admin') . '</b>'
         . (function_exists('labelPeran') && $peran !== '' ? '<span class="peran-saya">' . e(labelPeran($peran)) . '</span>' : '')
         . '<a class="btn-keluar" href="logout.php"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i> Keluar</a></div>'

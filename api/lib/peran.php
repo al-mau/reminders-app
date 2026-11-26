@@ -1,6 +1,6 @@
 <?php
 /**
- * Peran (hak akses) pengguna. Dipakai oleh dashboard.php, users.php, dan sidebar.
+ * Peran (hak akses) pengguna. Dipakai oleh dashboard.php, users.php, pengaturan.php, dan sidebar.
  *
  *  admin    -> semua: kelola unit, hapus data, kelola penerima, kelola pengguna
  *  staf     -> kerja harian: tambah/edit unit, tandai selesai, kirim pengingat, unggah lampiran
@@ -27,6 +27,7 @@ const HAK_PERAN = [
     'hapus_data'      => ['admin'],           // hapus unit dan lampiran (tidak bisa dibatalkan)
     'kelola_penerima' => ['admin'],           // nomor WhatsApp & chat Telegram tujuan pengingat
     'kelola_pengguna' => ['admin'],           // tambah, ubah, hapus akun dan mengatur peran
+    'atur_setelan'    => ['admin'],           // menu Pengaturan: token Fonnte/Telegram, SMTP, NOTIF_VIA (pengaturan.php)
 ];
 
 /** Peran akun yang sedang login: 'admin' / 'staf' / 'pemantau', atau '' bila akunnya sudah tidak ada */
