@@ -118,10 +118,8 @@ body.app .kaki { margin-top: auto; text-align: right; }
 .card.info { flex-direction: row; gap: 8px 32px; flex-wrap: wrap; padding: 14px 20px; color: var(--tinta2); font-size: 14px; }
 .card.info b { color: var(--tinta); font-weight: 600; }
 .card.info a { margin-left: auto; text-decoration: none; }
-/* Dua kolom (class Bootstrap: row + col-lg-6 / col-lg), jarak antarkolom 18px.
-   Halaman User: kolom daftar dua kali lebar kolom form (col-lg + kolom-lebar). */
+/* Dua kolom (class Bootstrap: row + col-lg-6 / col-lg), jarak antarkolom 18px. */
 .isi > .row { --bs-gutter-x: 18px; --bs-gutter-y: 18px; }
-@media (min-width: 992px) { .kolom-lebar { flex-grow: 2; } }
 /* Label peran pengguna: Admin / Staf / Pemantau (class Bootstrap: badge) */
 .badge.peran { --bs-badge-font-size: 12.5px; --bs-badge-font-weight: 500; --bs-badge-border-radius: 3px; --bs-badge-padding-x: 7px;
     --bs-badge-padding-y: 1px; line-height: inherit; text-align: left; vertical-align: baseline; border-width: 1px; border-style: solid; }
