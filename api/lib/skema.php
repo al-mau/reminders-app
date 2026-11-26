@@ -47,7 +47,7 @@ const LAMPIRAN_TIPE = [
 function pastikanTabelTambahan(PDO $pdo): void
 {
     static $sudah = false;
-    if ($sudah || !empty($_SESSION['skema_tambahan_v15'])) {
+    if ($sudah || !empty($_SESSION['skema_tambahan_v16'])) {
         return;
     }
 
@@ -182,12 +182,18 @@ function pastikanTabelTambahan(PDO $pdo): void
         INDEX idx_user_waktu (username, waktu)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-    // Pengaturan aplikasi (kunci-nilai), mis. token OneDrive yang disimpan terenkripsi (lib/onedrive.php)
+    // Pengaturan aplikasi (kunci-nilai): token OneDrive, arsip lampiran, dan Environment Variable
+    // yang diisi Akses Penuh di menu User (lib/setelan.php). diubah_oleh = username yang terakhir mengubah.
     $pdo->exec("CREATE TABLE IF NOT EXISTS pengaturan (
-        kunci  VARCHAR(50)  NOT NULL PRIMARY KEY,
-        nilai  TEXT         NULL,
-        diubah DATETIME     NOT NULL
+        kunci       VARCHAR(50)  NOT NULL PRIMARY KEY,
+        nilai       TEXT         NULL,
+        diubah      DATETIME     NOT NULL,
+        diubah_oleh VARCHAR(50)  NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $kolomPengaturan = $pdo->query("SHOW COLUMNS FROM pengaturan")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('diubah_oleh', $kolomPengaturan, true)) {
+        $pdo->exec("ALTER TABLE pengaturan ADD COLUMN diubah_oleh VARCHAR(50) NULL");
+    }
 
     // Status salinan lampiran di OneDrive: NULL = belum, ok = tersimpan (onedrive_url), gagal = dicoba lagi oleh cron
     $kolomLampiran = $pdo->query("SHOW COLUMNS FROM lampiran")->fetchAll(PDO::FETCH_COLUMN);
@@ -198,7 +204,7 @@ function pastikanTabelTambahan(PDO $pdo): void
 
     $sudah = true;
     if (session_status() === PHP_SESSION_ACTIVE) {
-        $_SESSION['skema_tambahan_v15'] = true;
+        $_SESSION['skema_tambahan_v16'] = true;
     }
 }
 

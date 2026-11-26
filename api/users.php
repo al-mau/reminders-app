@@ -1,6 +1,8 @@
 <?php
 /**
  * Kelola User: tambah akun, atur peran, ubah akun (username, nama, password), hapus akun.
+ * Akses Penuh juga mengisi "Pengaturan Environment Variable" (token Fonnte/Telegram, SMTP, saluran)
+ * langsung dari aplikasi; nilainya mengalahkan .env / Vercel (lib/setelan.php).
  * Admin melihat & mengelola semua akun; Staf dan Pemantau hanya melihat & mengubah akunnya sendiri
  * (menu "Akun saya"). Peran dijelaskan di lib/peran.php.
  * Username dipakai sebagai kunci karena kolom ID tabel users bisa berbeda (id / id_user).
@@ -9,6 +11,7 @@ require_once __DIR__ . '/lib/koneksi.php';
 require_once __DIR__ . '/lib/session_handler.php';
 require_once __DIR__ . '/lib/tampilan.php';
 require_once __DIR__ . '/lib/peran.php';
+require_once __DIR__ . '/lib/setelan.php';   // Pengaturan Environment Variable
 
 if (empty($_SESSION['login'])) {
     header("Location: login.php");
@@ -242,6 +245,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // --- PENGATURAN ENVIRONMENT VARIABLE (hanya Akses Penuh, sudah dicek di atas) ---
+    if ($aksi === 'simpan_setelan' || $aksi === 'hapus_setelan') {
+        $nama = (string) ($_POST['nama'] ?? '');
+        if (!isset(SETELAN_APP[$nama])) {
+            flashUser('danger', 'Pengaturan tidak dikenal.');
+        } elseif ($aksi === 'hapus_setelan') {
+            simpanSetelan($pdo, $nama, null, $saya);
+            flashUser('warning', "$nama kembali memakai nilai dari .env / Vercel" . (env($nama) ? '.' : ' (di sana belum diisi).'));
+        } else {
+            [$nilai, $error] = periksaSetelan($nama, $_POST['nilai'] ?? '');
+            if ($error) {
+                flashUser('danger', "$nama: $error");
+            } else {
+                try {
+                    simpanSetelan($pdo, $nama, $nilai, $saya);
+                    flashUser('success', "$nama disimpan dan langsung berlaku" . (SETELAN_APP[$nama]['rahasia'] ? ' (tersimpan terenkripsi).' : '.')
+                        . ' Coba dengan tombol Kirim percobaan di menu Penerima.');
+                } catch (RuntimeException $e) {
+                    flashUser('danger', $e->getMessage());
+                }
+            }
+        }
+        header("Location: users.php#setelan");
+        exit;
+    }
+
     header("Location: users.php");
     exit;
 }
@@ -256,6 +285,7 @@ if (!$admin) {
     $users = array_values(array_filter($users, static fn($u) => $u['username'] === $saya));
 }
 $judul = $admin ? 'User' : 'Akun saya';
+$setelanApp = $admin ? setelanTersimpan() : [];
 
 $flash = $_SESSION['flash_user'] ?? [];
 unset($_SESSION['flash_user']);
@@ -330,6 +360,65 @@ unset($_SESSION['flash_user']);
                 </table>
             </div>
         </section>
+
+        <?php if ($admin): ?>
+        <!-- Pengaturan Environment Variable: diisi dari aplikasi, mengalahkan .env / Vercel (lib/setelan.php) -->
+        <section class="card mt-3" id="setelan">
+            <div class="card-header d-flex justify-content-between align-items-baseline"><h2>Pengaturan Environment Variable</h2><span><?= count($setelanApp); ?> dari <?= count(SETELAN_APP); ?> diisi di sini</span></div>
+            <div class="table-responsive">
+                <table class="tabel-a">
+                    <thead>
+                        <tr>
+                            <th>Variabel</th>
+                            <th>Untuk</th>
+                            <th>Nilai yang dipakai</th>
+                            <th><span class="visually-hidden">Aksi</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach (SETELAN_APP as $nama => $info): $isi = $setelanApp[$nama] ?? null; ?>
+                        <tr>
+                            <td data-label="Variabel"><span class="nama mono"><?= e($nama); ?></span><div class="form-text mt-0"><?= e($info['ket']); ?></div></td>
+                            <td data-label="Untuk"><?= e($info['untuk']); ?></td>
+                            <td data-label="Nilai yang dipakai">
+                                <?php if ($isi && $isi['rusak']): ?>
+                                    <span class="teks-merah">Tidak bisa dibuka (APP_KEY / CRON_SECRET berubah), simpan ulang</span>
+                                <?php elseif ($isi): ?>
+                                    <span class="mono text-nowrap"><?= e(tampilanSetelan($nama, (string) $isi['nilai'])); ?></span>
+                                    <div class="form-text mt-0">Dari menu ini · <?= e($isi['oleh'] ?: '-'); ?>, <?= e(date('d.m.Y H:i', strtotime((string) $isi['diubah']))); ?></div>
+                                <?php elseif (env($nama) !== null && env($nama) !== ''): ?>
+                                    <span class="text-body-secondary">Dari .env / Vercel</span>
+                                <?php elseif (in_array($nama, ['EMAIL_PENGIRIM', 'EMAIL_NAMA_PENGIRIM'], true)): ?>
+                                    <span class="text-body-secondary">Kosong (opsional)</span>
+                                <?php else: ?>
+                                    <span class="teks-merah">Belum diisi</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <div class="aksi">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalSetelan<?= e($nama); ?>">Ubah</button>
+                                    <?php if ($isi): ?>
+                                    <form method="POST" action="users.php" onsubmit="return confirm(this.dataset.konfirmasi)"
+                                          data-konfirmasi="Hapus <?= e($nama); ?> dari menu ini dan kembali memakai nilai dari .env / Vercel?">
+                                        <?= csrf_field(); ?>
+                                        <input type="hidden" name="aksi" value="hapus_setelan">
+                                        <input type="hidden" name="nama" value="<?= e($nama); ?>">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">Pakai .env</button>
+                                    </form>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="catatan mb-2">
+                Nilai di sini langsung berlaku tanpa mengubah file <code>.env</code> atau Redeploy, dan mengalahkan nilai di <code>.env</code> / Vercel.
+                Token dan password disimpan terenkripsi dan tidak ditampilkan lagi. <code>DB_*</code>, <code>CRON_SECRET</code>, dan <code>APP_KEY</code> tetap diatur di <code>.env</code> / Vercel.
+            </p>
+        </section>
+        <?php endif; ?>
         </div>
 
         <?php if ($admin): ?>
@@ -444,6 +533,52 @@ unset($_SESSION['flash_user']);
                             ? 'Ini akun Anda. Jika username atau password diganti, login berikutnya memakai data baru.'
                             : 'Jika username atau password diganti, user ini otomatis keluar dari semua perangkat dan harus login ulang.'; ?>
                     </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endforeach; ?>
+
+<?php // Popup "Ubah" untuk setiap Environment Variable (hanya Akses Penuh) ?>
+<?php foreach ($admin ? SETELAN_APP : [] as $nama => $info): $isi = $setelanApp[$nama] ?? null; ?>
+<div class="modal fade" id="modalSetelan<?= e($nama); ?>" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="users.php" autocomplete="off">
+                <div class="modal-header">
+                    <h5 class="modal-title">Ubah · <span class="mono"><?= e($nama); ?></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <?= csrf_field(); ?>
+                    <input type="hidden" name="aksi" value="simpan_setelan">
+                    <input type="hidden" name="nama" value="<?= e($nama); ?>">
+                    <?php if ($nama === 'NOTIF_VIA'): $aktif = explode(',', strtolower((string) setelan('NOTIF_VIA', 'wa'))); ?>
+                        <div class="form-label">Saluran yang dipakai</div>
+                        <?php foreach (['wa' => 'WhatsApp', 'telegram' => 'Telegram', 'email' => 'Email'] as $kode => $label): ?>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="nilai[]" value="<?= $kode; ?>" id="via<?= $kode; ?>" <?= in_array($kode, array_map('trim', $aktif), true) ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="via<?= $kode; ?>"><?= $label; ?></label>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php elseif ($info['rahasia']): ?>
+                        <label class="form-label" for="nilai<?= e($nama); ?>">Nilai baru</label>
+                        <div class="input-group">
+                            <input type="password" id="nilai<?= e($nama); ?>" name="nilai" class="form-control mono" maxlength="255" autocomplete="new-password" required
+                                   placeholder="<?= $isi ? 'Isi untuk mengganti nilai yang tersimpan' : 'Tempel nilainya di sini'; ?>">
+                            <?= tombol_mata(); ?>
+                        </div>
+                    <?php else: ?>
+                        <label class="form-label" for="nilai<?= e($nama); ?>">Nilai</label>
+                        <input type="<?= $nama === 'SMTP_PORT' ? 'number' : 'text'; ?>" id="nilai<?= e($nama); ?>" name="nilai" class="form-control mono" maxlength="255" required
+                               value="<?= e((string) setelan($nama, '')); ?>">
+                    <?php endif; ?>
+                    <div class="form-text"><?= e($info['ket']); ?>. Berlaku langsung setelah disimpan.</div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-link" data-bs-dismiss="modal">Batal</button>

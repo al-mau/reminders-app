@@ -42,6 +42,7 @@
 
 require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/skema.php';
+require_once __DIR__ . '/setelan.php';   // ambilPengaturan(), simpanPengaturan(), setelan()
 require_once __DIR__ . '/email.php';
 require_once __DIR__ . '/fonnte.php';
 
@@ -85,7 +86,7 @@ function onedriveMode(PDO $pdo): ?string
     if (arsipEmail($pdo) !== '' && emailSiap()) {
         return 'email';
     }
-    return arsipTelegram($pdo) !== '' && env('TELEGRAM_BOT_TOKEN') ? 'telegram' : null;
+    return arsipTelegram($pdo) !== '' && setelan('TELEGRAM_BOT_TOKEN') ? 'telegram' : null;
 }
 
 /** Chat id grup Telegram arsip: pengaturan dashboard, cadangan TELEGRAM_ARSIP_CHAT_ID */
@@ -130,59 +131,6 @@ function onedriveFolder(): string
 {
     $folder = trim((string) env('ONEDRIVE_FOLDER', 'Aplikasi Pengingat Deadline/Lampiran'), " /");
     return $folder !== '' ? $folder : 'Aplikasi Pengingat Deadline/Lampiran';
-}
-
-// -------------------------------------------------------------------
-// Penyimpanan pengaturan (token disimpan terenkripsi)
-// -------------------------------------------------------------------
-
-/** Kunci enkripsi dari APP_KEY / CRON_SECRET (rahasia server, tidak ada di database) */
-function kunciRahasia(): string
-{
-    $rahasia = (string) (env('APP_KEY') ?: env('CRON_SECRET', ''));
-    if ($rahasia === '') {
-        throw new RuntimeException('Isi APP_KEY atau CRON_SECRET di Environment Variables agar token OneDrive bisa disimpan terenkripsi.');
-    }
-    return hash('sha256', 'pengingat-onedrive|' . $rahasia, true);
-}
-
-function sandikan(string $teks): string
-{
-    $iv  = random_bytes(12);
-    $tag = '';
-    $isi = openssl_encrypt($teks, 'aes-256-gcm', kunciRahasia(), OPENSSL_RAW_DATA, $iv, $tag);
-    return base64_encode($iv . $tag . $isi);
-}
-
-function bukaSandi(string $data): ?string
-{
-    $raw = base64_decode($data, true);
-    if ($raw === false || strlen($raw) < 29) {
-        return null;
-    }
-    $teks = openssl_decrypt(substr($raw, 28), 'aes-256-gcm', kunciRahasia(), OPENSSL_RAW_DATA, substr($raw, 0, 12), substr($raw, 12, 16));
-    return $teks === false ? null : $teks;
-}
-
-function ambilPengaturan(PDO $pdo, string $kunci, bool $rahasia = false): ?string
-{
-    $stmt = $pdo->prepare("SELECT nilai FROM pengaturan WHERE kunci = ?");
-    $stmt->execute([$kunci]);
-    $nilai = $stmt->fetchColumn();
-    if ($nilai === false || $nilai === null) {
-        return null;
-    }
-    return $rahasia ? bukaSandi((string) $nilai) : (string) $nilai;
-}
-
-function simpanPengaturan(PDO $pdo, string $kunci, ?string $nilai, bool $rahasia = false): void
-{
-    if ($nilai === null) {
-        $pdo->prepare("DELETE FROM pengaturan WHERE kunci = ?")->execute([$kunci]);
-        return;
-    }
-    $pdo->prepare("REPLACE INTO pengaturan (kunci, nilai, diubah) VALUES (?, ?, ?)")
-        ->execute([$kunci, $rahasia ? sandikan($nilai) : $nilai, date('Y-m-d H:i:s')]);
 }
 
 // -------------------------------------------------------------------

@@ -11,6 +11,7 @@
  */
 require_once __DIR__ . '/koneksi.php';
 require_once __DIR__ . '/skema.php';
+require_once __DIR__ . '/setelan.php';   // setelan(): token & SMTP dari menu User atau .env
 require_once __DIR__ . '/email.php';
 
 /**
@@ -86,7 +87,7 @@ function daftarNomorPenerima(): array
 /** Saluran notifikasi yang aktif menurut NOTIF_VIA, contoh: ['wa'], ['wa', 'telegram'], ['wa', 'telegram', 'email'] */
 function saluranNotifikasi(): array
 {
-    $pilihan = array_map('trim', preg_split('/[,;+ ]+/', strtolower((string) env('NOTIF_VIA', 'wa'))));
+    $pilihan = array_map('trim', preg_split('/[,;+ ]+/', strtolower((string) setelan('NOTIF_VIA', 'wa'))));
     $saluran = array_values(array_intersect(['wa', 'telegram', 'email'], $pilihan));
     return $saluran ?: ['wa'];
 }
@@ -95,8 +96,8 @@ function saluranNotifikasi(): array
 function saluranSiap(): array
 {
     return array_keys(array_filter([
-        'wa'       => (string) env('FONNTE_TOKEN', '') !== '',
-        'telegram' => (string) env('TELEGRAM_BOT_TOKEN', '') !== '',
+        'wa'       => (string) setelan('FONNTE_TOKEN', '') !== '',
+        'telegram' => (string) setelan('TELEGRAM_BOT_TOKEN', '') !== '',
         'email'    => emailSiap(),
     ]));
 }
@@ -136,9 +137,9 @@ function daftarChatTelegram(): array
  */
 function cariChatTelegram(): array
 {
-    $token = env('TELEGRAM_BOT_TOKEN');
+    $token = setelan('TELEGRAM_BOT_TOKEN');
     if (!$token) {
-        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur.', 'chat' => []];
+        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur (isi di menu User).', 'chat' => []];
     }
 
     $url  = rtrim((string) env('TELEGRAM_API', 'https://api.telegram.org'), '/') . '/bot' . $token . '/getUpdates';
@@ -284,9 +285,9 @@ function pesanKeHtmlTelegram(string $pesan): string
  */
 function kirimKeTelegram(string $pesan, array $chatIds): array
 {
-    $token = env('TELEGRAM_BOT_TOKEN');
+    $token = setelan('TELEGRAM_BOT_TOKEN');
     if (!$token) {
-        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur.'];
+        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur (isi di menu User).'];
     }
     if (!$chatIds) {
         return ['ok' => false, 'pesan' => 'Belum ada chat Telegram penerima (tambahkan di dashboard atau isi TELEGRAM_CHAT_ID).'];
@@ -344,9 +345,9 @@ function kirimKeTelegram(string $pesan, array $chatIds): array
  */
 function kirimDokumenTelegram(string $chatId, string $namaFile, string $isi, string $captionHtml): array
 {
-    $token = env('TELEGRAM_BOT_TOKEN');
+    $token = setelan('TELEGRAM_BOT_TOKEN');
     if (!$token) {
-        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur.'];
+        return ['ok' => false, 'pesan' => 'TELEGRAM_BOT_TOKEN belum diatur (isi di menu User).'];
     }
     $url = rtrim((string) env('TELEGRAM_API', 'https://api.telegram.org'), '/') . '/bot' . $token . '/sendDocument';
 
@@ -401,10 +402,10 @@ function kirimDokumenTelegram(string $chatId, string $namaFile, string $isi, str
  */
 function kirimKeFonnte(string $pesan, string $target): array
 {
-    $token = env('FONNTE_TOKEN');
+    $token = setelan('FONNTE_TOKEN');
 
     if (!$token) {
-        return ['ok' => false, 'pesan' => 'FONNTE_TOKEN belum diatur.'];
+        return ['ok' => false, 'pesan' => 'FONNTE_TOKEN belum diatur (isi di menu User).'];
     }
     if ($target === '') {
         return ['ok' => false, 'pesan' => 'Belum ada nomor penerima WA yang aktif. Tambahkan di dashboard.'];

@@ -115,14 +115,16 @@ CREATE TABLE IF NOT EXISTS log_pengiriman (
     INDEX idx_waktu (waktu)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Percobaan login gagal (pembatasan brute force)
--- Pengaturan aplikasi (kunci-nilai), mis. token OneDrive terenkripsi
+-- Pengaturan aplikasi (kunci-nilai): token OneDrive, arsip lampiran, dan Environment Variable
+-- yang diisi Akses Penuh di menu User (rahasia disimpan terenkripsi)
 CREATE TABLE IF NOT EXISTS pengaturan (
-    kunci  VARCHAR(50)  NOT NULL PRIMARY KEY,
-    nilai  TEXT         NULL,
-    diubah DATETIME     NOT NULL
+    kunci       VARCHAR(50)  NOT NULL PRIMARY KEY,
+    nilai       TEXT         NULL,
+    diubah      DATETIME     NOT NULL,
+    diubah_oleh VARCHAR(50)  NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Percobaan login gagal (pembatasan brute force)
 CREATE TABLE IF NOT EXISTS login_gagal (
     id       INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL,
